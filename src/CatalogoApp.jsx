@@ -54,7 +54,7 @@ function TelaFechada({ config, showInstall, iosInstall, install, dismiss }) {
       {/* Banner instalação PWA */}
       {(showInstall === true || showInstall === 'manual') && (
         <div className="mx-4 mt-3 rounded-2xl shadow-lg overflow-hidden">
-          {showInstall === true && !isIOS && (
+          {showInstall === true && !iosInstall && (
             <div className="bg-green-700 text-white p-3 flex items-center gap-3">
               <img src="/logo-korin.png" alt="" className="w-10 h-10 rounded-xl flex-shrink-0 bg-white p-1" />
               <div className="flex-1 min-w-0">
@@ -64,10 +64,10 @@ function TelaFechada({ config, showInstall, iosInstall, install, dismiss }) {
               <button onClick={dismiss} className="text-green-300 text-2xl">✕</button>
             </div>
           )}
-          {(showInstall === 'manual' || isIOS) && (
+          {(showInstall === 'manual' || iosInstall) && (
             <div className="bg-white border-2 border-green-600 p-4">
               <div className="text-sm font-black text-green-800 mb-2">📲 Instalar o Clube Korin</div>
-              {isIOS ? (
+              {iosInstall ? (
                 <div className="text-sm text-stone-600">Toque em <strong>Compartilhar ↑</strong> → <strong>"Adicionar à tela de início"</strong></div>
               ) : (
                 <div className="text-sm text-stone-600 space-y-1">
