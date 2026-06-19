@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import AuthGate from './AuthGate'
 import './index.css'
 import { logPwaInstall } from './lib/pwa'
 import { Analytics } from '@vercel/analytics/react'
@@ -26,7 +27,9 @@ window.addEventListener('appinstalled', () => logPwaInstall('admin'))
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    <AuthGate>
+      {(org) => <App org={org} />}
+    </AuthGate>
     <Analytics />
   </React.StrictMode>
 )
