@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 import { logPwaInstall } from './lib/pwa'
+import { Analytics } from '@vercel/analytics/react'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
@@ -26,5 +27,6 @@ window.addEventListener('appinstalled', () => logPwaInstall('admin'))
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
+    <Analytics />
   </React.StrictMode>
 )
