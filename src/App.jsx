@@ -353,10 +353,10 @@ export default function App({ org }) {
       </nav>
 
       {/* RODAPÉ */}
-      <footer className="fixed bottom-0 left-0 w-full bg-green-900 z-20 flex items-center justify-between px-3 py-1">
-        <span className="text-green-400 font-semibold whitespace-nowrap" style={{fontSize:'10px'}}>© Todos os Direitos Reservados — Clube de Compras Korin</span>
+      <footer className="fixed bottom-0 left-0 w-full bg-green-900 z-20 flex items-center justify-between px-3 py-1 gap-2">
+        <span className="text-green-400 font-semibold truncate min-w-0" style={{fontSize:'10px'}}>© Todos os Direitos Reservados — Clube de Compras Korin</span>
         <a href="https://www.personalsupport.tec.br/" target="_blank" rel="noopener noreferrer"
-          className="text-green-300 font-bold hover:text-white transition-colors underline underline-offset-2 flex-shrink-0 ml-2 whitespace-nowrap" style={{fontSize:'10px'}}>
+          className="text-green-300 font-bold hover:text-white transition-colors underline underline-offset-2 flex-shrink-0 whitespace-nowrap" style={{fontSize:'10px'}}>
           Desenvolvido por Personal Support
         </a>
       </footer>

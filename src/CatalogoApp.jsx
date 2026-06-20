@@ -33,12 +33,12 @@ function Header({ config, org }) {
 
 function Rodape() {
   return (
-    <footer className="bg-green-900 flex items-center justify-between px-3 py-1.5 mt-4">
-      <span className="text-green-400 font-semibold whitespace-nowrap" style={{ fontSize: '10px' }}>
+    <footer className="bg-green-900 px-3 py-2 text-center space-y-0.5">
+      <div className="text-green-400 font-semibold" style={{ fontSize: '10px' }}>
         © Todos os Direitos Reservados — Clube de Compras Korin
-      </span>
+      </div>
       <a href="https://www.personalsupport.tec.br/" target="_blank" rel="noopener noreferrer"
-        className="text-green-300 font-bold hover:text-white underline flex-shrink-0 ml-2 whitespace-nowrap" style={{ fontSize: '10px' }}>
+        className="block text-green-300 font-bold hover:text-white underline" style={{ fontSize: '10px' }}>
         Desenvolvido por Personal Support
       </a>
     </footer>
