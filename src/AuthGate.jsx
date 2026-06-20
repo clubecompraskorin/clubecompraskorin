@@ -7,12 +7,16 @@ export default function AuthGate({ children }) {
   const [org, setOrg] = useState(null)
   const [erroOrg, setErroOrg] = useState(false)
 
-  const resolverOrg = async () => {
-    const o = await getOrgDoUsuario()
-    if (!o) { setErroOrg(true); setStatus('fora'); await signOut(); return }
-    setOrg(o)
-    setErroOrg(false)
-    setStatus('dentro')
+  const resolverOrg = async (tentativas = 4) => {
+    setStatus('checando')
+    for (let i = 0; i < tentativas; i++) {
+      const o = await getOrgDoUsuario()
+      if (o) { setOrg(o); setErroOrg(false); setStatus('dentro'); return }
+      if (i < tentativas - 1) await new Promise(r => setTimeout(r, 600))
+    }
+    setErroOrg(true)
+    setStatus('fora')
+    await signOut()
   }
 
   useEffect(() => {
@@ -45,7 +49,7 @@ export default function AuthGate({ children }) {
             Não encontramos uma organização vinculada a essa conta. Fale com o suporte.
           </div>
         )}
-        <Login onSuccess={() => setStatus('checando')} />
+        <Login onSuccess={resolverOrg} />
       </>
     )
   }
