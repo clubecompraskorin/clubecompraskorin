@@ -27,10 +27,10 @@ const local = {
 }
 
 // ── FILA DE SYNC (operações que falharam por falta de internet) ───────────────
-const enqueue = (key, value) => {
+const enqueue = (orgId, key, value) => {
   const q = local.get(K.queue) || []
   const sem = q.filter(x => x.key !== key)          // remove entrada anterior da mesma chave
-  sem.push({ key, value, ts: Date.now() })
+  sem.push({ orgId, key, value, ts: Date.now() })
   local.set(K.queue, sem)
 }
 
@@ -44,10 +44,14 @@ export const flushQueue = async () => {
   let flushed = 0
 
   for (const item of q) {
+    if (!item.orgId) { remaining.push(item); continue } // item antigo sem org, descarta do retry automático
     try {
       const { error } = await supabase
         .from('korin_data')
-        .upsert({ key: item.key, value: item.value, updated_at: new Date().toISOString() })
+        .upsert(
+          { org_id: item.orgId, key: item.key, value: item.value, updated_at: new Date().toISOString() },
+          { onConflict: 'org_id,key' }
+        )
       if (error) throw error
       flushed++
     } catch {
@@ -61,26 +65,29 @@ export const flushQueue = async () => {
 }
 
 // ── PUSH INDIVIDUAL (escrita + fallback para fila) ────────────────────────────
-const push = async (key, value) => {
-  if (!supabase) { enqueue(key, value); return false }
+const push = async (orgId, key, value) => {
+  if (!supabase || !orgId) { enqueue(orgId, key, value); return false }
   try {
     const { error } = await supabase
       .from('korin_data')
-      .upsert({ key, value, updated_at: new Date().toISOString() })
+      .upsert(
+        { org_id: orgId, key, value, updated_at: new Date().toISOString() },
+        { onConflict: 'org_id,key' }
+      )
     if (error) throw error
     local.set(K.lastSync, new Date().toISOString())
     return true
   } catch {
-    enqueue(key, value)
+    enqueue(orgId, key, value)
     return false
   }
 }
 
 // ── PULL (busca nuvem → atualiza local) ───────────────────────────────────────
-export const pullFromCloud = async () => {
-  if (!supabase) return { ok: false, reason: 'no_supabase' }
+export const pullFromCloud = async (orgId) => {
+  if (!supabase || !orgId) return { ok: false, reason: 'no_supabase_or_org' }
   try {
-    const { data, error } = await supabase.from('korin_data').select('*')
+    const { data, error } = await supabase.from('korin_data').select('*').eq('org_id', orgId)
     if (error) throw error
     data?.forEach(row => local.set(row.key, row.value))
     local.set(K.lastSync, new Date().toISOString())
@@ -99,40 +106,40 @@ export const loadAll = () => ({
   queueSize: (local.get(K.queue) || []).length,
 })
 
-export const saveProdutos = (data) => { local.set(K.produtos, data); push(K.produtos, data) }
-export const savePedidos  = (data) => { local.set(K.pedidos,  data); push(K.pedidos,  data) }
-export const savePeriodo  = (data) => { local.set(K.periodo,  data); push(K.periodo,  data) }
+export const saveProdutos = (orgId, data) => { local.set(K.produtos, data); push(orgId, K.produtos, data) }
+export const savePedidos  = (orgId, data) => { local.set(K.pedidos,  data); push(orgId, K.pedidos,  data) }
+export const savePeriodo  = (orgId, data) => { local.set(K.periodo,  data); push(orgId, K.periodo,  data) }
 
 // ── HISTÓRICO ─────────────────────────────────────────────────────────────────
-export const archivePeriodo = async (periodo, pedidos, produtos) => {
-  if (!supabase) return false
+export const archivePeriodo = async (orgId, periodo, pedidos, produtos) => {
+  if (!supabase || !orgId) return false
   try {
     const { error } = await supabase.from('korin_historico')
       .upsert(
-        { periodo, pedidos, produtos, arquivado_em: new Date().toISOString() },
-        { onConflict: 'periodo' }
+        { org_id: orgId, periodo, pedidos, produtos, arquivado_em: new Date().toISOString() },
+        { onConflict: 'org_id,periodo' }
       )
     if (error) throw error
     return true
   } catch { return false }
 }
 
-export const listPeriodos = async () => {
-  if (!supabase) return []
+export const listPeriodos = async (orgId) => {
+  if (!supabase || !orgId) return []
   try {
     const { data, error } = await supabase
-      .from('korin_historico').select('periodo').order('arquivado_em', { ascending: false })
+      .from('korin_historico').select('periodo').eq('org_id', orgId).order('arquivado_em', { ascending: false })
     if (error) throw error
     return (data || []).map(d => d.periodo)
   } catch { return [] }
 }
 
-export const getPedidosByPeriodo = async (periodo) => {
-  if (!supabase) return null
+export const getPedidosByPeriodo = async (orgId, periodo) => {
+  if (!supabase || !orgId) return null
   try {
     const { data, error } = await supabase
       .from('korin_historico').select('pedidos, produtos')
-      .eq('periodo', periodo).maybeSingle()
+      .eq('org_id', orgId).eq('periodo', periodo).maybeSingle()
     if (error) throw error
     return data
   } catch { return null }

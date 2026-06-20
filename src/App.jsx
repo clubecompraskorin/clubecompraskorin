@@ -34,7 +34,8 @@ function SyncBadge({ online, queueSize, lastSync, syncing }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // APP
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function App() {
+export default function App({ org }) {
+  const orgId = org?.orgId
   const [tab, setTab]         = useState('pedidos')
   const [produtos, setProdutos] = useState([])
   const [pedidos, setPedidos]   = useState([])
@@ -73,13 +74,13 @@ export default function App() {
       setLoaded(true)
 
       // Carrega lista de períodos arquivados
-      listPeriodos().then(setPeriodos)
+      listPeriodos(orgId).then(setPeriodos)
       getPedidosWeb(local.periodo || 'Abril/2026').then(w => setPedidosWebAtivos(w.filter(x => x.status !== 'cancelado')))
 
       // 2. Se online, puxa da nuvem (pode ter dados mais recentes de outro device)
       if (navigator.onLine) {
         setSyncing(true)
-        const result = await pullFromCloud()
+        const result = await pullFromCloud(orgId)
         if (result.ok) {
           const fresh = loadAll()
           setProdutos(fresh.produtos)
@@ -104,7 +105,7 @@ export default function App() {
     if (!navigator.onLine) return
     try {
       setSyncing(true)
-      const result = await pullFromCloud()
+      const result = await pullFromCloud(orgId)
       if (result.ok) {
         const fresh = loadAll()
         setProdutos(fresh.produtos)
@@ -150,13 +151,13 @@ export default function App() {
   // ── AÇÕES ──────────────────────────────────────────────────────────────────
   const atualizarPedidos = (novosPedidos) => {
     setPedidos(novosPedidos)
-    savePedidos(novosPedidos)
+    savePedidos(orgId, novosPedidos)
     setQueueSize(loadAll().queueSize)
   }
 
   const atualizarProdutos = (novosProdutos) => {
     setProdutos(novosProdutos)
-    saveProdutos(novosProdutos)
+    saveProdutos(orgId, novosProdutos)
   }
 
   const savePedido = (p) => {
@@ -200,7 +201,7 @@ export default function App() {
 
   const changePeriodo = (v) => {
     setPeriodo(v)
-    savePeriodo(v)
+    savePeriodo(orgId, v)
     closeModal()
   }
 
@@ -211,17 +212,17 @@ export default function App() {
       setPeriodoViz(null); setPedidosViz(null); setProdutosViz(null); setPedidosWebViz([]); return
     }
     setLoadingHist(true)
-    const [hist, webOrds] = await Promise.all([getPedidosByPeriodo(p), getPedidosWeb(p)])
+    const [hist, webOrds] = await Promise.all([getPedidosByPeriodo(orgId, p), getPedidosWeb(p)])
     if (hist) { setPeriodoViz(p); setPedidosViz(hist.pedidos || []); setProdutosViz(hist.produtos || produtos) }
     setPedidosWebViz(webOrds.filter(w => w.status !== 'cancelado'))
     setLoadingHist(false)
   }
 
   const arquivarEIniciar = async (novoPeriodo) => {
-    await archivePeriodo(periodo, pedidos, produtos)
+    await archivePeriodo(orgId, periodo, pedidos, produtos)
     atualizarPedidos([])
     changePeriodo(novoPeriodo)
-    const lista = await listPeriodos()
+    const lista = await listPeriodos(orgId)
     setPeriodos(lista)
     setPeriodoViz(null); setPedidosViz(null); setProdutosViz(null); setPedidosWebViz([])
     setPedidosWebAtivos([])
