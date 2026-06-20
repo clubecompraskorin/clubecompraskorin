@@ -24,15 +24,15 @@ function FiltroUnidade({ value, onChange }) {
 }
 
 // ── SUB-ABA: CONTROLES ────────────────────────────────────────────────────────
-function TabControles({ config, onChange, onSave, salvando }) {
-  const linkCatalogo = window.location.origin + '/pedido'
+function TabControles({ config, onChange, onSave, salvando, orgId, orgSlug }) {
+  const linkCatalogo = window.location.origin + '/' + (orgSlug || '') + '/pedido'
   const [instalacoes, setInstalacoes] = useState(null)
   useEffect(() => { getPwaInstallCount('catalogo').then(setInstalacoes) }, [])
 
   const toggle = async () => {
     const nova = { ...config, aberto: !config.aberto }
     onChange(nova)
-    await saveConfigWeb(nova)
+    await saveConfigWeb(orgId, nova)
   }
 
   return (
@@ -382,7 +382,9 @@ function TabResumo({ config, produtos, pedidosWeb, filtroUnidade }) {
 }
 
 // ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
-export default function WebScreen({ produtos }) {
+export default function WebScreen({ produtos, org }) {
+  const orgId = org?.orgId
+  const orgSlug = org?.slug
   const [subTab, setSubTab]               = useState('controles')
   const [config, setConfig]               = useState(null)
   const [pedidos, setPedidos]             = useState([])
@@ -395,7 +397,7 @@ export default function WebScreen({ produtos }) {
   useEffect(() => {
     const init = async () => {
       setLoading(true)
-      const cfg = await loadConfigWeb()
+      const cfg = await loadConfigWeb(orgId)
       setConfig(cfg)
       setPeriodoWeb(cfg.periodo)
       const peds = await getPedidosWeb(cfg.periodo)
@@ -423,7 +425,7 @@ export default function WebScreen({ produtos }) {
 
   const handleSave = async () => {
     setSalvando(true)
-    await saveConfigWeb(config)
+    await saveConfigWeb(orgId, config)
     setSalvando(false)
   }
 
@@ -475,7 +477,7 @@ export default function WebScreen({ produtos }) {
 
       {/* Conteúdo */}
       {subTab === 'controles' && (
-        <TabControles config={config} onChange={setConfig} onSave={handleSave} salvando={salvando} />
+        <TabControles config={config} onChange={setConfig} onSave={handleSave} salvando={salvando} orgId={orgId} orgSlug={orgSlug} />
       )}
       {subTab === 'produtos' && (
         <TabProdutos config={config} produtos={produtos} pedidosWeb={pedidos} onChange={setConfig} onSave={handleSave} salvando={salvando} />

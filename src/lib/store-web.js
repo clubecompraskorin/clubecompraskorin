@@ -25,12 +25,12 @@ export const isPeriodoFechado = config => {
   return false
 }
 
-export const loadConfigWeb = async () => {
+export const loadConfigWeb = async (orgId) => {
   const cached = local.get(K.config)
-  if (!supabase) return cached || CONFIG_PADRAO
+  if (!supabase || !orgId) return cached || CONFIG_PADRAO
   try {
     const { data, error } = await supabase
-      .from('korin_data').select('value').eq('key', K.config).maybeSingle()
+      .from('korin_data').select('value').eq('org_id', orgId).eq('key', K.config).maybeSingle()
     if (error) throw error
     const config = data?.value || CONFIG_PADRAO
     local.set(K.config, config)
@@ -38,12 +38,15 @@ export const loadConfigWeb = async () => {
   } catch { return cached || CONFIG_PADRAO }
 }
 
-export const saveConfigWeb = async config => {
+export const saveConfigWeb = async (orgId, config) => {
   local.set(K.config, config)
-  if (!supabase) return false
+  if (!supabase || !orgId) return false
   try {
     const { error } = await supabase.from('korin_data')
-      .upsert({ key: K.config, value: config, updated_at: new Date().toISOString() })
+      .upsert(
+        { org_id: orgId, key: K.config, value: config, updated_at: new Date().toISOString() },
+        { onConflict: 'org_id,key' }
+      )
     if (error) throw error
     return true
   } catch { return false }
@@ -54,17 +57,62 @@ export const loadClienteDados = () => local.get(K.cliente) || {}
 export const saveClienteDados = dados => local.set(K.cliente, dados)
 
 // ── PRODUTOS (do Supabase, mesmo catálogo da Valéria) ────────────────────────
-export const getProdutosWeb = async () => {
-  if (!supabase) return []
+export const getProdutosWeb = async (orgId) => {
+  if (!supabase || !orgId) return []
   try {
     const { data, error } = await supabase
-      .from('korin_data').select('value').eq('key', 'korin-produtos').maybeSingle()
+      .from('korin_data').select('value').eq('org_id', orgId).eq('key', 'korin-produtos').maybeSingle()
     if (error) throw error
     return data?.value || []
   } catch { return [] }
 }
 
 // ── PEDIDOS WEB ───────────────────────────────────────────────────────────────
+// ── CLIENTE FINAL (via Vercel Functions, sem acesso direto à tabela) ────────
+export const criarPedidoCliente = async (slug, pedido) => {
+  try {
+    const r = await fetch('/api/pedido', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug, pedido }),
+    })
+    const json = await r.json()
+    if (!r.ok || !json.ok) throw new Error(json.error || 'Falha ao salvar pedido')
+    return { ok: true, data: json.data }
+  } catch (e) { return { ok: false, error: e.message } }
+}
+
+export const consultarMeuPedido = async (slug, telefone, periodo) => {
+  try {
+    const params = new URLSearchParams({ slug, telefone, periodo })
+    const r = await fetch(`/api/meu-pedido?${params}`)
+    const json = await r.json()
+    if (!r.ok || !json.ok) return null
+    return json.data
+  } catch { return null }
+}
+
+export const getTotaisWeb = async (slug, periodo) => {
+  try {
+    const params = new URLSearchParams({ slug, periodo })
+    const r = await fetch(`/api/totais?${params}`)
+    const json = await r.json()
+    if (!r.ok || !json.ok) return {}
+    return json.totais
+  } catch { return {} }
+}
+
+// ── ORGANIZAÇÃO (resolução de slug, leitura pública) ────────────────────────
+export const resolverOrgPorSlug = async (slug) => {
+  if (!supabase || !slug) return null
+  try {
+    const { data, error } = await supabase
+      .from('organizacoes').select('id, nome, ativo').eq('slug', slug).maybeSingle()
+    if (error) throw error
+    return data
+  } catch { return null }
+}
+
+// ── ADMIN (autenticado — RLS já filtra por organização automaticamente) ────
 export const getPedidosWeb = async periodo => {
   if (!supabase) return []
   try {

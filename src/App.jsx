@@ -328,7 +328,7 @@ export default function App({ org }) {
         {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onEntregar={entregarPedido} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={p => setModoEntrega(p)} />}
         {tab === 'produtos'   && <ProdutosScreen  produtos={produtos} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} onImportar={() => setModal('importar')} />}
         {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} />}
-        {tab === 'web'        && <WebScreen produtos={produtos} />}
+        {tab === 'web'        && <WebScreen produtos={produtos} org={org} />}
       </main>
 
       {/* BOTTOM NAV */}
@@ -961,7 +961,7 @@ function FechamentoScreen({ pedidos, produtos, periodo, onPrintTodos, periodoNav
   const [subTab, setSubTab]   = useState('resumo')
   const [configWeb, setConfigWeb] = useState(null)
 
-  useEffect(() => { loadConfigWeb().then(setConfigWeb) }, [])
+  useEffect(() => { loadConfigWeb(orgId).then(setConfigWeb) }, [])
 
   const exportarXLSX = () => {
     if (!configWeb) { alert('Aguarde carregar as configurações'); return }

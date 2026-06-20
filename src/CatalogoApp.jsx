@@ -3,10 +3,13 @@ import { supabase } from './lib/supabase'
 import { PRODUTOS_INICIAIS, CAT_COR, CATS_ORDEM } from './lib/catalog'
 import {
   loadConfigWeb, loadClienteDados, saveClienteDados,
-  getPedidosWeb, savePedidoWeb, getPedidoByTelefone,
-  getTotaisPorProduto, isPeriodoFechado, getProdutosWeb,
+  criarPedidoCliente, consultarMeuPedido, getTotaisWeb, resolverOrgPorSlug,
+  isPeriodoFechado, getProdutosWeb,
 } from './lib/store-web'
 import { useInstallPrompt } from './lib/pwa'
+
+// ── RESOLUÇÃO DE SLUG (URL: /[slug]/pedido) ──────────────────────────────────
+export const getSlugDaURL = () => window.location.pathname.split('/').filter(Boolean)[0] || null
 
 // ── CONSTANTES ────────────────────────────────────────────────────────────────
 const UNIDADES = ['JC Itanhaém', 'JC Mongaguá', 'Difusão Praia Grande', 'Igreja São Vicente']
@@ -573,10 +576,12 @@ function TelaConfirmacao({ pedido, config, isEdicao, onEditar }) {
 
 // ── APP PRINCIPAL ─────────────────────────────────────────────────────────────
 export default function CatalogoApp() {
-  const [tela, setTela]                     = useState('loading')  // loading|fechado|catalogo|carrinho|dados|pagamento|confirmacao
+  const [tela, setTela]                     = useState('loading')  // loading|org-invalida|fechado|catalogo|carrinho|dados|pagamento|confirmacao
+  const [slug]                              = useState(() => getSlugDaURL())
+  const [org, setOrg]                       = useState(null)
   const [config, setConfig]                 = useState(null)
   const [produtos, setProdutos]             = useState([])
-  const [pedidosWeb, setPedidosWeb]         = useState([])
+  const [totaisPorProduto, setTotaisPorProduto] = useState({})
   const [carrinho, setCarrinho]             = useState({})    // { [cod]: qty }
   const [clienteDados, setClienteDados]     = useState({ nome: '', telefone: '', unidade: UNIDADES[0], pagamento: '' })
   const [pedidoExistente, setPedidoExistente] = useState(null)
@@ -596,20 +601,25 @@ export default function CatalogoApp() {
   // ── INIT ───────────────────────────────────────────────────────────────────
   useEffect(() => {
     const init = async () => {
-      const cfg = await loadConfigWeb()
+      if (!slug) { setTela('org-invalida'); return }
+      const orgEncontrada = await resolverOrgPorSlug(slug)
+      if (!orgEncontrada || !orgEncontrada.ativo) { setTela('org-invalida'); return }
+      setOrg(orgEncontrada)
+
+      const cfg = await loadConfigWeb(orgEncontrada.id)
       setConfig(cfg)
 
-      const prods = await getProdutosWeb()
+      const prods = await getProdutosWeb(orgEncontrada.id)
       setProdutos(prods.length ? prods : PRODUTOS_INICIAIS)
 
-      const pedidos = await getPedidosWeb(cfg.periodo)
-      setPedidosWeb(pedidos)
+      const totais = await getTotaisWeb(slug, cfg.periodo)
+      setTotaisPorProduto(totais)
 
       const dadosSalvos = loadClienteDados()
       if (dadosSalvos?.telefone) {
         setClienteDados(prev => ({ ...prev, ...dadosSalvos }))
         if (!isPeriodoFechado(cfg)) {
-          const pedExistente = await getPedidoByTelefone(dadosSalvos.telefone, cfg.periodo)
+          const pedExistente = await consultarMeuPedido(slug, dadosSalvos.telefone, cfg.periodo)
           if (pedExistente && pedExistente.status !== 'cancelado') {
             setPedidoExistente(pedExistente)
             const cart = {}
@@ -631,22 +641,21 @@ export default function CatalogoApp() {
   // ── AUTO-REFRESH DISPONIBILIDADE ──────────────────────────────────────────
   useEffect(() => {
     const refresh = async () => {
-      if (!navigator.onLine || tela !== 'catalogo') return
+      if (!navigator.onLine || tela !== 'catalogo' || !org) return
       try {
-        const cfg = await loadConfigWeb()
+        const cfg = await loadConfigWeb(org.id)
         setConfig(cfg)
-        const peds = await getPedidosWeb(cfg.periodo)
-        setPedidosWeb(peds)
+        const totais = await getTotaisWeb(slug, cfg.periodo)
+        setTotaisPorProduto(totais)
       } catch {}
     }
     const onFocus = () => { if (document.visibilityState === 'visible') refresh() }
     document.addEventListener('visibilitychange', onFocus)
     const interval = setInterval(refresh, 60000)
     return () => { document.removeEventListener('visibilitychange', onFocus); clearInterval(interval) }
-  }, [tela])
+  }, [tela, org])
 
   // ── LÓGICA DE DISPONIBILIDADE ──────────────────────────────────────────────
-  const totaisPorProduto = getTotaisPorProduto(pedidosWeb)
 
   const getDisponivel = useCallback((cod) => {
     const cfgProd = config?.produtos?.[String(cod)]
@@ -699,7 +708,7 @@ export default function CatalogoApp() {
       status:    'pendente',
     }
 
-    const result = await savePedidoWeb(pedido)
+    const result = await criarPedidoCliente(slug, pedido)
     setSalvando(false)
 
     if (result.ok) {
@@ -717,6 +726,16 @@ export default function CatalogoApp() {
   if (tela === 'loading') return (
     <div className="flex items-center justify-center min-h-screen bg-green-50">
       <div className="text-green-800 text-2xl font-black animate-pulse">Carregando… 🌿</div>
+    </div>
+  )
+
+  if (tela === 'org-invalida') return (
+    <div className="flex items-center justify-center min-h-screen bg-stone-50 px-6">
+      <div className="text-center">
+        <div className="text-4xl mb-3">🔗</div>
+        <div className="text-stone-700 font-black text-lg mb-1">Link inválido</div>
+        <div className="text-stone-500 text-sm">Confira o link com a coordenadora do seu grupo.</div>
+      </div>
     </div>
   )
 

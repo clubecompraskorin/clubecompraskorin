@@ -1,14 +1,23 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import CatalogoApp from './CatalogoApp'
+import CatalogoApp, { getSlugDaURL } from './CatalogoApp'
 import './index.css'
 import { logPwaInstall } from './lib/pwa'
 import { Analytics } from '@vercel/analytics/react'
 
-if ('serviceWorker' in navigator) {
+const slug = getSlugDaURL()
+
+// Manifest precisa ser dinâmico por organização (start_url/scope variam por slug)
+if (slug) {
+  const link = document.querySelector('link[rel="manifest"]')
+  if (link) link.setAttribute('href', `/api/manifest-catalogo?slug=${encodeURIComponent(slug)}`)
+}
+
+if ('serviceWorker' in navigator && slug) {
+  const scope = `/${slug}/pedido`
   window.addEventListener('load', async () => {
     try {
-      const reg = await navigator.serviceWorker.register('/sw-catalogo.js', { scope: '/pedido' })
+      const reg = await navigator.serviceWorker.register('/sw-catalogo.js', { scope })
       const forceUpdate = (sw) => {
         sw.addEventListener('statechange', () => {
           if (sw.state === 'installed' && navigator.serviceWorker.controller) {
