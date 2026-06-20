@@ -17,14 +17,14 @@ const PAGAMENTOS_CLI = ['PIX', 'Dinheiro', 'Cartão Crédito', 'Cartão Débito'
 const fmt = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',')
 
 // ── HELPERS VISUAIS ───────────────────────────────────────────────────────────
-function Header({ config }) {
+function Header({ config, org }) {
   return (
     <header className="bg-white shadow-sm sticky top-0 z-20">
       <div className="flex items-center justify-center gap-4 px-4 py-2 border-b border-stone-100">
         <img src="/logo-korin.png" alt="Clube de Compras Korin" className="h-10 w-auto" />
       </div>
       <div className="bg-green-800 text-white text-center px-4 py-2">
-        <div className="text-xs text-green-300 uppercase tracking-widest">Clube de Compras Korin</div>
+        <div className="text-xs text-green-300 uppercase tracking-widest">{org?.nome || 'Clube de Compras Korin'}</div>
         <div className="text-base font-black">{config?.periodo || ''}</div>
       </div>
     </header>
@@ -46,10 +46,10 @@ function Rodape() {
 }
 
 // ── TELA FECHADA ──────────────────────────────────────────────────────────────
-function TelaFechada({ config, showInstall, iosInstall, install, dismiss }) {
+function TelaFechada({ config, org, showInstall, iosInstall, install, dismiss }) {
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
-      <Header config={config} />
+      <Header config={config} org={org} />
       {/* Banner instalação PWA */}
       {(showInstall === true || showInstall === 'manual') && (
         <div className="mx-4 mt-3 rounded-2xl shadow-lg overflow-hidden">
@@ -173,12 +173,12 @@ function ProdutoCard({ produto, qty, onSetQty, disponivel, qtdCaixa }) {
 }
 
 // ── TELA CATÁLOGO ─────────────────────────────────────────────────────────────
-function TelaCatalogo({ config, produtos, carrinho, onSetQty, total, totalItens, getDisponivel, pedidoExistente, onVerCarrinho, showInstall, iosInstall, install, dismiss }) {
+function TelaCatalogo({ config, org, produtos, carrinho, onSetQty, total, totalItens, getDisponivel, pedidoExistente, onVerCarrinho, showInstall, iosInstall, install, dismiss }) {
   const cats = [...new Set([...CATS_ORDEM, ...produtos.map(p => p.categoria)])]
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
-      <Header config={config} />
+      <Header config={config} org={org} />
 
       {/* Banner instalação PWA */}
       {(showInstall === true || showInstall === 'manual') && (
@@ -487,13 +487,13 @@ function TelaPagamento({ clienteDados, setClienteDados, onVoltar, onConfirmar, s
 }
 
 // ── TELA CONFIRMAÇÃO ──────────────────────────────────────────────────────────
-function TelaConfirmacao({ pedido, config, isEdicao, onEditar }) {
+function TelaConfirmacao({ pedido, config, org, isEdicao, onEditar }) {
   const fechado = isPeriodoFechado(config)
   const total = pedido.itens.reduce((s, it) => s + (it.preco * it.qty), 0)
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
-      <Header config={config} />
+      <Header config={config} org={org} />
 
       <main className="flex-1 px-4 py-6 pb-8">
         {/* Status */}
@@ -735,12 +735,13 @@ export default function CatalogoApp() {
     </div>
   )
 
-  if (isPeriodoFechado(config)) return <TelaFechada config={config} showInstall={showInstall} iosInstall={iosInstall} install={install} dismiss={dismiss} />
+  if (isPeriodoFechado(config)) return <TelaFechada config={config} org={org} showInstall={showInstall} iosInstall={iosInstall} install={install} dismiss={dismiss} />
 
   if (tela === 'confirmacao' && pedidoConfirmado) return (
     <TelaConfirmacao
       pedido={pedidoConfirmado}
       config={config}
+      org={org}
       isEdicao={isEdicao}
       onEditar={() => { setIsEdicao(false); setTela('catalogo') }}
     />
@@ -780,6 +781,7 @@ export default function CatalogoApp() {
   return (
     <TelaCatalogo
       config={config}
+      org={org}
       produtos={produtos}
       carrinho={carrinho}
       onSetQty={handleSetQty}

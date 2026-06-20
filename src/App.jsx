@@ -285,7 +285,10 @@ export default function App({ org }) {
         </div>
         {/* Título + período + sync */}
         <div className="px-4 py-2.5 flex items-center justify-between">
-          <div className="text-lg font-black leading-tight">Clube de Compras Korin</div>
+          <div>
+            <div className="text-lg font-black leading-tight">Clube de Compras Korin</div>
+            {org?.nome && <div className="text-xs text-green-300 font-bold leading-tight">{org.nome}</div>}
+          </div>
           <div className="flex flex-col items-end gap-0.5">
             <button onClick={() => setModal('periodo')} className="text-base font-black active:opacity-60">{periodo}</button>
             <SyncBadge online={online} queueSize={queueSize} lastSync={lastSync} syncing={syncing} />
