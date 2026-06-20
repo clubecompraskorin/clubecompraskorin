@@ -281,7 +281,7 @@ export default function App({ org }) {
       <header className="bg-green-800 text-white sticky top-0 z-20 shadow-md">
         {/* Logo */}
         <div className="bg-white flex items-center justify-center px-3 py-2 border-b border-green-700">
-          <img src="/logo-lattuga.png" alt="Lattuga Orgânicos" className="h-12 w-auto" />
+          <img src="/logo-korin.png" alt="Clube de Compras Korin" className="h-12 w-auto" />
         </div>
         {/* Título + período + sync */}
         <div className="px-4 py-2.5 flex items-center justify-between">
@@ -299,7 +299,7 @@ export default function App({ org }) {
         {showInstall && showInstall !== 'manual' && !iosInstall && (
           <div className="mx-4 mt-3 mb-1">
             <div className="bg-green-800 text-white rounded-2xl p-3 flex items-center gap-3 shadow-md">
-              <img src="/logo-lattuga.png" alt="" className="w-9 h-9 rounded-xl flex-shrink-0" />
+              <img src="/logo-korin.png" alt="" className="w-9 h-9 rounded-xl flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-black">Instalar app na tela inicial</div>
                 <div className="text-xs text-green-300">Use sem internet, sempre disponível</div>
@@ -351,7 +351,7 @@ export default function App({ org }) {
 
       {/* RODAPÉ */}
       <footer className="fixed bottom-0 left-0 w-full bg-green-900 z-20 flex items-center justify-between px-3 py-1">
-        <span className="text-green-400 font-semibold whitespace-nowrap" style={{fontSize:'10px'}}>© Todos os Direitos Reservados — <a href="https://lattuga-organicos.vercel.app" target="_blank" rel="noopener noreferrer" className="underline hover:text-white">Lattuga Orgânicos</a></span>
+        <span className="text-green-400 font-semibold whitespace-nowrap" style={{fontSize:'10px'}}>© Todos os Direitos Reservados — Clube de Compras Korin</span>
         <a href="https://www.personalsupport.tec.br/" target="_blank" rel="noopener noreferrer"
           className="text-green-300 font-bold hover:text-white transition-colors underline underline-offset-2 flex-shrink-0 ml-2 whitespace-nowrap" style={{fontSize:'10px'}}>
           Desenvolvido por Personal Support

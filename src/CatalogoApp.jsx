@@ -21,8 +21,7 @@ function Header({ config }) {
   return (
     <header className="bg-white shadow-sm sticky top-0 z-20">
       <div className="flex items-center justify-center gap-4 px-4 py-2 border-b border-stone-100">
-        <img src="/logo-lattuga.png" alt="Lattuga Orgânicos" className="h-10 w-auto" />
-        <img src="/logo-korin.png"   alt="Korin"             className="h-9 w-auto" />
+        <img src="/logo-korin.png" alt="Clube de Compras Korin" className="h-10 w-auto" />
       </div>
       <div className="bg-green-800 text-white text-center px-4 py-2">
         <div className="text-xs text-green-300 uppercase tracking-widest">Clube de Compras Korin</div>
@@ -36,10 +35,7 @@ function Rodape() {
   return (
     <footer className="bg-green-900 flex items-center justify-between px-3 py-1.5 mt-4">
       <span className="text-green-400 font-semibold whitespace-nowrap" style={{ fontSize: '10px' }}>
-        © Todos os Direitos Reservados —{' '}
-        <a href="https://lattuga-organicos.vercel.app" target="_blank" rel="noopener noreferrer" className="underline hover:text-white">
-          Lattuga Orgânicos
-        </a>
+        © Todos os Direitos Reservados — Clube de Compras Korin
       </span>
       <a href="https://www.personalsupport.tec.br/" target="_blank" rel="noopener noreferrer"
         className="text-green-300 font-bold hover:text-white underline flex-shrink-0 ml-2 whitespace-nowrap" style={{ fontSize: '10px' }}>
