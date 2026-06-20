@@ -25,9 +25,10 @@ export const signOut = async () => {
 }
 
 // Cria o usuário no Supabase Auth, depois cria a organização e vincula via RPC
-export const signUpComOrganizacao = async ({ email, password, nomeOrg, slugOrg }) => {
+export const signUpComOrganizacao = async ({ email, password, nomeOrg, slugOrg, onProgress }) => {
   if (!supabase) return { ok: false, error: 'Sem conexão' }
 
+  onProgress?.('conta')
   const { error: signUpError } = await supabase.auth.signUp({ email, password })
   if (signUpError) return { ok: false, error: traduzErro(signUpError.message) }
 
@@ -37,6 +38,7 @@ export const signUpComOrganizacao = async ({ email, password, nomeOrg, slugOrg }
     return { ok: false, error: 'Conta criada — confirme seu email antes de continuar.' }
   }
 
+  onProgress?.('organizacao')
   const { error: rpcError } = await supabase.rpc('criar_organizacao', {
     p_slug: slugOrg,
     p_nome: nomeOrg,
@@ -51,6 +53,7 @@ export const signUpComOrganizacao = async ({ email, password, nomeOrg, slugOrg }
     return { ok: false, error: traduzErro(rpcError.message) }
   }
 
+  onProgress?.('confirmando')
   return { ok: true }
 }
 
