@@ -1,5 +1,10 @@
 import { supabase } from './supabase'
 
+// Flag compartilhada: enquanto um cadastro está em andamento, o listener
+// global de auth (AuthGate) não deve reagir — evita duas rotinas brigando
+// pela mesma sessão e cancelando a criação da organização no meio do processo.
+export const fluxoAuth = { emAndamento: false }
+
 export const getSession = async () => {
   if (!supabase) return null
   const { data } = await supabase.auth.getSession()
@@ -8,7 +13,10 @@ export const getSession = async () => {
 
 export const onAuthChange = (callback) => {
   if (!supabase) return () => {}
-  const { data } = supabase.auth.onAuthStateChange((_event, session) => callback(session))
+  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    if (fluxoAuth.emAndamento) return
+    callback(session)
+  })
   return () => data.subscription.unsubscribe()
 }
 
@@ -28,33 +36,37 @@ export const signOut = async () => {
 export const signUpComOrganizacao = async ({ email, password, nomeOrg, slugOrg, onProgress }) => {
   if (!supabase) return { ok: false, error: 'Sem conexão' }
 
-  onProgress?.('conta')
-  const { error: signUpError } = await supabase.auth.signUp({ email, password })
-  if (signUpError) return { ok: false, error: traduzErro(signUpError.message) }
+  fluxoAuth.emAndamento = true
+  try {
+    onProgress?.('conta')
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password })
+    if (signUpError) return { ok: false, error: traduzErro(signUpError.message) }
 
-  // signUp já autentica a sessão (confirmação de email desativada) — confirma:
-  const { data: sessionData } = await supabase.auth.getSession()
-  if (!sessionData?.session) {
-    return { ok: false, error: 'Conta criada — confirme seu email antes de continuar.' }
-  }
-
-  onProgress?.('organizacao')
-  const { error: rpcError } = await supabase.rpc('criar_organizacao', {
-    p_slug: slugOrg,
-    p_nome: nomeOrg,
-  })
-  if (rpcError) {
-    if (rpcError.message?.includes('duplicate') || rpcError.message?.includes('unique')) {
-      return { ok: false, error: 'Esse link (slug) já está em uso. Escolha outro.' }
+    // Usa a sessão retornada pelo próprio signUp — evita corrida com getSession() separado
+    if (!signUpData?.session) {
+      return { ok: false, error: 'Conta criada — confirme seu email antes de continuar.' }
     }
-    if (rpcError.message?.includes('slug_invalido')) {
-      return { ok: false, error: 'Link inválido. Use só letras minúsculas, números e hífen (3-40 caracteres).' }
-    }
-    return { ok: false, error: traduzErro(rpcError.message) }
-  }
 
-  onProgress?.('confirmando')
-  return { ok: true }
+    onProgress?.('organizacao')
+    const { error: rpcError } = await supabase.rpc('criar_organizacao', {
+      p_slug: slugOrg,
+      p_nome: nomeOrg,
+    })
+    if (rpcError) {
+      if (rpcError.message?.includes('duplicate') || rpcError.message?.includes('unique')) {
+        return { ok: false, error: 'Esse link (slug) já está em uso. Escolha outro.' }
+      }
+      if (rpcError.message?.includes('slug_invalido')) {
+        return { ok: false, error: 'Link inválido. Use só letras minúsculas, números e hífen (3-40 caracteres).' }
+      }
+      return { ok: false, error: traduzErro(rpcError.message) }
+    }
+
+    onProgress?.('confirmando')
+    return { ok: true }
+  } finally {
+    fluxoAuth.emAndamento = false
+  }
 }
 
 // Busca a organização vinculada ao usuário logado
