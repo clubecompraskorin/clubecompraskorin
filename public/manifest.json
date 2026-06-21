@@ -2,7 +2,7 @@
   "name": "Korin Gestão",
   "short_name": "Korin Admin",
   "description": "Gestão de pedidos do Clube de Compras Korin",
-  "id": "korin-admin",
+  "id": "korin-admin-v2",
   "scope": "/",
   "start_url": "/?source=pwa",
   "display": "standalone",

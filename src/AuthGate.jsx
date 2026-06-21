@@ -13,7 +13,7 @@ function useManifestPersonalizado(org) {
       name: `Korin Gestão — ${nome}`,
       short_name: nome.slice(0, 20),
       description: `Gestão de pedidos — ${nome}`,
-      id: `korin-admin-${org.slug || org.orgId}`,
+      id: `korin-admin-v2-${org.slug || org.orgId}`,
       scope: '/',
       start_url: '/?source=pwa',
       display: 'standalone',
