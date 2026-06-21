@@ -2,10 +2,44 @@ import { useState, useEffect } from 'react'
 import { getSession, onAuthChange, getOrgDoUsuario, signOut } from './lib/auth'
 import Login from './Login'
 
+// Troca o manifest do PWA pra incluir o nome da unidade no app instalado
+// (ex: "Korin Gestão — JC Peruibe"). Gerado no cliente via Blob, sem precisar
+// de servidor, já que o nome da org já está disponível no front após o login.
+function useManifestPersonalizado(org) {
+  useEffect(() => {
+    if (!org?.nome) return
+    const nome = org.nome
+    const manifest = {
+      name: `Korin Gestão — ${nome}`,
+      short_name: nome.slice(0, 20),
+      description: `Gestão de pedidos — ${nome}`,
+      id: `korin-admin-${org.slug || org.orgId}`,
+      scope: '/',
+      start_url: '/?source=pwa',
+      display: 'standalone',
+      background_color: '#f5f0eb',
+      theme_color: '#1a5c38',
+      orientation: 'portrait',
+      icons: [
+        { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
+    }
+    const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.querySelector('link[rel="manifest"]')
+    if (link) link.setAttribute('href', url)
+    document.title = manifest.name
+    return () => URL.revokeObjectURL(url)
+  }, [org?.nome, org?.slug, org?.orgId])
+}
+
 export default function AuthGate({ children }) {
   const [status, setStatus] = useState('checando') // checando | fora | dentro
   const [org, setOrg] = useState(null)
   const [erroOrg, setErroOrg] = useState(false)
+
+  useManifestPersonalizado(org)
 
   const resolverOrg = async (tentativas = 4) => {
     setStatus('checando')
