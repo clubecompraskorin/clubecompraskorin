@@ -7,6 +7,7 @@ import { printPedido, printTodos } from './lib/print'
 import { CAT_COR, CATS_ORDEM, PAGAMENTOS } from './lib/catalog'
 import WebScreen from './WebScreen'
 import { getPedidosWeb, cancelarPedidoWeb, savePedidoWeb, loadConfigWeb } from './lib/store-web'
+import { ToastHost, ConfirmHost, toast, confirmar } from './lib/dialog'
 
 const UNIDADES = ['JC Itanhaém', 'JC Mongaguá', 'Difusão Praia Grande', 'Igreja São Vicente']
 
@@ -168,8 +169,8 @@ export default function App({ org }) {
     closeModal()
   }
 
-  const deletePedido = (id) => {
-    if (!window.confirm('Remover este pedido?')) return
+  const deletePedido = async (id) => {
+    if (!await confirmar('Remover este pedido?')) return
     atualizarPedidos(pedidos.filter(x => x.id !== id))
   }
 
@@ -194,8 +195,8 @@ export default function App({ org }) {
     closeModal()
   }
 
-  const deleteProduto = (id) => {
-    if (!window.confirm('Remover este produto?')) return
+  const deleteProduto = async (id) => {
+    if (!await confirmar('Remover este produto?')) return
     atualizarProdutos(produtos.filter(x => x.id !== id))
   }
 
@@ -239,7 +240,7 @@ export default function App({ org }) {
   })
 
   const deletePedidoCombinado = async (pedido) => {
-    if (!window.confirm('Remover este pedido?')) return
+    if (!await confirmar('Remover este pedido?')) return
     if (pedido._isWeb) {
       await cancelarPedidoWeb(pedido.id)
       setPedidosWebAtivos(prev => prev.filter(p => p.id !== pedido.id))
@@ -277,6 +278,8 @@ export default function App({ org }) {
 
   return (
     <div className="min-h-screen bg-stone-100 w-full relative">
+      <ToastHost />
+      <ConfirmHost />
       {/* HEADER */}
       <header className="bg-green-800 text-white sticky top-0 z-20 shadow-md">
         {/* Logo */}
@@ -327,7 +330,7 @@ export default function App({ org }) {
             <button onClick={dismissInstall} className="mt-2 text-xs text-stone-400 underline">Fechar</button>
           </div>
         )}
-        {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onEntregar={p => entregarPedidoCombinado(p)} onIniciarEntrega={p => { if (p._isWeb) { if (window.confirm(`Confirmar entrega para ${p.clienteNome}?\n${fmt(p._webTotal||0)} · ${p.pagamento}`)) entregarPedidoCombinado(p) } else setModoEntrega(p) }} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} />}
+        {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onEntregar={p => entregarPedidoCombinado(p)} onIniciarEntrega={p => { if (p._isWeb) { confirmar(`Confirmar entrega para ${p.clienteNome}?\n${fmt(p._webTotal||0)} · ${p.pagamento}`).then(ok => { if (ok) entregarPedidoCombinado(p) }) } else setModoEntrega(p) }} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} />}
         {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onEntregar={entregarPedido} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={p => setModoEntrega(p)} />}
         {tab === 'produtos'   && <ProdutosScreen  produtos={produtos} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} onImportar={() => setModal('importar')} />}
         {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} />}
@@ -967,7 +970,7 @@ function FechamentoScreen({ pedidos, produtos, periodo, onPrintTodos, periodoNav
   useEffect(() => { loadConfigWeb(orgId).then(setConfigWeb) }, [])
 
   const exportarXLSX = () => {
-    if (!configWeb) { alert('Aguarde carregar as configurações'); return }
+    if (!configWeb) { toast('Aguarde carregar as configurações'); return }
 
     const mp = {}
     pedidos.forEach(p => {
@@ -1176,8 +1179,8 @@ function ModalPedido({ pedido, produtos, onSave, onClose }) {
     .sort((a, b) => a.cod - b.cod)
 
   const handleSave = () => {
-    if (!nome.trim())      { alert('Informe o nome do cliente'); return }
-    if (!itens.length)     { alert('Adicione pelo menos 1 item'); return }
+    if (!nome.trim())      { toast('Informe o nome do cliente'); return }
+    if (!itens.length)     { toast('Adicione pelo menos 1 item'); return }
     onSave({ ...pedido, clienteNome: nome.trim(), clienteTel: tel, pagamento: pagto, itens, unidade, origem: pedido?.origem || 'whatsapp' })
   }
 
@@ -1549,7 +1552,7 @@ function ModalProduto({ produto, onSave, onClose }) {
         )}
 
         <button onClick={() => {
-          if (!nome.trim() || !preco) { alert('Preencha nome e preço de venda'); return }
+          if (!nome.trim() || !preco) { toast('Preencha nome e preço de venda'); return }
           onSave({ ...produto, nome: nome.trim(), unidade: un, preco: parseFloat(preco), precoCusto: precoCusto ? parseFloat(precoCusto) : null, categoria: cat })
         }} className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-lg active:bg-green-800 mt-2">
           {produto ? 'Salvar Alterações' : 'Adicionar Produto'}
@@ -1577,11 +1580,11 @@ function ModalPeriodo({ periodo, onSave, onArquivar, onClose }) {
         </div>
         <input value={val} onChange={e => setVal(e.target.value)} placeholder="Nome do novo período (ex: Junho/2026)"
           className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base font-semibold focus:outline-none focus:border-green-500" />
-        <button onClick={() => { if (!val.trim()) { alert('Informe o nome do novo período'); return }; onArquivar(val.trim()) }}
+        <button onClick={() => { if (!val.trim()) { toast('Informe o nome do novo período'); return }; onArquivar(val.trim()) }}
           className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-base active:bg-green-800">
           📦 Arquivar {periodo} e iniciar {val || '…'}
         </button>
-        <button onClick={() => { if (!val.trim()) { alert('Informe o nome do novo período'); return }; onSave(val.trim()) }}
+        <button onClick={() => { if (!val.trim()) { toast('Informe o nome do novo período'); return }; onSave(val.trim()) }}
           className="w-full py-3 border-2 border-stone-200 text-stone-600 rounded-2xl font-bold text-base active:bg-stone-50">
           Só mudar nome (manter pedidos)
         </button>
@@ -1683,7 +1686,7 @@ function ModalColarPedido({ produtos, onSave, onClose }) {
   }
 
   const confirmar = () => {
-    if (!nome.trim()) { alert('Informe o nome do cliente'); return }
+    if (!nome.trim()) { toast('Informe o nome do cliente'); return }
     onSave({ clienteNome: nome.trim(), clienteTel: tel, pagamento: pagto, itens: parsed.itens, unidade, origem: 'whatsapp' })
   }
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { loadConfigWeb, saveConfigWeb, getPedidosWeb, cancelarPedidoWeb, getTotaisPorProduto, listPeriodosWeb } from './lib/store-web'
 import { getPwaInstallCount } from './lib/pwa'
 import { CAT_COR, CATS_ORDEM } from './lib/catalog'
+import { toast, confirmar } from './lib/dialog'
 
 const fmt = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',')
 const fmtData = iso => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR') : ''
@@ -100,7 +101,7 @@ function TabControles({ config, onChange, onSave, salvando, orgId, orgSlug }) {
           {linkCatalogo}
         </div>
         <button
-          onClick={() => navigator.clipboard?.writeText(linkCatalogo).then(() => alert('Link copiado!'))}
+          onClick={() => navigator.clipboard?.writeText(linkCatalogo).then(() => toast('Link copiado!'))}
           className="w-full py-3 bg-stone-100 text-stone-700 rounded-xl font-bold text-base active:bg-stone-200">
           📋 Copiar link
         </button>
@@ -430,7 +431,7 @@ export default function WebScreen({ produtos, org }) {
   }
 
   const handleCancelar = async id => {
-    if (!window.confirm('Cancelar este pedido?')) return
+    if (!await confirmar('Cancelar este pedido?')) return
     await cancelarPedidoWeb(id)
     const peds = await getPedidosWeb(config.periodo)
     setPedidos(peds)
