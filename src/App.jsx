@@ -81,7 +81,12 @@ export default function App({ org }) {
 
       // Carrega lista de períodos arquivados
       listPeriodos(orgId).then(setPeriodos)
-      getPedidosWeb(local.periodo || 'Abril/2026').then(w => setPedidosWebAtivos(w.filter(x => x.status !== 'cancelado')))
+      // Pedidos web usam o período configurado no catálogo (Aba Web), que pode
+      // estar diferente do período manual do admin — por isso busca o config primeiro.
+      loadConfigWeb(orgId).then(cfgWeb => {
+        const periodoWeb = cfgWeb?.periodo || local.periodo || 'Abril/2026'
+        getPedidosWeb(periodoWeb).then(w => setPedidosWebAtivos(w.filter(x => x.status !== 'cancelado')))
+      })
 
       // 2. Se online, puxa da nuvem (pode ter dados mais recentes de outro device)
       if (navigator.onLine) {
@@ -121,7 +126,9 @@ export default function App({ org }) {
         setLastSync(fresh.lastSync)
       }
       const currentPeriodo = loadAll().periodo
-      const webOrds = await getPedidosWeb(currentPeriodo)
+      const cfgWeb = await loadConfigWeb(orgId)
+      const periodoWeb = cfgWeb?.periodo || currentPeriodo
+      const webOrds = await getPedidosWeb(periodoWeb)
       setPedidosWebAtivos(webOrds.filter(w => w.status !== 'cancelado'))
     } catch {} finally { setSyncing(false) }
   }, [])

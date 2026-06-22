@@ -412,7 +412,7 @@ function TelaDados({ clienteDados, setClienteDados, unidades = [], onVoltar, onA
         {/* Retirada info */}
         <div className="bg-green-50 border border-green-100 rounded-2xl px-4 py-3 text-center">
           <div className="text-base font-bold text-green-700">🏪 Retirada presencial</div>
-          <div className="text-sm text-green-600 mt-0.5">A Valéria avisará quando o pedido estiver pronto</div>
+          <div className="text-sm text-green-600 mt-0.5">A coordenadora avisará quando o pedido estiver pronto</div>
         </div>
 
       </main>
@@ -556,7 +556,7 @@ function TelaConfirmacao({ pedido, config, org, isEdicao, onEditar }) {
         {/* Info */}
         <div className="bg-green-50 border border-green-100 rounded-2xl px-4 py-4 text-center mb-4">
           <div className="text-base font-bold text-green-700">
-            A Valéria avisará quando estiver pronto para retirada! 🌿
+            A coordenadora avisará quando estiver pronto para retirada! 🌿
           </div>
         </div>
 
