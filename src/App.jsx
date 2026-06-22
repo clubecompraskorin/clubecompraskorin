@@ -8,8 +8,8 @@ import { CAT_COR, CATS_ORDEM, PAGAMENTOS } from './lib/catalog'
 import WebScreen from './WebScreen'
 import { getPedidosWeb, cancelarPedidoWeb, savePedidoWeb, loadConfigWeb } from './lib/store-web'
 import { ToastHost, ConfirmHost, toast, confirmar } from './lib/dialog'
-
-const UNIDADES = ['JC Itanhaém', 'JC Mongaguá', 'Difusão Praia Grande', 'Igreja São Vicente']
+import { getUnidades } from './lib/unidades'
+import UnidadesManager from './UnidadesManager'
 
 
 // ── SYNC BADGE ────────────────────────────────────────────────────────────────
@@ -61,6 +61,11 @@ export default function App({ org }) {
   const [loadingHist, setLoadingHist]     = useState(false)
   const [pedidosWebAtivos, setPedidosWebAtivos] = useState([])
   const [pedidosWebViz, setPedidosWebViz]       = useState([])
+  const [unidades, setUnidades] = useState([])
+  const recarregarUnidades = useCallback(() => { if (orgId) getUnidades(orgId).then(setUnidades) }, [orgId])
+  useEffect(() => { recarregarUnidades() }, [recarregarUnidades])
+  const nomesUnidades = unidades.map(u => u.nome)
+  const unidadePadrao = nomesUnidades[0] || ''
 
   // ── STARTUP ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -164,7 +169,7 @@ export default function App({ org }) {
   const savePedido = (p) => {
     const novo = p.id
       ? pedidos.map(x => x.id === p.id ? p : x)
-      : [...pedidos, { ...p, id: Date.now(), status: 'pendente', dataPedido: new Date().toISOString(), origem: p.origem || 'whatsapp', unidade: p.unidade || 'Difusão Praia Grande' }]
+      : [...pedidos, { ...p, id: Date.now(), status: 'pendente', dataPedido: new Date().toISOString(), origem: p.origem || 'whatsapp', unidade: p.unidade || unidadePadrao }]
     atualizarPedidos(novo)
     closeModal()
   }
@@ -261,7 +266,7 @@ export default function App({ org }) {
 
   // ── PERÍODO VISUALIZADO ─────────────────────────────────────────────────────
   const isHistorico    = periodoViz !== null
-  const _waBase        = (isHistorico ? (pedidosViz || []) : pedidos).map(p => ({ ...p, origem: p.origem || 'whatsapp', unidade: p.unidade || 'Difusão Praia Grande' }))
+  const _waBase        = (isHistorico ? (pedidosViz || []) : pedidos).map(p => ({ ...p, origem: p.origem || 'whatsapp', unidade: p.unidade || unidadePadrao }))
   const _webBase       = isHistorico ? pedidosWebViz : pedidosWebAtivos
   const produtosAtivos = isHistorico ? (produtosViz || produtos) : produtos
   const pedidosAtivos  = [..._waBase, ..._webBase.map(w => normalizeWebOrder(w, produtosAtivos))].sort((a,b) => new Date(b.dataPedido)-new Date(a.dataPedido))
@@ -333,8 +338,8 @@ export default function App({ org }) {
         {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onEntregar={p => entregarPedidoCombinado(p)} onIniciarEntrega={p => { if (p._isWeb) { confirmar(`Confirmar entrega para ${p.clienteNome}?\n${fmt(p._webTotal||0)} · ${p.pagamento}`).then(ok => { if (ok) entregarPedidoCombinado(p) }) } else setModoEntrega(p) }} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} />}
         {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onEntregar={entregarPedido} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={p => setModoEntrega(p)} />}
         {tab === 'produtos'   && <ProdutosScreen  produtos={produtos} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} onImportar={() => setModal('importar')} />}
-        {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} />}
-        {tab === 'web'        && <WebScreen produtos={produtos} org={org} />}
+        {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} />}
+        {tab === 'web'        && <WebScreen produtos={produtos} org={org} onUnidadesChange={setUnidades} />}
       </main>
 
       {/* BOTTOM NAV */}
@@ -365,12 +370,12 @@ export default function App({ org }) {
       </footer>
 
       {/* MODALS */}
-      {modal === 'pedido'   && <ModalPedido   pedido={editPedido}   produtos={produtos} onSave={savePedido}   onClose={closeModal} />}
+      {modal === 'pedido'   && <ModalPedido   pedido={editPedido}   produtos={produtos} unidades={nomesUnidades} onSave={savePedido}   onClose={closeModal} />}
       {modal === 'detalhe'  && viewPedido && <ModalDetalhe  pedido={viewPedido}  produtos={produtos} periodo={periodo} onClose={closeModal} onPrint={() => printPedido(viewPedido, produtos, periodo)} />}
       {modal === 'produto'  && <ModalProduto  produto={editProduto}               onSave={saveProduto}  onClose={closeModal} />}
       {modal === 'importar' && <ModalImportarCatalogo produtos={produtos} onSave={p => { atualizarProdutos(p); closeModal() }} onClose={closeModal} />}
       {modal === 'periodo'  && <ModalPeriodo  periodo={periodo} onSave={changePeriodo} onArquivar={arquivarEIniciar} onClose={closeModal} />}
-      {modal === 'colar'    && <ModalColarPedido produtos={produtos} onSave={savePedido} onClose={closeModal} />}
+      {modal === 'colar'    && <ModalColarPedido produtos={produtos} unidades={nomesUnidades} onSave={savePedido} onClose={closeModal} />}
 
       {/* MODO ENTREGA — overlay global, acessível de qualquer tab */}
       {modoEntrega && (
@@ -845,12 +850,12 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete, onImportar }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
-function DashboardScreen({ pedidos, produtos }) {
+function DashboardScreen({ pedidos, produtos, unidades = [] }) {
   const [filtroUnidade, setFiltroUnidade] = useState('Todas')
   const [filtroOrigem, setFiltroOrigem]   = useState('Todas')
 
   const lista = pedidos
-    .filter(p => filtroUnidade === 'Todas' || (p.unidade || 'Difusão Praia Grande') === filtroUnidade)
+    .filter(p => filtroUnidade === 'Todas' || (p.unidade || 'Não informada') === filtroUnidade)
     .filter(p => filtroOrigem === 'Todas' || p.origem === filtroOrigem)
 
   const getVal = p => p._webTotal !== undefined ? p._webTotal : calcTotal(p, produtos)
@@ -871,7 +876,7 @@ function DashboardScreen({ pedidos, produtos }) {
   const prodList = Object.values(porProd).sort((a,b) => b.qty - a.qty)
 
   const porUnidade = {}
-  lista.forEach(p => { const u = p.unidade || 'Difusão Praia Grande'; if (!porUnidade[u]) porUnidade[u] = {qtd:0,val:0}; porUnidade[u].qtd++; porUnidade[u].val += getVal(p) })
+  lista.forEach(p => { const u = p.unidade || 'Não informada'; if (!porUnidade[u]) porUnidade[u] = {qtd:0,val:0}; porUnidade[u].qtd++; porUnidade[u].val += getVal(p) })
   const unidList = Object.entries(porUnidade).sort(([,a],[,b]) => b.qtd - a.qtd)
 
   return (
@@ -880,7 +885,7 @@ function DashboardScreen({ pedidos, produtos }) {
         <select value={filtroUnidade} onChange={e => setFiltroUnidade(e.target.value)}
           className="flex-1 min-w-0 border border-stone-200 rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-green-500 bg-white">
           <option value="Todas">Todas as unidades</option>
-          {['JC Itanhaém','JC Mongaguá','Difusão Praia Grande','Igreja São Vicente'].map(u => <option key={u}>{u}</option>)}
+          {(unidades).map(u => <option key={u}>{u}</option>)}
         </select>
         <select value={filtroOrigem} onChange={e => setFiltroOrigem(e.target.value)}
           className="border border-stone-200 rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-green-500 bg-white">
@@ -963,7 +968,7 @@ function DashboardScreen({ pedidos, produtos }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: FECHAMENTO
 // ═══════════════════════════════════════════════════════════════════════════════
-function FechamentoScreen({ pedidos, produtos, periodo, onPrintTodos, periodoNav }) {
+function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, periodoNav }) {
   const [subTab, setSubTab]   = useState('resumo')
   const [configWeb, setConfigWeb] = useState(null)
 
@@ -1052,7 +1057,7 @@ function FechamentoScreen({ pedidos, produtos, periodo, onPrintTodos, periodoNav
           </button>
         ))}
       </div>
-      {subTab === 'dashboard' && <DashboardScreen pedidos={pedidos} produtos={produtos} />}
+      {subTab === 'dashboard' && <DashboardScreen pedidos={pedidos} produtos={produtos} unidades={unidades} />}
       {subTab === 'resumo' && <>
       <div className="text-center">
         <div className="text-2xl font-black text-green-800">{periodo}</div>
@@ -1155,11 +1160,11 @@ function FechamentoScreen({ pedidos, produtos, periodo, onPrintTodos, periodoNav
 // ═══════════════════════════════════════════════════════════════════════════════
 // MODAL: PEDIDO
 // ═══════════════════════════════════════════════════════════════════════════════
-function ModalPedido({ pedido, produtos, onSave, onClose }) {
+function ModalPedido({ pedido, produtos, unidades = [], onSave, onClose }) {
   const [nome,  setNome]  = useState(pedido?.clienteNome || '')
   const [tel,   setTel]   = useState(pedido?.clienteTel  || '')
   const [pagto, setPagto] = useState(pedido?.pagamento   || 'A Definir')
-  const [unidade, setUnidade] = useState(pedido?.unidade || 'Difusão Praia Grande')
+  const [unidade, setUnidade] = useState(pedido?.unidade || unidades[0] || '')
   const [itens, setItens] = useState(pedido?.itens       || [])
   const [busca, setBusca] = useState('')
 
@@ -1204,7 +1209,7 @@ function ModalPedido({ pedido, produtos, onSave, onClose }) {
               className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-green-500" />
             <select value={unidade} onChange={e => setUnidade(e.target.value)}
               className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:border-green-500 font-semibold">
-              {['JC Itanhaém','JC Mongaguá','Difusão Praia Grande','Igreja São Vicente'].map(u => <option key={u}>{u}</option>)}
+              {(unidades).map(u => <option key={u}>{u}</option>)}
             </select>
             <select value={pagto} onChange={e => setPagto(e.target.value)}
               className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:border-green-500 font-semibold">
@@ -1641,10 +1646,10 @@ function SectionLabel({ icon, text, color }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // MODAL: COLAR PEDIDO DO WHATSAPP
 // ═══════════════════════════════════════════════════════════════════════════════
-function ModalColarPedido({ produtos, onSave, onClose }) {
+function ModalColarPedido({ produtos, unidades = [], onSave, onClose }) {
   const [etapa, setEtapa]     = useState(1)       // 1=colar, 2=confirmar
   const [texto, setTexto]     = useState('')
-  const [unidade, setUnidade] = useState('Difusão Praia Grande')
+  const [unidade, setUnidade] = useState(unidades[0] || '')
   const [loading, setLoading] = useState(false)
   const [erro, setErro]       = useState('')
   const [parsed, setParsed]   = useState(null)    // { nome, itens }
@@ -1738,7 +1743,7 @@ function ModalColarPedido({ produtos, onSave, onClose }) {
                 className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-green-500"/>
               <select value={unidade} onChange={e => setUnidade(e.target.value)}
                 className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:border-green-500 font-semibold">
-                {['JC Itanhaém','JC Mongaguá','Difusão Praia Grande','Igreja São Vicente'].map(u => <option key={u}>{u}</option>)}
+                {unidades.map(u => <option key={u}>{u}</option>)}
               </select>
               <select value={pagto} onChange={e => setPagto(e.target.value)}
                 className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:border-green-500 font-semibold">

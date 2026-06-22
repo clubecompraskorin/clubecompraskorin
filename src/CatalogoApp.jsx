@@ -12,7 +12,7 @@ import { useInstallPrompt } from './lib/pwa'
 export const getSlugDaURL = () => window.location.pathname.split('/').filter(Boolean)[0] || null
 
 // ── CONSTANTES ────────────────────────────────────────────────────────────────
-const UNIDADES = ['JC Itanhaém', 'JC Mongaguá', 'Difusão Praia Grande', 'Igreja São Vicente']
+import { getUnidades } from './lib/unidades'
 const PAGAMENTOS_CLI = ['PIX', 'Dinheiro', 'Cartão Crédito', 'Cartão Débito']
 const fmt = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',')
 
@@ -349,7 +349,7 @@ function TelaCarrinho({ carrinho, produtos, total, onVoltar, onAvancar, onSetQty
 }
 
 // ── TELA DADOS ────────────────────────────────────────────────────────────────
-function TelaDados({ clienteDados, setClienteDados, onVoltar, onAvancar }) {
+function TelaDados({ clienteDados, setClienteDados, unidades = [], onVoltar, onAvancar }) {
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
       <header className="bg-green-800 text-white px-4 py-4 flex items-center gap-3 sticky top-0 z-20">
@@ -396,10 +396,14 @@ function TelaDados({ clienteDados, setClienteDados, onVoltar, onAvancar }) {
             Local de retirada
           </label>
           <div className="space-y-2">
-            {UNIDADES.map(u => (
-              <button key={u} onClick={() => setClienteDados(prev => ({ ...prev, unidade: u }))}
-                className={`w-full text-left px-5 py-4 rounded-2xl text-xl font-bold border-2 transition-colors ${clienteDados.unidade === u ? 'bg-green-700 text-white border-green-700' : 'bg-white text-stone-700 border-stone-200 active:bg-stone-50'}`}>
-                {u}
+            {unidades.length === 0 && (
+              <div className="text-sm text-stone-400 bg-stone-50 rounded-xl px-4 py-3">Nenhuma unidade de retirada cadastrada ainda. Fale com a coordenadora.</div>
+            )}
+            {unidades.map(u => (
+              <button key={u.id} onClick={() => setClienteDados(prev => ({ ...prev, unidade: u.nome }))}
+                className={`w-full text-left px-5 py-4 rounded-2xl border-2 transition-colors ${clienteDados.unidade === u.nome ? 'bg-green-700 text-white border-green-700' : 'bg-white text-stone-700 border-stone-200 active:bg-stone-50'}`}>
+                <div className="text-xl font-bold">{u.nome}</div>
+                {u.endereco && <div className={`text-sm mt-0.5 ${clienteDados.unidade === u.nome ? 'text-green-100' : 'text-stone-400'}`}>{u.endereco}</div>}
               </button>
             ))}
           </div>
@@ -579,7 +583,8 @@ export default function CatalogoApp() {
   const [produtos, setProdutos]             = useState([])
   const [totaisPorProduto, setTotaisPorProduto] = useState({})
   const [carrinho, setCarrinho]             = useState({})    // { [cod]: qty }
-  const [clienteDados, setClienteDados]     = useState({ nome: '', telefone: '', unidade: UNIDADES[0], pagamento: '' })
+  const [unidades, setUnidades]             = useState([])
+  const [clienteDados, setClienteDados]     = useState({ nome: '', telefone: '', unidade: '', pagamento: '' })
   const [pedidoExistente, setPedidoExistente] = useState(null)
   const [pedidoConfirmado, setPedidoConfirmado] = useState(null)
   const [isEdicao, setIsEdicao]             = useState(false)
@@ -602,6 +607,9 @@ export default function CatalogoApp() {
       if (!orgEncontrada || !orgEncontrada.ativo) { setTela('org-invalida'); return }
       setOrg(orgEncontrada)
 
+      const unis = await getUnidades(orgEncontrada.id)
+      setUnidades(unis)
+
       const cfg = await loadConfigWeb(orgEncontrada.id)
       setConfig(cfg)
 
@@ -612,8 +620,8 @@ export default function CatalogoApp() {
       setTotaisPorProduto(totais)
 
       const dadosSalvos = loadClienteDados()
+      setClienteDados(prev => ({ ...prev, ...dadosSalvos, unidade: dadosSalvos?.unidade || unis[0]?.nome || '' }))
       if (dadosSalvos?.telefone) {
-        setClienteDados(prev => ({ ...prev, ...dadosSalvos }))
         if (!isPeriodoFechado(cfg)) {
           const pedExistente = await consultarMeuPedido(slug, dadosSalvos.telefone, cfg.periodo)
           if (pedExistente && pedExistente.status !== 'cancelado') {
@@ -678,6 +686,7 @@ export default function CatalogoApp() {
   const handleConfirmar = async () => {
     if (!clienteDados.nome.trim()) { setErro('Informe seu nome completo'); setTela('dados'); return }
     if (!clienteDados.telefone.trim()) { setErro('Informe seu telefone/WhatsApp'); setTela('dados'); return }
+    if (!clienteDados.unidade) { setErro('Selecione o local de retirada'); setTela('dados'); return }
     if (!clienteDados.pagamento) { setErro('Selecione a forma de pagamento'); return }
     if (Object.keys(carrinho).length === 0) { setErro('Adicione pelo menos um produto'); return }
 
@@ -762,6 +771,7 @@ export default function CatalogoApp() {
     <TelaDados
       clienteDados={clienteDados}
       setClienteDados={setClienteDados}
+      unidades={unidades}
       onVoltar={() => setTela('carrinho')}
       onAvancar={() => { setErro(''); setTela('pagamento') }}
     />

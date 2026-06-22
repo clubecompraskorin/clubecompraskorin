@@ -3,17 +3,18 @@ import { loadConfigWeb, saveConfigWeb, getPedidosWeb, cancelarPedidoWeb, getTota
 import { getPwaInstallCount } from './lib/pwa'
 import { CAT_COR, CATS_ORDEM } from './lib/catalog'
 import { toast, confirmar } from './lib/dialog'
+import { getUnidades } from './lib/unidades'
+import UnidadesManager from './UnidadesManager'
 
 const fmt = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',')
 const fmtData = iso => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR') : ''
 
-const UNIDADES_FILTRO = ['Todas', 'JC Itanhaém', 'JC Mongaguá', 'Difusão Praia Grande', 'Igreja São Vicente']
-
-function FiltroUnidade({ value, onChange }) {
+function FiltroUnidade({ value, onChange, unidades = [] }) {
+  const opcoes = ['Todas', ...unidades]
   return (
     <div className="overflow-x-auto">
       <div className="flex gap-2 min-w-max pb-1">
-        {UNIDADES_FILTRO.map(u => (
+        {opcoes.map(u => (
           <button key={u} onClick={() => onChange(u)}
             className={`px-3 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${value === u ? 'bg-green-700 text-white' : 'bg-white text-stone-500 border border-stone-200 active:bg-stone-50'}`}>
             {u}
@@ -383,7 +384,7 @@ function TabResumo({ config, produtos, pedidosWeb, filtroUnidade }) {
 }
 
 // ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
-export default function WebScreen({ produtos, org }) {
+export default function WebScreen({ produtos, org, onUnidadesChange }) {
   const orgId = org?.orgId
   const orgSlug = org?.slug
   const [subTab, setSubTab]               = useState('controles')
@@ -394,6 +395,10 @@ export default function WebScreen({ produtos, org }) {
   const [filtroUnidade, setFiltroUnidade] = useState('Todas')
   const [periodoWeb, setPeriodoWeb]       = useState(null)   // null = config.periodo
   const [periodosWeb, setPeriodosWeb]     = useState([])
+  const [unidades, setUnidades] = useState([])
+  const recarregarUnidades = useCallback(() => { if (orgId) getUnidades(orgId).then(setUnidades) }, [orgId])
+  useEffect(() => { recarregarUnidades() }, [recarregarUnidades])
+  const nomesUnidades = unidades.map(u => u.nome)
 
   useEffect(() => {
     const init = async () => {
@@ -446,6 +451,7 @@ export default function WebScreen({ produtos, org }) {
     { id: 'produtos',  label: '📦 Embalagens' },
     { id: 'pedidos',   label: `🛒 Pedidos (${pedidos.filter(p => p.status !== 'cancelado').length})` },
     { id: 'resumo',    label: '📊 Resumo' },
+    { id: 'unidades',  label: '📍 Unidades' },
   ]
 
   return (
@@ -485,15 +491,18 @@ export default function WebScreen({ produtos, org }) {
       )}
       {subTab === 'pedidos' && (
         <>
-          <FiltroUnidade value={filtroUnidade} onChange={setFiltroUnidade} />
+          <FiltroUnidade value={filtroUnidade} onChange={setFiltroUnidade} unidades={nomesUnidades} />
           <TabPedidos pedidosWeb={pedidos} onCancelar={handleCancelar} loading={loading} filtroUnidade={filtroUnidade} />
         </>
       )}
       {subTab === 'resumo' && (
         <>
-          <FiltroUnidade value={filtroUnidade} onChange={setFiltroUnidade} />
+          <FiltroUnidade value={filtroUnidade} onChange={setFiltroUnidade} unidades={nomesUnidades} />
           <TabResumo config={config} produtos={produtos} pedidosWeb={pedidos} filtroUnidade={filtroUnidade} />
         </>
+      )}
+      {subTab === 'unidades' && (
+        <UnidadesManager orgId={orgId} modo="settings" onChange={lista => { setUnidades(lista); onUnidadesChange?.(lista) }} />
       )}
     </div>
   )

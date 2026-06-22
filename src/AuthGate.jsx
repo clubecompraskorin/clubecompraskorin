@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { getSession, onAuthChange, getOrgDoUsuario, signOut } from './lib/auth'
+import { supabase } from './lib/supabase'
 import Login from './Login'
+import UnidadesManager from './UnidadesManager'
 
 // Troca o manifest do PWA pra incluir o nome da unidade no app instalado
 // (ex: "Korin Gestão — JC Peruibe"). Gerado no cliente via Blob, sem precisar
@@ -38,8 +40,22 @@ export default function AuthGate({ children }) {
   const [status, setStatus] = useState('checando') // checando | fora | dentro
   const [org, setOrg] = useState(null)
   const [erroOrg, setErroOrg] = useState(false)
+  const [unidadesOk, setUnidadesOk] = useState(null) // null=checando | true | false (precisa onboarding)
 
   useManifestPersonalizado(org)
+
+  useEffect(() => {
+    if (!org?.orgId) { setUnidadesOk(null); return }
+    let cancelado = false
+    ;(async () => {
+      if (!supabase) { setUnidadesOk(true); return }
+      const { data, error } = await supabase.from('org_unidades').select('id').eq('org_id', org.orgId).limit(1)
+      if (cancelado) return
+      // Erro de rede não deve travar quem já está usando o app — só bloqueia se confirmarmos que está vazio
+      setUnidadesOk(error ? true : (data?.length || 0) > 0)
+    })()
+    return () => { cancelado = true }
+  }, [org?.orgId])
 
   const resolverOrg = async (tentativas = 4) => {
     setStatus('checando')
@@ -89,6 +105,23 @@ export default function AuthGate({ children }) {
   }
 
   if (status === 'dentro') {
+    if (unidadesOk === null) {
+      return (
+        <div className="flex items-center justify-center min-h-screen bg-stone-50">
+          <div className="text-green-800 text-xl font-black animate-pulse">Carregando… 🌿</div>
+        </div>
+      )
+    }
+    if (unidadesOk === false) {
+      return (
+        <UnidadesManager
+          orgId={org.orgId}
+          modo="onboarding"
+          montarHosts
+          onConcluir={() => setUnidadesOk(true)}
+        />
+      )
+    }
     return (
       <>
         {children(org)}
