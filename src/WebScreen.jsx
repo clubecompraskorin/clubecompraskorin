@@ -62,12 +62,10 @@ function TabControles({ config, onChange, onSave, salvando, orgId, orgSlug }) {
 
         <div>
           <label className="block text-sm font-bold text-stone-600 mb-1">Nome do período</label>
-          <input
-            value={config.periodo}
-            onChange={e => onChange({ ...config, periodo: e.target.value })}
-            placeholder="Ex: Julho/2026"
-            className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base font-semibold focus:outline-none focus:border-green-500"
-          />
+          <div className="w-full border border-stone-200 bg-stone-50 rounded-xl px-4 py-3 text-base font-semibold text-stone-500">
+            {config.periodo}
+          </div>
+          <p className="text-xs text-stone-400 mt-1.5">Pra virar o mês, use "Arquivar e iniciar novo período" na aba Pedidos — isso muda o catálogo e arquiva os pedidos manuais juntos, sem perder nada.</p>
         </div>
 
         <div>

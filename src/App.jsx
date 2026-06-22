@@ -6,7 +6,7 @@ import { fmt, calcTotal, sortByCod } from './lib/helpers'
 import { printPedido, printTodos } from './lib/print'
 import { CAT_COR, CATS_ORDEM, PAGAMENTOS } from './lib/catalog'
 import WebScreen from './WebScreen'
-import { getPedidosWeb, cancelarPedidoWeb, savePedidoWeb, loadConfigWeb } from './lib/store-web'
+import { getPedidosWeb, cancelarPedidoWeb, savePedidoWeb, loadConfigWeb, saveConfigWeb } from './lib/store-web'
 import { ToastHost, ConfirmHost, toast, confirmar } from './lib/dialog'
 import { getUnidades } from './lib/unidades'
 import UnidadesManager from './UnidadesManager'
@@ -62,6 +62,7 @@ export default function App({ org }) {
   const [pedidosWebAtivos, setPedidosWebAtivos] = useState([])
   const [pedidosWebViz, setPedidosWebViz]       = useState([])
   const [unidades, setUnidades] = useState([])
+  const [configWebAtivo, setConfigWebAtivo] = useState(null)
   const recarregarUnidades = useCallback(() => { if (orgId) getUnidades(orgId).then(setUnidades) }, [orgId])
   useEffect(() => { recarregarUnidades() }, [recarregarUnidades])
   const nomesUnidades = unidades.map(u => u.nome)
@@ -104,6 +105,7 @@ export default function App({ org }) {
       // sempre segue ele. Roda por último, depois de qualquer sync com a nuvem,
       // pra garantir que sempre prevalece mesmo se houver um valor antigo salvo.
       const cfgWeb = await loadConfigWeb(orgId)
+      setConfigWebAtivo(cfgWeb)
       const periodoAtual = loadAll().periodo
       const periodoAtivo = cfgWeb?.periodo || periodoAtual || 'Abril/2026'
       setPeriodo(periodoAtivo)
@@ -128,6 +130,7 @@ export default function App({ org }) {
       }
       const periodoAtual = loadAll().periodo
       const cfgWeb = await loadConfigWeb(orgId)
+      setConfigWebAtivo(cfgWeb)
       const periodoAtivo = cfgWeb?.periodo || periodoAtual
       setPeriodo(periodoAtivo)
       if (periodoAtivo !== periodoAtual) savePeriodo(orgId, periodoAtivo)
@@ -238,6 +241,12 @@ export default function App({ org }) {
     await archivePeriodo(orgId, periodo, pedidos, produtos)
     atualizarPedidos([])
     changePeriodo(novoPeriodo)
+    // O catálogo (Aba Web) é a fonte de verdade do período — vira o mês nos
+    // dois lugares juntos, senão o catálogo continuaria vendendo no mês antigo
+    // e, no próximo refresh, "puxaria" o admin de volta pro período encerrado.
+    const novaConfig = { ...(configWebAtivo || {}), periodo: novoPeriodo }
+    setConfigWebAtivo(novaConfig)
+    await saveConfigWeb(orgId, novaConfig)
     const lista = await listPeriodos(orgId)
     setPeriodos(lista)
     setPeriodoViz(null); setPedidosViz(null); setProdutosViz(null); setPedidosWebViz([])
