@@ -9,7 +9,7 @@ import { Analytics } from '@vercel/analytics/react'
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/painel' })
       const forceUpdate = (sw) => {
         sw.addEventListener('statechange', () => {
           if (sw.state === 'installed' && navigator.serviceWorker.controller) {

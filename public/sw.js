@@ -1,4 +1,4 @@
-const CACHE = 'korin-admin-v5'
+const CACHE = 'korin-admin-v6'
 
 self.addEventListener('install', e => { self.skipWaiting() })
 
@@ -22,7 +22,7 @@ self.addEventListener('fetch', e => {
         caches.open(CACHE).then(c => c.put(e.request, clone))
       }
       return res
-    }).catch(() => caches.match(e.request).then(c => c || caches.match('/index.html')))
+    }).catch(() => caches.match(e.request).then(c => c || caches.match('/painel.html')))
   )
 })
 
