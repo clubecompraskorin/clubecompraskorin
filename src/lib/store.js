@@ -52,7 +52,7 @@ const toDb = (orgId, periodoId, p) => ({
   status: p.status || 'pendente',
   data_pedido: p.dataPedido || new Date().toISOString(),
   data_entrega: p.dataEntrega || null,
-  troco: p.troco ?? null,
+  troco: (p.troco === '' || p.troco == null) ? null : p.troco,
   obs: p.obs || null,
   updated_at: new Date().toISOString(),
 })

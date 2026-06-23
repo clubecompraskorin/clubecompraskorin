@@ -247,6 +247,18 @@ export default function App({ org, onOrgRefresh }) {
     <PeriodoNav periodoCorrente={periodoCorrente} periodoViz={periodoViz} periodosLista={periodosLista} onChange={viewPeriodo} loading={loadingHist} />
   ) : null
 
+  // Confirmar retirada: pedido do catálogo já vem fechado (sem itens editáveis
+  // por produtoId) — só confirma. Pedido manual passa pelo fluxo de 3 etapas.
+  const handleIniciarEntrega = (p) => {
+    if (p._isWeb) {
+      confirmar(`Confirmar entrega para ${p.clienteNome}?\n${fmt(p._webTotal || 0)} · ${p.pagamento}`)
+        .then(ok => { if (ok) entregarPedidoCombinado(p) })
+    } else {
+      setModoEntrega(p)
+    }
+  }
+
+
   if (!loaded) return (
     <div className="flex items-center justify-center min-h-screen bg-stone-100">
       <div className="text-green-800 text-xl font-black animate-pulse">Carregando… 🌿</div>
@@ -319,8 +331,8 @@ export default function App({ org, onOrgRefresh }) {
             </button>
           </div>
         )}
-        {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onEntregar={p => entregarPedidoCombinado(p)} onIniciarEntrega={p => { if (p._isWeb) { confirmar(`Confirmar entrega para ${p.clienteNome}?\n${fmt(p._webTotal||0)} · ${p.pagamento}`).then(ok => { if (ok) entregarPedidoCombinado(p) }) } else setModoEntrega(p) }} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} />}
-        {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onEntregar={entregarPedido} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={p => setModoEntrega(p)} />}
+        {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onEntregar={p => entregarPedidoCombinado(p)} onIniciarEntrega={handleIniciarEntrega} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} />}
+        {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onEntregar={entregarPedido} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} />}
         {tab === 'produtos'   && <ProdutosScreen  produtos={produtos} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} />}
         {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} periodoObj={periodoObjAtivo} isCorrente={!isHistorico} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} />}
         {tab === 'web'        && <WebScreen produtos={produtos} periodo={periodoCorrente} org={org} onUnidadesChange={setUnidades} onRecarregar={recarregarTudo} abrirEm={webAbrirEm} onAbrirEmConsumido={() => setWebAbrirEm(null)} onOrgRefresh={onOrgRefresh} />}
@@ -773,7 +785,7 @@ function ModoEntrega({ pedido, produtos, onCancelar, onFinalizar }) {
         {obs && <div className="text-xs text-stone-400 italic mt-1">"{obs}"</div>}
       </div>
 
-      <button onClick={() => onFinalizar(itens, pagamento, pagamento === 'Dinheiro' && troco ? (parseFloat(troco) - total).toFixed(2) : '', obs)}
+      <button onClick={() => onFinalizar(itens, pagamento, pagamento === 'Dinheiro' && troco ? (parseFloat(troco) - total).toFixed(2) : null, obs)}
         className="w-full py-5 bg-green-700 text-white rounded-2xl font-black text-xl active:bg-green-800 shadow-lg">
         ✅ Confirmar Entrega e Recebimento
       </button>
