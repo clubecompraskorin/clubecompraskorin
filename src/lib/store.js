@@ -1,146 +1,99 @@
 /**
- * store.js — Camada de dados offline-first
+ * store.js — Pedidos manuais (WhatsApp/balcão), escopados por período.
  *
- * Estratégia:
- *  1. ESCREVE no localStorage imediatamente (zero latência, disponível offline)
- *  2. TENTA escrever no Supabase. Se falhar → enfileira na fila de sync.
- *  3. No startup (online) → puxa do Supabase (fonte verdade na nuvem).
- *  4. Quando volta online → processa a fila de sync.
+ * Desde a migração de período estrutural: pedidos manuais vivem em
+ * `korin_pedidos_manual` (sempre com periodo_id), nunca mais num blob json
+ * solto. RLS exige is_org_member + periodo_editavel — por isso toda escrita
+ * é uma chamada direta ao Supabase (sem fila offline: não dá pra enfileirar
+ * com segurança uma escrita que depende de constraint/RLS do servidor).
+ *
+ * Mantém um cache local só de LEITURA (por período) pra render instantâneo
+ * antes do primeiro fetch resolver.
  */
-
 import { supabase } from './supabase'
-import { PRODUTOS_INICIAIS } from './catalog'
 
-// ── CHAVES LOCAL ──────────────────────────────────────────────────────────────
-const K = {
-  produtos:  'korin-produtos',
-  pedidos:   'korin-pedidos',
-  periodo:   'korin-periodo',
-  queue:     'korin-sync-queue',
-  lastSync:  'korin-last-sync',
+const cacheKey = (periodoId) => `korin-pedidos-cache:${periodoId}`
+
+const cache = {
+  get: (periodoId) => {
+    try { const v = localStorage.getItem(cacheKey(periodoId)); return v ? JSON.parse(v) : [] } catch { return [] }
+  },
+  set: (periodoId, lista) => {
+    try { localStorage.setItem(cacheKey(periodoId), JSON.stringify(lista)) } catch {}
+  },
 }
 
-// ── HELPERS LOCAL ─────────────────────────────────────────────────────────────
-const local = {
-  get: (k)    => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null } catch { return null } },
-  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} },
-}
-
-// ── FILA DE SYNC (operações que falharam por falta de internet) ───────────────
-const enqueue = (orgId, key, value) => {
-  const q = local.get(K.queue) || []
-  const sem = q.filter(x => x.key !== key)          // remove entrada anterior da mesma chave
-  sem.push({ orgId, key, value, ts: Date.now() })
-  local.set(K.queue, sem)
-}
-
-/** Processa toda a fila pendente. Chame quando detectar retorno de internet. */
-export const flushQueue = async () => {
-  if (!supabase) return { ok: false, reason: 'no_supabase' }
-  const q = local.get(K.queue) || []
-  if (!q.length) return { ok: true, flushed: 0 }
-
-  const remaining = []
-  let flushed = 0
-
-  for (const item of q) {
-    if (!item.orgId) { remaining.push(item); continue } // item antigo sem org, descarta do retry automático
-    try {
-      const { error } = await supabase
-        .from('korin_data')
-        .upsert(
-          { org_id: item.orgId, key: item.key, value: item.value, updated_at: new Date().toISOString() },
-          { onConflict: 'org_id,key' }
-        )
-      if (error) throw error
-      flushed++
-    } catch {
-      remaining.push(item)
-    }
-  }
-
-  local.set(K.queue, remaining)
-  if (!remaining.length) local.set(K.lastSync, new Date().toISOString())
-  return { ok: true, flushed, pending: remaining.length }
-}
-
-// ── PUSH INDIVIDUAL (escrita + fallback para fila) ────────────────────────────
-const push = async (orgId, key, value) => {
-  if (!supabase || !orgId) { enqueue(orgId, key, value); return false }
-  try {
-    const { error } = await supabase
-      .from('korin_data')
-      .upsert(
-        { org_id: orgId, key, value, updated_at: new Date().toISOString() },
-        { onConflict: 'org_id,key' }
-      )
-    if (error) throw error
-    local.set(K.lastSync, new Date().toISOString())
-    return true
-  } catch {
-    enqueue(orgId, key, value)
-    return false
-  }
-}
-
-// ── PULL (busca nuvem → atualiza local) ───────────────────────────────────────
-export const pullFromCloud = async (orgId) => {
-  if (!supabase || !orgId) return { ok: false, reason: 'no_supabase_or_org' }
-  try {
-    const { data, error } = await supabase.from('korin_data').select('*').eq('org_id', orgId)
-    if (error) throw error
-    data?.forEach(row => local.set(row.key, row.value))
-    local.set(K.lastSync, new Date().toISOString())
-    return { ok: true, rows: data?.length || 0 }
-  } catch (e) {
-    return { ok: false, reason: e.message }
-  }
-}
-
-// ── OPERAÇÕES DE NEGÓCIO ──────────────────────────────────────────────────────
-export const loadAll = () => ({
-  produtos:  local.get(K.produtos) || PRODUTOS_INICIAIS,
-  pedidos:   local.get(K.pedidos)  || [],
-  periodo:   local.get(K.periodo)  || 'Abril/2026',
-  lastSync:  local.get(K.lastSync),
-  queueSize: (local.get(K.queue) || []).length,
+// ── MAPEAMENTO DB ↔ APP ───────────────────────────────────────────────────────
+const fromDb = (row) => ({
+  id: row.id,
+  clienteNome: row.cliente_nome,
+  clienteTel: row.cliente_tel || '',
+  unidade: row.unidade || '',
+  pagamento: row.pagamento || 'A Definir',
+  itens: row.itens || [],
+  origem: row.origem || 'whatsapp',
+  status: row.status || 'pendente',
+  dataPedido: row.data_pedido,
+  dataEntrega: row.data_entrega || null,
+  troco: row.troco != null ? Number(row.troco) : null,
+  obs: row.obs || null,
 })
 
-export const saveProdutos = (orgId, data) => { local.set(K.produtos, data); push(orgId, K.produtos, data) }
-export const savePedidos  = (orgId, data) => { local.set(K.pedidos,  data); push(orgId, K.pedidos,  data) }
-export const savePeriodo  = (orgId, data) => { local.set(K.periodo,  data); push(orgId, K.periodo,  data) }
+const toDb = (orgId, periodoId, p) => ({
+  ...(p.id ? { id: p.id } : {}),
+  org_id: orgId,
+  periodo_id: periodoId,
+  cliente_nome: p.clienteNome,
+  cliente_tel: p.clienteTel || null,
+  unidade: p.unidade || null,
+  pagamento: p.pagamento || 'A Definir',
+  itens: p.itens || [],
+  origem: p.origem || 'whatsapp',
+  status: p.status || 'pendente',
+  data_pedido: p.dataPedido || new Date().toISOString(),
+  data_entrega: p.dataEntrega || null,
+  troco: p.troco ?? null,
+  obs: p.obs || null,
+  updated_at: new Date().toISOString(),
+})
 
-// ── HISTÓRICO ─────────────────────────────────────────────────────────────────
-export const archivePeriodo = async (orgId, periodo, pedidos, produtos) => {
-  if (!supabase || !orgId) return false
-  try {
-    const { error } = await supabase.from('korin_historico')
-      .upsert(
-        { org_id: orgId, periodo, pedidos, produtos, arquivado_em: new Date().toISOString() },
-        { onConflict: 'org_id,periodo' }
-      )
-    if (error) throw error
-    return true
-  } catch { return false }
-}
+// ── LEITURA ────────────────────────────────────────────────────────────────────
+export const loadCachedPedidos = (periodoId) => cache.get(periodoId)
 
-export const listPeriodos = async (orgId) => {
-  if (!supabase || !orgId) return []
-  try {
-    const { data, error } = await supabase
-      .from('korin_historico').select('periodo').eq('org_id', orgId).order('arquivado_em', { ascending: false })
-    if (error) throw error
-    return (data || []).map(d => d.periodo)
-  } catch { return [] }
-}
-
-export const getPedidosByPeriodo = async (orgId, periodo) => {
-  if (!supabase || !orgId) return null
+export const getPedidosManual = async (periodoId) => {
+  if (!supabase || !periodoId) return []
   try {
     const { data, error } = await supabase
-      .from('korin_historico').select('pedidos, produtos')
-      .eq('org_id', orgId).eq('periodo', periodo).maybeSingle()
+      .from('korin_pedidos_manual').select('*').eq('periodo_id', periodoId)
+      .order('data_pedido', { ascending: false })
     if (error) throw error
-    return data
-  } catch { return null }
+    const lista = (data || []).map(fromDb)
+    cache.set(periodoId, lista)
+    return lista
+  } catch {
+    return cache.get(periodoId)
+  }
+}
+
+// ── ESCRITA ────────────────────────────────────────────────────────────────────
+/** Cria ou atualiza um pedido manual. Falha se o período estiver arquivado. */
+export const salvarPedidoManual = async (orgId, periodoId, pedidoApp) => {
+  if (!supabase) return { ok: false, error: 'Sem conexão com internet' }
+  try {
+    const payload = toDb(orgId, periodoId, pedidoApp)
+    const { data, error } = await supabase
+      .from('korin_pedidos_manual').upsert(payload, { onConflict: 'id' })
+      .select().maybeSingle()
+    if (error) throw error
+    return { ok: true, pedido: fromDb(data) }
+  } catch (e) { return { ok: false, error: e.message } }
+}
+
+export const removerPedidoManual = async (id) => {
+  if (!supabase) return { ok: false, error: 'Sem conexão com internet' }
+  try {
+    const { error } = await supabase.from('korin_pedidos_manual').delete().eq('id', id)
+    if (error) throw error
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e.message } }
 }

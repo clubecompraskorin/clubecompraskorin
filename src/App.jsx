@@ -1,34 +1,31 @@
 import { useState, useEffect, useCallback } from 'react'
-import { loadAll, saveProdutos, savePedidos, savePeriodo, pullFromCloud, flushQueue, archivePeriodo, listPeriodos, getPedidosByPeriodo } from './lib/store'
+import { getPedidosManual, salvarPedidoManual, removerPedidoManual } from './lib/store'
 import { useInstallPrompt } from './lib/pwa'
 import * as XLSX from 'xlsx'
 import { fmt, calcTotal, sortByCod } from './lib/helpers'
 import { printPedido, printTodos } from './lib/print'
 import { CAT_COR, CATS_ORDEM, PAGAMENTOS } from './lib/catalog'
 import WebScreen from './WebScreen'
-import { getPedidosWeb, cancelarPedidoWeb, savePedidoWeb, loadConfigWeb, saveConfigWeb } from './lib/store-web'
+import { getPedidosWeb, cancelarPedidoWeb, savePedidoWeb } from './lib/store-web'
+import {
+  getPeriodoCorrente, listarPeriodos, getProdutosDoPeriodo,
+  salvarProdutoNoPeriodo, removerProdutoDoPeriodo, arquivarPeriodo, desarquivarPeriodo,
+} from './lib/periodos'
 import { ToastHost, ConfirmHost, toast, confirmar } from './lib/dialog'
 import { getUnidades } from './lib/unidades'
 import UnidadesManager from './UnidadesManager'
 
 
 // ── SYNC BADGE ────────────────────────────────────────────────────────────────
-function SyncBadge({ online, queueSize, lastSync, syncing }) {
+function SyncBadge({ online, syncing }) {
   if (syncing) return (
     <div className="text-xs text-yellow-300 font-bold flex items-center gap-1">⟳ Sincronizando…</div>
   )
   if (!online) return (
-    <div className="text-xs text-red-300 font-bold flex items-center gap-1">
-      📴 Offline{queueSize > 0 ? ` · ${queueSize} pendente(s)` : ''}
-    </div>
-  )
-  if (queueSize > 0) return (
-    <div className="text-xs text-yellow-300 font-bold">⚠️ {queueSize} a sincronizar</div>
+    <div className="text-xs text-red-300 font-bold flex items-center gap-1">📴 Offline</div>
   )
   return (
-    <div className="text-xs text-green-300 font-bold">
-      ☁️ {lastSync ? new Date(lastSync).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Online'}
-    </div>
+    <div className="text-xs text-green-300 font-bold">☁️ Online</div>
   )
 }
 
@@ -40,217 +37,171 @@ export default function App({ org }) {
   const [tab, setTab]         = useState('pedidos')
   const [produtos, setProdutos] = useState([])
   const [pedidos, setPedidos]   = useState([])
-  const [periodo, setPeriodo]   = useState('Abril/2026')
+  const [periodoCorrente, setPeriodoCorrente] = useState(null)
   const [loaded, setLoaded]     = useState(false)
   const [online, setOnline]     = useState(navigator.onLine)
   const [syncing, setSyncing]   = useState(false)
-  const [queueSize, setQueueSize] = useState(0)
-  const [lastSync, setLastSync]   = useState(null)
 
   const [modal, setModal]           = useState(null)
   const { show: showInstall, isIOS: iosInstall, install: installApp, dismiss: dismissInstall } = useInstallPrompt('admin')
-  const [importandoCatalogo, setImportandoCatalogo] = useState(false)
   const [editPedido, setEditPedido]   = useState(null)
   const [editProduto, setEditProduto] = useState(null)
   const [viewPedido, setViewPedido]   = useState(null)
   const [modoEntrega, setModoEntrega]     = useState(null)
-  const [periodos, setPeriodos]           = useState([])
-  const [periodoViz, setPeriodoViz]       = useState(null)
+  const [periodosLista, setPeriodosLista] = useState([])
+  const [periodoViz, setPeriodoViz]       = useState(null)   // período (objeto) sendo visualizado; null = corrente
   const [pedidosViz, setPedidosViz]       = useState(null)
   const [produtosViz, setProdutosViz]     = useState(null)
   const [loadingHist, setLoadingHist]     = useState(false)
   const [pedidosWebAtivos, setPedidosWebAtivos] = useState([])
   const [pedidosWebViz, setPedidosWebViz]       = useState([])
   const [unidades, setUnidades] = useState([])
-  const [configWebAtivo, setConfigWebAtivo] = useState(null)
   const recarregarUnidades = useCallback(() => { if (orgId) getUnidades(orgId).then(setUnidades) }, [orgId])
   useEffect(() => { recarregarUnidades() }, [recarregarUnidades])
   const nomesUnidades = unidades.map(u => u.nome)
   const unidadePadrao = nomesUnidades[0] || ''
 
+  // ── CARREGA TUDO (período corrente, seus produtos/pedidos, lista de períodos) ─
+  const recarregarTudo = useCallback(async () => {
+    if (!orgId) return
+    setSyncing(true)
+    try {
+      const per = await getPeriodoCorrente(orgId)
+      setPeriodoCorrente(per)
+      const lista = await listarPeriodos(orgId)
+      setPeriodosLista(lista)
+      if (per) {
+        const [prods, peds, webOrds] = await Promise.all([
+          getProdutosDoPeriodo(per.id),
+          getPedidosManual(per.id),
+          getPedidosWeb(per.id),
+        ])
+        setProdutos(prods)
+        setPedidos(peds)
+        setPedidosWebAtivos(webOrds.filter(w => w.status !== 'cancelado'))
+      } else {
+        setProdutos([]); setPedidos([]); setPedidosWebAtivos([])
+      }
+    } finally { setSyncing(false) }
+  }, [orgId])
+
   // ── STARTUP ────────────────────────────────────────────────────────────────
   useEffect(() => {
-    const init = async () => {
-      // 1. Carrega local primeiro (imediato)
-      const local = loadAll()
-      setProdutos(local.produtos)
-      setPedidos(local.pedidos)
-      setQueueSize(local.queueSize)
-      setLastSync(local.lastSync)
-      setLoaded(true)
-
-      // Carrega lista de períodos arquivados
-      listPeriodos(orgId).then(setPeriodos)
-
-      // 2. Se online, puxa da nuvem (pode ter dados mais recentes de outro device)
-      if (navigator.onLine) {
-        setSyncing(true)
-        const result = await pullFromCloud(orgId)
-        if (result.ok) {
-          const fresh = loadAll()
-          setProdutos(fresh.produtos)
-          setPedidos(fresh.pedidos)
-          setLastSync(fresh.lastSync)
-          setQueueSize(fresh.queueSize)
-        }
-        // Processa fila de operações que ficaram pendentes
-        await flushQueue()
-        const afterFlush = loadAll()
-        setQueueSize(afterFlush.queueSize)
-        setLastSync(afterFlush.lastSync)
-        setSyncing(false)
-      }
-
-      // 3. O período do catálogo (Aba Web) é a fonte única da verdade — o admin
-      // sempre segue ele. Roda por último, depois de qualquer sync com a nuvem,
-      // pra garantir que sempre prevalece mesmo se houver um valor antigo salvo.
-      const cfgWeb = await loadConfigWeb(orgId)
-      setConfigWebAtivo(cfgWeb)
-      const periodoAtual = loadAll().periodo
-      const periodoAtivo = cfgWeb?.periodo || periodoAtual || 'Abril/2026'
-      setPeriodo(periodoAtivo)
-      if (periodoAtivo !== periodoAtual) savePeriodo(orgId, periodoAtivo)
-      getPedidosWeb(periodoAtivo).then(w => setPedidosWebAtivos(w.filter(x => x.status !== 'cancelado')))
-    }
+    const init = async () => { await recarregarTudo(); setLoaded(true) }
     init()
-  }, [])
+  }, [orgId])
 
   // ── AUTO-REFRESH ───────────────────────────────────────────────────────────
-  const doRefresh = useCallback(async () => {
-    if (!navigator.onLine) return
-    try {
-      setSyncing(true)
-      const result = await pullFromCloud(orgId)
-      if (result.ok) {
-        const fresh = loadAll()
-        setProdutos(fresh.produtos)
-        setPedidos(fresh.pedidos)
-        setQueueSize(fresh.queueSize)
-        setLastSync(fresh.lastSync)
-      }
-      const periodoAtual = loadAll().periodo
-      const cfgWeb = await loadConfigWeb(orgId)
-      setConfigWebAtivo(cfgWeb)
-      const periodoAtivo = cfgWeb?.periodo || periodoAtual
-      setPeriodo(periodoAtivo)
-      if (periodoAtivo !== periodoAtual) savePeriodo(orgId, periodoAtivo)
-      const webOrds = await getPedidosWeb(periodoAtivo)
-      setPedidosWebAtivos(webOrds.filter(w => w.status !== 'cancelado'))
-    } catch {} finally { setSyncing(false) }
-  }, [])
-
   useEffect(() => {
-    const onFocus = () => { if (document.visibilityState === 'visible') doRefresh() }
+    const onFocus = () => { if (document.visibilityState === 'visible' && navigator.onLine) recarregarTudo() }
     document.addEventListener('visibilitychange', onFocus)
-    const interval = setInterval(doRefresh, 60000)
+    const interval = setInterval(() => { if (navigator.onLine) recarregarTudo() }, 60000)
     return () => { document.removeEventListener('visibilitychange', onFocus); clearInterval(interval) }
-  }, [doRefresh])
+  }, [recarregarTudo])
 
   // ── DETECTA ONLINE/OFFLINE ─────────────────────────────────────────────────
   useEffect(() => {
-    const goOnline = async () => {
-      setOnline(true)
-      setSyncing(true)
-      await flushQueue()
-      const d = loadAll()
-      setQueueSize(d.queueSize)
-      setLastSync(d.lastSync)
-      setSyncing(false)
-    }
+    const goOnline = () => { setOnline(true); recarregarTudo() }
     const goOffline = () => setOnline(false)
-
     window.addEventListener('online', goOnline)
     window.addEventListener('offline', goOffline)
     return () => {
       window.removeEventListener('online', goOnline)
       window.removeEventListener('offline', goOffline)
     }
-  }, [])
+  }, [recarregarTudo])
 
-  // ── AÇÕES ──────────────────────────────────────────────────────────────────
-  const atualizarPedidos = (novosPedidos) => {
-    setPedidos(novosPedidos)
-    savePedidos(orgId, novosPedidos)
-    setQueueSize(loadAll().queueSize)
-  }
+  const closeModal = () => { setModal(null); setEditPedido(null); setEditProduto(null); setViewPedido(null) }
 
-  const atualizarProdutos = (novosProdutos) => {
-    setProdutos(novosProdutos)
-    saveProdutos(orgId, novosProdutos)
-  }
-
-  const savePedido = (p) => {
-    const novo = p.id
-      ? pedidos.map(x => x.id === p.id ? p : x)
-      : [...pedidos, { ...p, id: Date.now(), status: 'pendente', dataPedido: new Date().toISOString(), origem: p.origem || 'whatsapp', unidade: p.unidade || unidadePadrao }]
-    atualizarPedidos(novo)
+  // ── AÇÕES — PEDIDOS MANUAIS (sempre no período corrente) ────────────────────
+  const savePedido = async (p) => {
+    if (!periodoCorrente) return
+    const payload = p.id
+      ? p
+      : { ...p, status: 'pendente', dataPedido: new Date().toISOString(), origem: p.origem || 'whatsapp', unidade: p.unidade || unidadePadrao }
+    const r = await salvarPedidoManual(orgId, periodoCorrente.id, payload)
+    if (!r.ok) { toast('Erro ao salvar: ' + r.error); return }
+    setPedidos(prev => p.id ? prev.map(x => x.id === p.id ? r.pedido : x) : [...prev, r.pedido])
     closeModal()
   }
 
   const deletePedido = async (id) => {
     if (!await confirmar('Remover este pedido?')) return
-    atualizarPedidos(pedidos.filter(x => x.id !== id))
+    const r = await removerPedidoManual(id)
+    if (!r.ok) { toast('Erro ao remover: ' + r.error); return }
+    setPedidos(prev => prev.filter(x => x.id !== id))
   }
 
-  const entregarPedido = (id) => {
-    atualizarPedidos(pedidos.map(x =>
-      x.id === id ? { ...x, status: 'entregue', dataEntrega: new Date().toISOString() } : x
-    ))
+  const entregarPedido = async (id) => {
+    const pedido = pedidos.find(x => x.id === id)
+    if (!pedido || !periodoCorrente) return
+    const atualizado = { ...pedido, status: 'entregue', dataEntrega: new Date().toISOString() }
+    const r = await salvarPedidoManual(orgId, periodoCorrente.id, atualizado)
+    if (r.ok) setPedidos(prev => prev.map(x => x.id === id ? r.pedido : x))
+    else toast('Erro ao atualizar: ' + r.error)
   }
 
   // Finaliza entrega com itens ajustados + pagamento
-  const finalizarEntrega = (id, itensAjustados, pagamento, troco, obs) => {
-    atualizarPedidos(pedidos.map(x =>
-      x.id === id ? { ...x, status: 'entregue', dataEntrega: new Date().toISOString(), itens: itensAjustados, pagamento, troco, obs } : x
-    ))
+  const finalizarEntrega = async (id, itensAjustados, pagamento, troco, obs) => {
+    const pedido = pedidos.find(x => x.id === id)
+    if (!pedido || !periodoCorrente) return
+    const atualizado = { ...pedido, status: 'entregue', dataEntrega: new Date().toISOString(), itens: itensAjustados, pagamento, troco, obs }
+    const r = await salvarPedidoManual(orgId, periodoCorrente.id, atualizado)
+    if (r.ok) setPedidos(prev => prev.map(x => x.id === id ? r.pedido : x))
+    else toast('Erro ao atualizar: ' + r.error)
   }
 
-  const saveProduto = (p) => {
-    const novo = p.id
-      ? produtos.map(x => x.id === p.id ? p : x)
-      : [...produtos, { ...p, id: Date.now(), cod: Math.max(...produtos.map(x => x.cod), 0) + 1 }]
-    atualizarProdutos(novo)
+  // ── AÇÕES — PRODUTOS (ajuste avulso dentro do período corrente) ─────────────
+  const saveProduto = async (p) => {
+    if (!periodoCorrente) return
+    const payload = p.id ? p : { ...p, cod: Math.max(0, ...produtos.map(x => x.cod)) + 1 }
+    const r = await salvarProdutoNoPeriodo(periodoCorrente.id, payload)
+    if (!r.ok) { toast('Erro ao salvar: ' + r.error); return }
+    setProdutos(prev => p.id ? prev.map(x => x.id === p.id ? r.produto : x) : [...prev, r.produto])
     closeModal()
   }
 
   const deleteProduto = async (id) => {
     if (!await confirmar('Remover este produto?')) return
-    atualizarProdutos(produtos.filter(x => x.id !== id))
+    const r = await removerProdutoDoPeriodo(id)
+    if (!r.ok) { toast('Erro ao remover: ' + r.error); return }
+    setProdutos(prev => prev.filter(x => x.id !== id))
   }
 
-  const changePeriodo = (v) => {
-    setPeriodo(v)
-    savePeriodo(orgId, v)
-    closeModal()
-  }
-
-  const closeModal = () => { setModal(null); setEditPedido(null); setEditProduto(null); setViewPedido(null) }
-
-  const viewPeriodo = async (p) => {
-    if (p === null || p === periodo) {
+  // ── PERÍODO VISUALIZADO (histórico, somente leitura) ─────────────────────────
+  const viewPeriodo = async (periodoRow) => {
+    if (!periodoRow || periodoRow.id === periodoCorrente?.id) {
       setPeriodoViz(null); setPedidosViz(null); setProdutosViz(null); setPedidosWebViz([]); return
     }
     setLoadingHist(true)
-    const [hist, webOrds] = await Promise.all([getPedidosByPeriodo(orgId, p), getPedidosWeb(p)])
-    if (hist) { setPeriodoViz(p); setPedidosViz(hist.pedidos || []); setProdutosViz(hist.produtos || produtos) }
+    const [prods, peds, webOrds] = await Promise.all([
+      getProdutosDoPeriodo(periodoRow.id),
+      getPedidosManual(periodoRow.id),
+      getPedidosWeb(periodoRow.id),
+    ])
+    setPeriodoViz(periodoRow); setProdutosViz(prods); setPedidosViz(peds)
     setPedidosWebViz(webOrds.filter(w => w.status !== 'cancelado'))
     setLoadingHist(false)
   }
 
-  const arquivarEIniciar = async (novoPeriodo) => {
-    await archivePeriodo(orgId, periodo, pedidos, produtos)
-    atualizarPedidos([])
-    changePeriodo(novoPeriodo)
-    // O catálogo (Aba Web) é a fonte de verdade do período — vira o mês nos
-    // dois lugares juntos, senão o catálogo continuaria vendendo no mês antigo
-    // e, no próximo refresh, "puxaria" o admin de volta pro período encerrado.
-    const novaConfig = { ...(configWebAtivo || {}), periodo: novoPeriodo }
-    setConfigWebAtivo(novaConfig)
-    await saveConfigWeb(orgId, novaConfig)
-    const lista = await listPeriodos(orgId)
-    setPeriodos(lista)
-    setPeriodoViz(null); setPedidosViz(null); setProdutosViz(null); setPedidosWebViz([])
-    setPedidosWebAtivos([])
+  // ── ARQUIVAR / DESARQUIVAR (aba Fechamento; nunca o período corrente) ──────
+  const handleArquivar = async (periodoId) => {
+    if (!await confirmar('Arquivar este período? Os pedidos continuam visíveis no histórico, mas não poderão mais ser editados até desarquivar.')) return
+    const r = await arquivarPeriodo(periodoId)
+    if (!r.ok) { toast('Erro ao arquivar: ' + r.error); return }
+    const lista = await listarPeriodos(orgId)
+    setPeriodosLista(lista)
+    const atualizado = lista.find(p => p.id === periodoId)
+    if (periodoViz?.id === periodoId && atualizado) setPeriodoViz(atualizado)
+  }
+
+  const handleDesarquivar = async (periodoId) => {
+    const r = await desarquivarPeriodo(periodoId)
+    if (!r.ok) { toast('Erro ao desarquivar: ' + r.error); return }
+    const lista = await listarPeriodos(orgId)
+    setPeriodosLista(lista)
+    const atualizado = lista.find(p => p.id === periodoId)
+    if (periodoViz?.id === periodoId && atualizado) setPeriodoViz(atualizado)
   }
 
   // ── HELPERS PEDIDOS COMBINADOS ──────────────────────────────────────────────
@@ -264,12 +215,12 @@ export default function App({ org }) {
   })
 
   const deletePedidoCombinado = async (pedido) => {
-    if (!await confirmar('Remover este pedido?')) return
     if (pedido._isWeb) {
+      if (!await confirmar('Remover este pedido?')) return
       await cancelarPedidoWeb(pedido.id)
       setPedidosWebAtivos(prev => prev.filter(p => p.id !== pedido.id))
     } else {
-      atualizarPedidos(pedidos.filter(x => x.id !== pedido.id))
+      await deletePedido(pedido.id)
     }
   }
 
@@ -289,9 +240,10 @@ export default function App({ org }) {
   const _webBase       = isHistorico ? pedidosWebViz : pedidosWebAtivos
   const produtosAtivos = isHistorico ? (produtosViz || produtos) : produtos
   const pedidosAtivos  = [..._waBase, ..._webBase.map(w => normalizeWebOrder(w, produtosAtivos))].sort((a,b) => new Date(b.dataPedido)-new Date(a.dataPedido))
-  const periodoAtivo   = isHistorico ? periodoViz               : periodo
-  const periodoNav     = periodos.length > 0 ? (
-    <PeriodoNav periodoAtual={periodo} periodoViz={periodoViz} periodos={periodos} onChange={viewPeriodo} loading={loadingHist} />
+  const periodoObjAtivo = isHistorico ? periodoViz : periodoCorrente
+  const periodoAtivo    = periodoObjAtivo?.nome || ''
+  const periodoNav      = periodosLista.length > 1 ? (
+    <PeriodoNav periodoCorrente={periodoCorrente} periodoViz={periodoViz} periodosLista={periodosLista} onChange={viewPeriodo} loading={loadingHist} />
   ) : null
 
   if (!loaded) return (
@@ -317,8 +269,8 @@ export default function App({ org }) {
             {org?.nome && <div className="text-xs text-green-300 font-bold leading-tight">{org.nome}</div>}
           </div>
           <div className="flex flex-col items-end gap-0.5">
-            <button onClick={() => setModal('periodo')} className="text-base font-black active:opacity-60">{periodo}</button>
-            <SyncBadge online={online} queueSize={queueSize} lastSync={lastSync} syncing={syncing} />
+            <div className="text-base font-black">{periodoCorrente?.nome || 'Sem período'}</div>
+            <SyncBadge online={online} syncing={syncing} />
           </div>
         </div>
       </header>
@@ -356,9 +308,9 @@ export default function App({ org }) {
         )}
         {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onEntregar={p => entregarPedidoCombinado(p)} onIniciarEntrega={p => { if (p._isWeb) { confirmar(`Confirmar entrega para ${p.clienteNome}?\n${fmt(p._webTotal||0)} · ${p.pagamento}`).then(ok => { if (ok) entregarPedidoCombinado(p) }) } else setModoEntrega(p) }} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} />}
         {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onEntregar={entregarPedido} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={p => setModoEntrega(p)} />}
-        {tab === 'produtos'   && <ProdutosScreen  produtos={produtos} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} onImportar={() => setModal('importar')} />}
-        {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} />}
-        {tab === 'web'        && <WebScreen produtos={produtos} org={org} onUnidadesChange={setUnidades} />}
+        {tab === 'produtos'   && <ProdutosScreen  produtos={produtos} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} />}
+        {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} periodoObj={periodoObjAtivo} isCorrente={!isHistorico} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} />}
+        {tab === 'web'        && <WebScreen produtos={produtos} periodo={periodoCorrente} org={org} onUnidadesChange={setUnidades} onRecarregar={recarregarTudo} />}
       </main>
 
       {/* BOTTOM NAV */}
@@ -390,10 +342,8 @@ export default function App({ org }) {
 
       {/* MODALS */}
       {modal === 'pedido'   && <ModalPedido   pedido={editPedido}   produtos={produtos} unidades={nomesUnidades} onSave={savePedido}   onClose={closeModal} />}
-      {modal === 'detalhe'  && viewPedido && <ModalDetalhe  pedido={viewPedido}  produtos={produtos} periodo={periodo} onClose={closeModal} onPrint={() => printPedido(viewPedido, produtos, periodo)} />}
+      {modal === 'detalhe'  && viewPedido && <ModalDetalhe  pedido={viewPedido}  produtos={produtos} periodo={periodoAtivo} onClose={closeModal} onPrint={() => printPedido(viewPedido, produtos, periodoAtivo)} />}
       {modal === 'produto'  && <ModalProduto  produto={editProduto}               onSave={saveProduto}  onClose={closeModal} />}
-      {modal === 'importar' && <ModalImportarCatalogo produtos={produtos} onSave={p => { atualizarProdutos(p); closeModal() }} onClose={closeModal} />}
-      {modal === 'periodo'  && <ModalPeriodo  periodo={periodo} onSave={changePeriodo} onArquivar={arquivarEIniciar} onClose={closeModal} />}
       {modal === 'colar'    && <ModalColarPedido produtos={produtos} unidades={nomesUnidades} onSave={savePedido} onClose={closeModal} />}
 
       {/* MODO ENTREGA — overlay global, acessível de qualquer tab */}
@@ -417,18 +367,17 @@ export default function App({ org }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // NAVEGADOR DE PERÍODO
 // ═══════════════════════════════════════════════════════════════════════════════
-function PeriodoNav({ periodoAtual, periodoViz, periodos, onChange, loading }) {
-  const todos = [periodoAtual, ...periodos.filter(p => p !== periodoAtual)]
-  const ativo = periodoViz || periodoAtual
-  if (todos.length <= 1) return null
+function PeriodoNav({ periodoCorrente, periodoViz, periodosLista, onChange, loading }) {
+  if (periodosLista.length <= 1) return null
+  const ativoId = periodoViz?.id || periodoCorrente?.id
   return (
     <div className="overflow-x-auto -mx-4 px-4 mb-3">
       <div className="flex gap-2 min-w-max pb-1">
-        {todos.map(p => (
-          <button key={p} onClick={() => onChange(p === periodoAtual ? null : p)}
+        {periodosLista.map(p => (
+          <button key={p.id} onClick={() => onChange(p.id === periodoCorrente?.id ? null : p)}
             disabled={loading}
-            className={`px-3 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-colors disabled:opacity-50 ${ativo === p ? 'bg-green-700 text-white' : 'bg-white text-stone-500 border border-stone-200 active:bg-stone-50'}`}>
-            {p}{p === periodoAtual ? ' ●' : ''}
+            className={`px-3 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-colors disabled:opacity-50 ${ativoId === p.id ? 'bg-green-700 text-white' : 'bg-white text-stone-500 border border-stone-200 active:bg-stone-50'}`}>
+            {p.nome}{p.id === periodoCorrente?.id ? ' ●' : ''}{p.status === 'arquivado' ? ' 🔒' : ''}
           </button>
         ))}
       </div>
@@ -822,14 +771,13 @@ function ModoEntrega({ pedido, produtos, onCancelar, onFinalizar }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: PRODUTOS
 // ═══════════════════════════════════════════════════════════════════════════════
-function ProdutosScreen({ produtos, onAdd, onEdit, onDelete, onImportar }) {
+function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
   const cats = [...new Set([...CATS_ORDEM, ...produtos.map(p => p.categoria)])]
   return (
     <div className="px-4 py-4 space-y-4">
-      <button onClick={onImportar}
-        className="w-full py-3.5 bg-green-50 border-2 border-green-200 text-green-800 rounded-2xl font-black text-base active:bg-green-100 flex items-center justify-center gap-2">
-        📥 Importar catálogo da Korin
-      </button>
+      <div className="bg-stone-50 border border-stone-100 rounded-2xl px-4 py-3 text-sm text-stone-500 font-semibold text-center">
+        Pra importar tabela nova ou virar o mês, use 📥 na aba Web.
+      </div>
       {cats.map(cat => {
         const list = produtos.filter(p => p.categoria === cat).sort((a, b) => a.cod - b.cod)
         if (!list.length) return null
@@ -987,15 +935,10 @@ function DashboardScreen({ pedidos, produtos, unidades = [] }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: FECHAMENTO
 // ═══════════════════════════════════════════════════════════════════════════════
-function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, periodoNav }) {
+function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, periodoNav, periodoObj, isCorrente, onArquivar, onDesarquivar }) {
   const [subTab, setSubTab]   = useState('resumo')
-  const [configWeb, setConfigWeb] = useState(null)
-
-  useEffect(() => { loadConfigWeb(orgId).then(setConfigWeb) }, [])
 
   const exportarXLSX = () => {
-    if (!configWeb) { toast('Aguarde carregar as configurações'); return }
-
     const mp = {}
     pedidos.forEach(p => {
       const itens = p._webItens
@@ -1012,8 +955,8 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
     const rows = Object.values(mp)
       .sort((a, b) => a.cod - b.cod)
       .map(item => {
-        const cfg      = configWeb.produtos?.[String(item.cod)]
-        const qtdCaixa = cfg?.qtdCaixa > 0 ? cfg.qtdCaixa : null
+        const prod     = produtos.find(p => p.cod === item.cod)
+        const qtdCaixa = prod?.qtdCaixa > 0 ? prod.qtdCaixa : null
         const caixas   = qtdCaixa ? Math.ceil(item.qty / qtdCaixa) : null
         const unCompr  = qtdCaixa ? caixas * qtdCaixa : null
         const sobra    = qtdCaixa ? unCompr - item.qty : null
@@ -1068,6 +1011,24 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
   return (
     <div className="px-4 py-4 space-y-4">
       {periodoNav}
+      {!isCorrente && periodoObj && (
+        <div className="bg-white border border-stone-100 rounded-2xl px-4 py-3 flex items-center justify-between gap-3 shadow-sm">
+          <div className="text-sm text-stone-500 font-semibold">
+            {periodoObj.status === 'arquivado' ? '🔒 Período arquivado' : '📂 Período aberto, mas não é o corrente'}
+          </div>
+          {periodoObj.status === 'arquivado' ? (
+            <button onClick={() => onDesarquivar(periodoObj.id)}
+              className="px-4 py-2 bg-stone-100 text-stone-700 rounded-xl font-black text-sm active:bg-stone-200 flex-shrink-0">
+              🔓 Desarquivar
+            </button>
+          ) : (
+            <button onClick={() => onArquivar(periodoObj.id)}
+              className="px-4 py-2 bg-amber-100 text-amber-700 rounded-xl font-black text-sm active:bg-amber-200 flex-shrink-0">
+              📦 Arquivar
+            </button>
+          )}
+        </div>
+      )}
       <div className="flex gap-2">
         {[['resumo','📋 Resumo'],['dashboard','📊 Dashboard']].map(([id,label]) => (
           <button key={id} onClick={() => setSubTab(id)}
@@ -1351,166 +1312,6 @@ function ModalDetalhe({ pedido, produtos, onClose, onPrint }) {
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MODAL: IMPORTAR CATÁLOGO
-// ═══════════════════════════════════════════════════════════════════════════════
-function ModalImportarCatalogo({ produtos: produtosAtuais, onSave, onClose }) {
-  const [etapa, setEtapa]           = useState('upload')
-  const [imagem, setImagem]         = useState(null)
-  const [imgBase64, setImgBase64]   = useState(null)
-  const [importados, setImportados] = useState([])
-  const [carregando, setCarregando] = useState(false)
-  const [erro, setErro]             = useState('')
-  const [periodoTabela, setPeriodoTabela] = useState(null)
-  const [avisoMes, setAvisoMes]     = useState(false)
-
-  const handleFile = e => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setImagem(URL.createObjectURL(file))
-    const reader = new FileReader()
-    reader.onload = ev => setImgBase64(ev.target.result.split(',')[1])
-    reader.readAsDataURL(file)
-  }
-
-  const interpretar = async () => {
-    if (!imgBase64) return
-    setCarregando(true); setErro('')
-    try {
-      const res  = await fetch('/api/interpretar-catalogo', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ imagemBase64: imgBase64 })
-      })
-      const data = await res.json()
-      if (data.produtos?.length > 0) {
-        const prods = data.produtos.map(p => {
-          const exist = produtosAtuais.find(x => x.cod === p.cod)
-          return { ...p, id: exist?.id ?? p.cod, precoCusto: exist?.precoCusto ?? null }
-        })
-        setImportados(prods)
-        setPeriodoTabela(data.periodo)
-
-        // Verificar se o período da tabela bate com o mês atual
-        if (data.periodo) {
-          const meses = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO',
-                         'JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO']
-          const agora  = new Date()
-          const mesAtual = meses[agora.getMonth()]
-          const anoAtual = agora.getFullYear().toString()
-          const periodoUpper = data.periodo.toUpperCase()
-          const mesOk  = periodoUpper.includes(mesAtual)
-          const anoOk  = periodoUpper.includes(anoAtual)
-          if (!mesOk || !anoOk) {
-            setAvisoMes(true)
-            return // não avança ainda — aguarda confirmação
-          }
-        }
-        setEtapa('preview')
-      } else {
-        setErro(data.erro || 'Nenhum produto encontrado. Tente com uma foto mais nítida.')
-      }
-    } catch { setErro('Erro de conexão. Tente novamente.') }
-    finally  { setCarregando(false) }
-  }
-
-  if (avisoMes) return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-4">
-      <div className="bg-white rounded-3xl p-6 space-y-4 w-full max-w-sm">
-        <div className="text-4xl text-center">⚠️</div>
-        <div className="text-xl font-black text-center text-stone-800">Tabela de outro mês</div>
-        <div className="text-base text-stone-600 text-center">
-          A tabela identificada é de <strong className="text-amber-600">{periodoTabela}</strong>.
-          O mês atual é <strong>{new Date().toLocaleString('pt-BR',{month:'long',year:'numeric'})}</strong>.
-        </div>
-        <div className="text-sm text-stone-500 text-center">Deseja importar mesmo assim?</div>
-        <div className="flex gap-3">
-          <button onClick={() => { setAvisoMes(false); setImagem(null); setImgBase64(null) }}
-            className="flex-1 py-3 bg-stone-100 text-stone-600 rounded-2xl font-black active:bg-stone-200">
-            Cancelar
-          </button>
-          <button onClick={() => { setAvisoMes(false); setEtapa('preview') }}
-            className="flex-1 py-3 bg-amber-500 text-white rounded-2xl font-black active:bg-amber-600">
-            Importar assim
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-
-  if (etapa === 'upload') return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
-      <div className="bg-white w-full rounded-t-3xl p-5 space-y-4">
-        <div className="flex justify-between items-center">
-          <div className="text-xl font-black">Importar catálogo</div>
-          <button onClick={onClose} className="p-2 rounded-full bg-stone-100 text-xl">✕</button>
-        </div>
-        {!imagem ? (
-          <label>
-            <div className="border-2 border-dashed border-green-300 rounded-2xl p-10 text-center cursor-pointer active:bg-green-50">
-              <div className="text-5xl mb-3">📷</div>
-              <div className="text-base font-black text-green-700">Tirar foto ou escolher imagem</div>
-              <div className="text-sm text-stone-400 mt-1">Foto da tabela da Korin</div>
-            </div>
-            <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
-          </label>
-        ) : (
-          <div>
-            <img src={imagem} alt="Tabela" className="w-full rounded-2xl max-h-60 object-contain bg-stone-50" />
-            <button onClick={() => { setImagem(null); setImgBase64(null) }} className="mt-1 text-xs text-stone-400 underline">Trocar imagem</button>
-          </div>
-        )}
-        {erro && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 font-semibold">{erro}</div>}
-        <button onClick={interpretar} disabled={!imgBase64 || carregando}
-          className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-lg active:bg-green-800 disabled:opacity-50 flex items-center justify-center gap-2">
-          {carregando ? <><span className="animate-spin inline-block">⟳</span> Interpretando com IA…</> : '🤖 Interpretar com IA'}
-        </button>
-      </div>
-    </div>
-  )
-
-  return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
-      <div className="bg-white w-full rounded-t-3xl flex flex-col" style={{ maxHeight: '90vh' }}>
-        <div className="p-4 border-b border-stone-100 flex-shrink-0">
-          <div className="flex justify-between items-center">
-            <div>
-              <div className="text-xl font-black">Pré-visualização</div>
-              <div className="text-sm text-stone-400">
-                {importados.length} produtos encontrados
-                {periodoTabela && <span className="ml-2 bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-bold">{periodoTabela}</span>}
-              </div>
-            </div>
-            <button onClick={onClose} className="p-2 rounded-full bg-stone-100 text-xl">✕</button>
-          </div>
-        </div>
-        <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2">
-          {importados.map((p, i) => (
-            <div key={p.cod} className="flex items-center gap-3 bg-stone-50 rounded-xl px-3 py-2.5">
-              <div className="w-8 h-8 rounded-lg bg-green-700 text-white flex items-center justify-center text-xs font-black flex-shrink-0">{p.cod}</div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-bold text-stone-800 truncate">{p.nome}</div>
-                <div className="text-xs text-stone-400">{p.unidade} · {p.categoria}</div>
-              </div>
-              <div className="text-sm font-black text-green-700 flex-shrink-0">{fmt(p.preco)}</div>
-              <button onClick={() => setImportados(prev => prev.filter((_,j) => j !== i))}
-                className="text-stone-300 text-lg active:text-red-500 flex-shrink-0">✕</button>
-            </div>
-          ))}
-        </div>
-        <div className="p-4 border-t border-stone-100 flex gap-3 flex-shrink-0">
-          <button onClick={() => setEtapa('upload')}
-            className="px-5 py-3.5 bg-stone-100 text-stone-600 rounded-2xl font-black active:bg-stone-200">← Voltar</button>
-          <button onClick={() => onSave(importados)}
-            className="flex-1 py-3.5 bg-green-700 text-white rounded-2xl font-black text-base active:bg-green-800">
-            ✅ Salvar {importados.length} produtos
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // MODAL: PRODUTO
 // ═══════════════════════════════════════════════════════════════════════════════
 function LabelField({ label, children }) {
@@ -1581,40 +1382,6 @@ function ModalProduto({ produto, onSave, onClose }) {
         }} className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-lg active:bg-green-800 mt-2">
           {produto ? 'Salvar Alterações' : 'Adicionar Produto'}
         </button>
-      </div>
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// MODAL: PERÍODO
-// ═══════════════════════════════════════════════════════════════════════════════
-function ModalPeriodo({ periodo, onSave, onArquivar, onClose }) {
-  const [val, setVal] = useState('')
-  return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
-      <div className="bg-white w-full rounded-t-3xl p-5 space-y-3">
-        <div className="flex justify-between items-center">
-          <div className="text-xl font-black">Novo Período</div>
-          <button onClick={onClose} className="p-2 rounded-full bg-stone-100 text-xl">✕</button>
-        </div>
-        <div className="bg-stone-50 border border-stone-100 rounded-xl px-4 py-3">
-          <div className="text-xs text-stone-400 font-bold">PERÍODO ATUAL</div>
-          <div className="text-base font-black text-stone-800">{periodo}</div>
-        </div>
-        <input value={val} onChange={e => setVal(e.target.value)} placeholder="Nome do novo período (ex: Junho/2026)"
-          className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base font-semibold focus:outline-none focus:border-green-500" />
-        <button onClick={() => { if (!val.trim()) { toast('Informe o nome do novo período'); return }; onArquivar(val.trim()) }}
-          className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-base active:bg-green-800">
-          📦 Arquivar {periodo} e iniciar {val || '…'}
-        </button>
-        <button onClick={() => { if (!val.trim()) { toast('Informe o nome do novo período'); return }; onSave(val.trim()) }}
-          className="w-full py-3 border-2 border-stone-200 text-stone-600 rounded-2xl font-bold text-base active:bg-stone-50">
-          Só mudar nome (manter pedidos)
-        </button>
-        <p className="text-xs text-stone-400 text-center">
-          "Arquivar" salva o histórico de {periodo} e limpa os pedidos para o novo período.
-        </p>
       </div>
     </div>
   )

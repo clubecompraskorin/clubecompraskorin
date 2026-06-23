@@ -1,7 +1,7 @@
 // api/totais.js — Vercel Serverless Function
-// Retorna só o agregado {cod: quantidade} de um período. Nunca expõe
-// nome/telefone de outros clientes — é o que o catálogo público precisa
-// pra saber quanto já foi vendido, sem vazar dados pessoais de terceiros.
+// Retorna só o agregado {cod: quantidade} de um período (por periodoId).
+// Nunca expõe nome/telefone de outros clientes — é o que o catálogo público
+// precisa pra saber quanto já foi vendido, sem vazar dados pessoais de terceiros.
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -13,8 +13,8 @@ const supabaseAdmin = createClient(
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end()
 
-  const { slug, periodo } = req.query
-  if (!slug || !periodo) return res.status(400).json({ ok: false, error: 'slug e periodo são obrigatórios' })
+  const { slug, periodoId } = req.query
+  if (!slug || !periodoId) return res.status(400).json({ ok: false, error: 'slug e periodoId são obrigatórios' })
 
   try {
     const { data: org, error: orgError } = await supabaseAdmin
@@ -24,7 +24,7 @@ export default async function handler(req, res) {
 
     const { data, error } = await supabaseAdmin
       .from('korin_pedidos_web').select('itens, status')
-      .eq('org_id', org.id).eq('periodo', periodo)
+      .eq('org_id', org.id).eq('periodo_id', periodoId)
     if (error) throw error
 
     const totais = {}

@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './lib/supabase'
 import { PRODUTOS_INICIAIS, CAT_COR, CATS_ORDEM } from './lib/catalog'
 import {
-  loadConfigWeb, loadClienteDados, saveClienteDados,
+  loadClienteDados, saveClienteDados,
   criarPedidoCliente, consultarMeuPedido, getTotaisWeb, resolverOrgPorSlug,
-  isPeriodoFechado, getProdutosWeb,
+  isPeriodoFechado,
 } from './lib/store-web'
+import { getPeriodoCorrente, getProdutosDoPeriodo } from './lib/periodos'
 import { useInstallPrompt } from './lib/pwa'
 
 // ── RESOLUÇÃO DE SLUG (URL: /[slug]/pedido) ──────────────────────────────────
@@ -17,7 +18,7 @@ const PAGAMENTOS_CLI = ['PIX', 'Dinheiro', 'Cartão Crédito', 'Cartão Débito'
 const fmt = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',')
 
 // ── HELPERS VISUAIS ───────────────────────────────────────────────────────────
-function Header({ config, org }) {
+function Header({ periodo, org }) {
   return (
     <header className="bg-white shadow-sm sticky top-0 z-20">
       <div className="flex items-center justify-center gap-4 px-4 py-2 border-b border-stone-100">
@@ -25,7 +26,7 @@ function Header({ config, org }) {
       </div>
       <div className="bg-green-800 text-white text-center px-4 py-2">
         <div className="text-xs text-green-300 uppercase tracking-widest">{org?.nome || 'Clube de Compras Korin'}</div>
-        <div className="text-base font-black">{config?.periodo || ''}</div>
+        <div className="text-base font-black">{periodo?.nome || ''}</div>
       </div>
     </header>
   )
@@ -46,10 +47,10 @@ function Rodape() {
 }
 
 // ── TELA FECHADA ──────────────────────────────────────────────────────────────
-function TelaFechada({ config, org, showInstall, iosInstall, install, dismiss }) {
+function TelaFechada({ periodo, org, showInstall, iosInstall, install, dismiss }) {
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
-      <Header config={config} org={org} />
+      <Header periodo={periodo} org={org} />
       {/* Banner instalação PWA */}
       {(showInstall === true || showInstall === 'manual') && (
         <div className="mx-4 mt-3 rounded-2xl shadow-lg overflow-hidden">
@@ -84,7 +85,7 @@ function TelaFechada({ config, org, showInstall, iosInstall, install, dismiss })
         <div className="text-6xl mb-6">📦</div>
         <div className="text-3xl font-black text-stone-700 mb-3">Pedidos encerrados</div>
         <div className="text-xl text-stone-500 mb-6 leading-relaxed">
-          Os pedidos para o período <strong className="text-green-700">{config?.periodo}</strong> estão encerrados.
+          Os pedidos para o período <strong className="text-green-700">{periodo?.nome || 'atual'}</strong> estão encerrados.
         </div>
         <div className="bg-green-50 border border-green-200 rounded-2xl px-6 py-5 max-w-sm w-full">
           <div className="text-base text-green-800 font-semibold">
@@ -173,12 +174,12 @@ function ProdutoCard({ produto, qty, onSetQty, disponivel, qtdCaixa }) {
 }
 
 // ── TELA CATÁLOGO ─────────────────────────────────────────────────────────────
-function TelaCatalogo({ config, org, produtos, carrinho, onSetQty, total, totalItens, getDisponivel, pedidoExistente, onVerCarrinho, showInstall, iosInstall, install, dismiss }) {
+function TelaCatalogo({ periodo, org, produtos, carrinho, onSetQty, total, totalItens, getDisponivel, pedidoExistente, onVerCarrinho, showInstall, iosInstall, install, dismiss }) {
   const cats = [...new Set([...CATS_ORDEM, ...produtos.map(p => p.categoria)])]
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
-      <Header config={config} org={org} />
+      <Header periodo={periodo} org={org} />
 
       {/* Banner instalação PWA */}
       {(showInstall === true || showInstall === 'manual') && (
@@ -214,7 +215,7 @@ function TelaCatalogo({ config, org, produtos, carrinho, onSetQty, total, totalI
       {pedidoExistente && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-center">
           <span className="text-amber-700 font-bold text-base">
-            ✏️ Editando seu pedido de {config.periodo}
+            ✏️ Editando seu pedido de {periodo?.nome}
           </span>
         </div>
       )}
@@ -491,13 +492,13 @@ function TelaPagamento({ clienteDados, setClienteDados, onVoltar, onConfirmar, s
 }
 
 // ── TELA CONFIRMAÇÃO ──────────────────────────────────────────────────────────
-function TelaConfirmacao({ pedido, config, org, isEdicao, onEditar }) {
-  const fechado = isPeriodoFechado(config)
+function TelaConfirmacao({ pedido, periodo, org, isEdicao, onEditar }) {
+  const fechado = isPeriodoFechado(periodo)
   const total = pedido.itens.reduce((s, it) => s + (it.preco * it.qty), 0)
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
-      <Header config={config} org={org} />
+      <Header periodo={periodo} org={org} />
 
       <main className="flex-1 px-4 py-6 pb-8">
         {/* Status */}
@@ -506,7 +507,7 @@ function TelaConfirmacao({ pedido, config, org, isEdicao, onEditar }) {
           <div className="text-3xl font-black text-green-700">
             {isEdicao ? 'Pedido atualizado!' : 'Pedido confirmado!'}
           </div>
-          <div className="text-base text-stone-400 mt-1">{config?.periodo}</div>
+          <div className="text-base text-stone-400 mt-1">{periodo?.nome}</div>
         </div>
 
         {/* Dados */}
@@ -579,7 +580,7 @@ export default function CatalogoApp() {
   const [tela, setTela]                     = useState('loading')  // loading|org-invalida|fechado|catalogo|carrinho|dados|pagamento|confirmacao
   const [slug]                              = useState(() => getSlugDaURL())
   const [org, setOrg]                       = useState(null)
-  const [config, setConfig]                 = useState(null)
+  const [periodo, setPeriodo]               = useState(null)
   const [produtos, setProdutos]             = useState([])
   const [totaisPorProduto, setTotaisPorProduto] = useState({})
   const [carrinho, setCarrinho]             = useState({})    // { [cod]: qty }
@@ -610,20 +611,20 @@ export default function CatalogoApp() {
       const unis = await getUnidades(orgEncontrada.id)
       setUnidades(unis)
 
-      const cfg = await loadConfigWeb(orgEncontrada.id)
-      setConfig(cfg)
+      const per = await getPeriodoCorrente(orgEncontrada.id)
+      setPeriodo(per)
 
-      const prods = await getProdutosWeb(orgEncontrada.id)
+      const prods = per ? await getProdutosDoPeriodo(per.id) : []
       setProdutos(prods.length ? prods : PRODUTOS_INICIAIS)
 
-      const totais = await getTotaisWeb(slug, cfg.periodo)
+      const totais = per ? await getTotaisWeb(slug, per.id) : {}
       setTotaisPorProduto(totais)
 
       const dadosSalvos = loadClienteDados()
       setClienteDados(prev => ({ ...prev, ...dadosSalvos, unidade: dadosSalvos?.unidade || unis[0]?.nome || '' }))
-      if (dadosSalvos?.telefone) {
-        if (!isPeriodoFechado(cfg)) {
-          const pedExistente = await consultarMeuPedido(slug, dadosSalvos.telefone, cfg.periodo)
+      if (dadosSalvos?.telefone && per) {
+        if (!isPeriodoFechado(per)) {
+          const pedExistente = await consultarMeuPedido(slug, dadosSalvos.telefone, per.id)
           if (pedExistente && pedExistente.status !== 'cancelado') {
             setPedidoExistente(pedExistente)
             const cart = {}
@@ -647,9 +648,11 @@ export default function CatalogoApp() {
     const refresh = async () => {
       if (!navigator.onLine || tela !== 'catalogo' || !org) return
       try {
-        const cfg = await loadConfigWeb(org.id)
-        setConfig(cfg)
-        const totais = await getTotaisWeb(slug, cfg.periodo)
+        const per = await getPeriodoCorrente(org.id)
+        setPeriodo(per)
+        if (!per) return
+        const [prods, totais] = await Promise.all([getProdutosDoPeriodo(per.id), getTotaisWeb(slug, per.id)])
+        setProdutos(prods.length ? prods : PRODUTOS_INICIAIS)
         setTotaisPorProduto(totais)
       } catch {}
     }
@@ -660,17 +663,19 @@ export default function CatalogoApp() {
   }, [tela, org])
 
   // ── LÓGICA DE DISPONIBILIDADE ──────────────────────────────────────────────
+  // qtdCaixa/caixasAbertas agora vêm direto do produto (coluna do período),
+  // não mais de um mapa solto em config.
 
   const getDisponivel = useCallback((cod) => {
-    const cfgProd = config?.produtos?.[String(cod)]
-    const qtdCaixa = cfgProd?.qtdCaixa || 0
-    if (!qtdCaixa || !cfgProd?.caixasAbertas) return { disponivel: Infinity, qtdCaixa: 0 }
+    const prod = produtos.find(p => p.cod === cod)
+    const qtdCaixa = prod?.qtdCaixa || 0
+    if (!qtdCaixa || !prod?.caixasAbertas) return { disponivel: Infinity, qtdCaixa: 0 }
 
-    const totalSlots    = cfgProd.caixasAbertas * qtdCaixa
+    const totalSlots    = prod.caixasAbertas * qtdCaixa
     const jaDeOutros    = (totaisPorProduto[cod] || 0) - (pedidoExistente?.itens.find(i => i.cod === cod)?.qty || 0)
     const disponivel    = Math.max(0, totalSlots - jaDeOutros)
     return { disponivel, qtdCaixa }
-  }, [config, totaisPorProduto, pedidoExistente])
+  }, [produtos, totaisPorProduto, pedidoExistente])
 
   const handleSetQty = (cod, qty) => {
     const { disponivel } = getDisponivel(cod)
@@ -703,7 +708,6 @@ export default function CatalogoApp() {
 
     const pedido = {
       ...(pedidoExistente ? { id: pedidoExistente.id } : {}),
-      periodo:   config.periodo,
       nome:      clienteDados.nome.trim(),
       telefone:  clienteDados.telefone.trim(),
       unidade:   clienteDados.unidade,
@@ -744,12 +748,12 @@ export default function CatalogoApp() {
     </div>
   )
 
-  if (isPeriodoFechado(config)) return <TelaFechada config={config} org={org} showInstall={showInstall} iosInstall={iosInstall} install={install} dismiss={dismiss} />
+  if (isPeriodoFechado(periodo)) return <TelaFechada periodo={periodo} org={org} showInstall={showInstall} iosInstall={iosInstall} install={install} dismiss={dismiss} />
 
   if (tela === 'confirmacao' && pedidoConfirmado) return (
     <TelaConfirmacao
       pedido={pedidoConfirmado}
-      config={config}
+      periodo={periodo}
       org={org}
       isEdicao={isEdicao}
       onEditar={() => { setIsEdicao(false); setTela('catalogo') }}
@@ -790,7 +794,7 @@ export default function CatalogoApp() {
 
   return (
     <TelaCatalogo
-      config={config}
+      periodo={periodo}
       org={org}
       produtos={produtos}
       carrinho={carrinho}

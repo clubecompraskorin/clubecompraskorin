@@ -1,6 +1,7 @@
 // api/meu-pedido.js — Vercel Serverless Function
-// Cliente final consulta o próprio pedido pelo telefone. service_role bypassa
-// RLS, mas o filtro por telefone+org garante que só vê o pedido dele.
+// Cliente final consulta o próprio pedido pelo telefone, escopado ao período
+// corrente (periodoId). service_role bypassa RLS, mas o filtro por
+// org+telefone+periodo garante que só vê o pedido dele, do mês certo.
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -12,9 +13,9 @@ const supabaseAdmin = createClient(
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end()
 
-  const { slug, telefone, periodo } = req.query
-  if (!slug || !telefone || !periodo) {
-    return res.status(400).json({ ok: false, error: 'slug, telefone e periodo são obrigatórios' })
+  const { slug, telefone, periodoId } = req.query
+  if (!slug || !telefone || !periodoId) {
+    return res.status(400).json({ ok: false, error: 'slug, telefone e periodoId são obrigatórios' })
   }
 
   try {
@@ -25,7 +26,7 @@ export default async function handler(req, res) {
 
     const { data, error } = await supabaseAdmin
       .from('korin_pedidos_web').select('*')
-      .eq('org_id', org.id).eq('telefone', telefone).eq('periodo', periodo)
+      .eq('org_id', org.id).eq('telefone', telefone).eq('periodo_id', periodoId)
       .order('created_at', { ascending: false }).limit(1).maybeSingle()
     if (error) throw error
 

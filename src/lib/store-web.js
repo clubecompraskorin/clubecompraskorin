@@ -1,73 +1,31 @@
 import { supabase } from './supabase'
 
 // ── CHAVES ────────────────────────────────────────────────────────────────────
-const K = { config: 'korin-config-web', cliente: 'korin-cliente-dados' }
+const K = { cliente: 'korin-cliente-dados' }
 
 const local = {
   get: k => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null } catch { return null } },
   set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} },
 }
 
-// ── CONFIG ────────────────────────────────────────────────────────────────────
-export const CONFIG_PADRAO = {
-  aberto: false,
-  data_limite: null,
-  periodo: 'Junho/2026',
-  produtos: {},   // { [cod]: { qtdCaixa: number, caixasAbertas: number } }
-}
-
-export const isPeriodoFechado = config => {
-  if (!config?.aberto) return true
-  if (config.data_limite) {
-    const d = new Date(config.data_limite); d.setHours(23, 59, 59, 999)
+// ── STATUS DO PERÍODO ─────────────────────────────────────────────────────────
+// Recebe o registro de `periodos` (não mais um config solto). Fechado se:
+// arquivado, catálogo desligado manualmente, ou passou da data limite.
+export const isPeriodoFechado = (periodo) => {
+  if (!periodo) return true
+  if (periodo.status !== 'aberto') return true
+  if (!periodo.catalogo_aberto) return true
+  if (periodo.data_limite) {
+    const d = new Date(periodo.data_limite); d.setHours(23, 59, 59, 999)
     if (new Date() > d) return true
   }
   return false
-}
-
-export const loadConfigWeb = async (orgId) => {
-  const cached = local.get(K.config)
-  if (!supabase || !orgId) return cached || CONFIG_PADRAO
-  try {
-    const { data, error } = await supabase
-      .from('korin_data').select('value').eq('org_id', orgId).eq('key', K.config).maybeSingle()
-    if (error) throw error
-    const config = data?.value || CONFIG_PADRAO
-    local.set(K.config, config)
-    return config
-  } catch { return cached || CONFIG_PADRAO }
-}
-
-export const saveConfigWeb = async (orgId, config) => {
-  local.set(K.config, config)
-  if (!supabase || !orgId) return false
-  try {
-    const { error } = await supabase.from('korin_data')
-      .upsert(
-        { org_id: orgId, key: K.config, value: config, updated_at: new Date().toISOString() },
-        { onConflict: 'org_id,key' }
-      )
-    if (error) throw error
-    return true
-  } catch { return false }
 }
 
 // ── DADOS DO CLIENTE (localStorage) ──────────────────────────────────────────
 export const loadClienteDados = () => local.get(K.cliente) || {}
 export const saveClienteDados = dados => local.set(K.cliente, dados)
 
-// ── PRODUTOS (do Supabase, mesmo catálogo da Valéria) ────────────────────────
-export const getProdutosWeb = async (orgId) => {
-  if (!supabase || !orgId) return []
-  try {
-    const { data, error } = await supabase
-      .from('korin_data').select('value').eq('org_id', orgId).eq('key', 'korin-produtos').maybeSingle()
-    if (error) throw error
-    return data?.value || []
-  } catch { return [] }
-}
-
-// ── PEDIDOS WEB ───────────────────────────────────────────────────────────────
 // ── CLIENTE FINAL (via Vercel Functions, sem acesso direto à tabela) ────────
 export const criarPedidoCliente = async (slug, pedido) => {
   try {
@@ -81,9 +39,10 @@ export const criarPedidoCliente = async (slug, pedido) => {
   } catch (e) { return { ok: false, error: e.message } }
 }
 
-export const consultarMeuPedido = async (slug, telefone, periodo) => {
+export const consultarMeuPedido = async (slug, telefone, periodoId) => {
+  if (!periodoId) return null
   try {
-    const params = new URLSearchParams({ slug, telefone, periodo })
+    const params = new URLSearchParams({ slug, telefone, periodoId })
     const r = await fetch(`/api/meu-pedido?${params}`)
     const json = await r.json()
     if (!r.ok || !json.ok) return null
@@ -91,9 +50,10 @@ export const consultarMeuPedido = async (slug, telefone, periodo) => {
   } catch { return null }
 }
 
-export const getTotaisWeb = async (slug, periodo) => {
+export const getTotaisWeb = async (slug, periodoId) => {
+  if (!periodoId) return {}
   try {
-    const params = new URLSearchParams({ slug, periodo })
+    const params = new URLSearchParams({ slug, periodoId })
     const r = await fetch(`/api/totais?${params}`)
     const json = await r.json()
     if (!r.ok || !json.ok) return {}
@@ -113,27 +73,15 @@ export const resolverOrgPorSlug = async (slug) => {
 }
 
 // ── ADMIN (autenticado — RLS já filtra por organização automaticamente) ────
-export const getPedidosWeb = async periodo => {
-  if (!supabase) return []
+export const getPedidosWeb = async (periodoId) => {
+  if (!supabase || !periodoId) return []
   try {
     const { data, error } = await supabase
       .from('korin_pedidos_web').select('*')
-      .eq('periodo', periodo).order('created_at', { ascending: false })
+      .eq('periodo_id', periodoId).order('created_at', { ascending: false })
     if (error) throw error
     return data || []
   } catch { return [] }
-}
-
-export const getPedidoByTelefone = async (telefone, periodo) => {
-  if (!supabase) return null
-  try {
-    const { data, error } = await supabase
-      .from('korin_pedidos_web').select('*')
-      .eq('telefone', telefone).eq('periodo', periodo)
-      .order('created_at', { ascending: false }).limit(1).maybeSingle()
-    if (error) throw error
-    return data
-  } catch { return null }
 }
 
 export const savePedidoWeb = async pedido => {
@@ -167,14 +115,4 @@ export const getTotaisPorProduto = pedidos => {
     .filter(p => p.status !== 'cancelado')
     .forEach(p => p.itens.forEach(it => { t[it.cod] = (t[it.cod] || 0) + it.qty }))
   return t
-}
-
-export const listPeriodosWeb = async () => {
-  if (!supabase) return []
-  try {
-    const { data, error } = await supabase
-      .from('korin_pedidos_web').select('periodo')
-    if (error) throw error
-    return [...new Set((data || []).map(d => d.periodo))].sort().reverse()
-  } catch { return [] }
 }
