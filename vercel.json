@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/gestor", "destination": "/gestor.html" },
     { "source": "/painel", "destination": "/painel.html" },
     { "source": "/ajuda", "destination": "/ajuda.html" },
     { "source": "/pedido", "destination": "/pedido.html" },

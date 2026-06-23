@@ -10,6 +10,7 @@ export default defineConfig({
         painel: 'painel.html',
         pedido: 'pedido.html',
         ajuda:  'ajuda.html',
+        gestor: 'gestor.html',
       }
     }
   }

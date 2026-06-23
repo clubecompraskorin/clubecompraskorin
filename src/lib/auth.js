@@ -110,6 +110,25 @@ export const atualizarDadosOrganizacao = async (orgId, { responsavelNome, razaoS
   return { ok: true }
 }
 
+// Cria só a conta de autenticação, sem vincular a nenhuma organização —
+// usado pelo painel do gestor da plataforma (que não é tenant de ninguém).
+export const signUpSemOrganizacao = async (email, password) => {
+  if (!supabase) return { ok: false, error: 'Sem conexão' }
+  const { data, error } = await supabase.auth.signUp({ email, password })
+  if (error) return { ok: false, error: traduzErro(error.message) }
+  if (!data?.session) return { ok: false, error: 'Conta criada — confirme seu email antes de continuar.' }
+  return { ok: true }
+}
+
+// Checa se o usuário logado é dono da plataforma (tabela platform_admins,
+// independente de qualquer organização/tenant)
+export const isPlatformAdmin = async () => {
+  if (!supabase) return false
+  const { data, error } = await supabase.rpc('is_platform_admin')
+  if (error) return false
+  return Boolean(data)
+}
+
 const traduzErro = (msg = '') => {
   if (msg.includes('Invalid login credentials')) return 'Email ou senha incorretos.'
   if (msg.includes('User already registered')) return 'Esse email já tem conta. Faça login.'
