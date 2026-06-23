@@ -124,7 +124,7 @@ export default function AuthGate({ children }) {
     }
     return (
       <>
-        {children(org)}
+        {children(org, () => resolverOrg(1))}
         <button
           onClick={signOut}
           className="fixed bottom-3 right-3 z-50 bg-stone-800 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg opacity-70 active:opacity-100"

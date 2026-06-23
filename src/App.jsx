@@ -32,9 +32,10 @@ function SyncBadge({ online, syncing }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // APP
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function App({ org }) {
+export default function App({ org, onOrgRefresh }) {
   const orgId = org?.orgId
   const [tab, setTab]         = useState('pedidos')
+  const [webAbrirEm, setWebAbrirEm] = useState(null)
   const [produtos, setProdutos] = useState([])
   const [pedidos, setPedidos]   = useState([])
   const [periodoCorrente, setPeriodoCorrente] = useState(null)
@@ -306,11 +307,23 @@ export default function App({ org }) {
             <button onClick={dismissInstall} className="mt-2 text-xs text-stone-400 underline">Fechar</button>
           </div>
         )}
+        {org && !org.cadastroCompleto && (
+          <div className="mx-4 mt-3 mb-1 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5 flex items-center gap-3">
+            <span className="text-xl flex-shrink-0">📋</span>
+            <div className="flex-1 min-w-0 text-xs text-amber-700 font-semibold leading-tight">
+              Cadastro incompleto — falta seu nome e CPF/CNPJ.
+            </div>
+            <button onClick={() => { setWebAbrirEm('dados'); setTab('web') }}
+              className="px-3 py-1.5 bg-amber-600 text-white rounded-xl font-black text-xs flex-shrink-0 active:bg-amber-700">
+              Completar
+            </button>
+          </div>
+        )}
         {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onEntregar={p => entregarPedidoCombinado(p)} onIniciarEntrega={p => { if (p._isWeb) { confirmar(`Confirmar entrega para ${p.clienteNome}?\n${fmt(p._webTotal||0)} · ${p.pagamento}`).then(ok => { if (ok) entregarPedidoCombinado(p) }) } else setModoEntrega(p) }} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} />}
         {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onEntregar={entregarPedido} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={p => setModoEntrega(p)} />}
         {tab === 'produtos'   && <ProdutosScreen  produtos={produtos} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} />}
         {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} periodoObj={periodoObjAtivo} isCorrente={!isHistorico} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} />}
-        {tab === 'web'        && <WebScreen produtos={produtos} periodo={periodoCorrente} org={org} onUnidadesChange={setUnidades} onRecarregar={recarregarTudo} />}
+        {tab === 'web'        && <WebScreen produtos={produtos} periodo={periodoCorrente} org={org} onUnidadesChange={setUnidades} onRecarregar={recarregarTudo} abrirEm={webAbrirEm} onAbrirEmConsumido={() => setWebAbrirEm(null)} onOrgRefresh={onOrgRefresh} />}
       </main>
 
       {/* BOTTOM NAV */}

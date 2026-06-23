@@ -74,18 +74,40 @@ export const getOrgDoUsuario = async () => {
   if (!supabase) return null
   const { data, error } = await supabase
     .from('org_members')
-    .select('org_id, role, organizacoes ( id, slug, nome, plano, ativo )')
+    .select('org_id, role, organizacoes ( id, slug, nome, plano, ativo, responsavel_nome, razao_social, documento, documento_tipo )')
     .limit(1)
     .maybeSingle()
   if (error || !data) return null
+  const o = data.organizacoes
+  const cadastroCompleto = Boolean(o?.responsavel_nome?.trim() && o?.documento?.trim())
   return {
     orgId: data.org_id,
     role: data.role,
-    slug: data.organizacoes?.slug,
-    nome: data.organizacoes?.nome,
-    plano: data.organizacoes?.plano,
-    ativo: data.organizacoes?.ativo,
+    slug: o?.slug,
+    nome: o?.nome,
+    plano: o?.plano,
+    ativo: o?.ativo,
+    responsavelNome: o?.responsavel_nome || '',
+    razaoSocial: o?.razao_social || '',
+    documento: o?.documento || '',
+    documentoTipo: o?.documento_tipo || '',
+    cadastroCompleto,
   }
+}
+
+// Salva nome do responsável / razão social / CPF-CNPJ — não bloqueia nada,
+// só completa o cadastro pra eventual cobrança ou integração futura.
+export const atualizarDadosOrganizacao = async (orgId, { responsavelNome, razaoSocial, documento, documentoTipo }) => {
+  if (!supabase) return { ok: false, error: 'Sem conexão' }
+  const { error } = await supabase.rpc('atualizar_dados_organizacao', {
+    p_org_id: orgId,
+    p_responsavel_nome: responsavelNome || null,
+    p_razao_social: razaoSocial || null,
+    p_documento: documento || null,
+    p_documento_tipo: documentoTipo || null,
+  })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
 }
 
 const traduzErro = (msg = '') => {

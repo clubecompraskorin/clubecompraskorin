@@ -28,7 +28,7 @@ window.addEventListener('appinstalled', () => logPwaInstall('admin'))
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <AuthGate>
-      {(org) => <App org={org} />}
+      {(org, refrescarOrg) => <App org={org} onOrgRefresh={refrescarOrg} />}
     </AuthGate>
     <Analytics />
   </React.StrictMode>

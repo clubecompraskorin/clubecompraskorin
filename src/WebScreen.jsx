@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getPedidosWeb, cancelarPedidoWeb, getTotaisPorProduto } from './lib/store-web'
+import { atualizarDadosOrganizacao } from './lib/auth'
 import {
   listarPeriodos, atualizarPeriodo, criarPeriodoComCopia,
   getProdutosDoPeriodo, salvarProdutoNoPeriodo, substituirProdutosDoPeriodo,
@@ -378,7 +379,80 @@ function TabResumo({ produtos, pedidosWeb, filtroUnidade }) {
   )
 }
 
-// ── MODAL: IMPORTAR CATÁLOGO (decide mês novo vs. ajuste do corrente) ───────
+// ── SUB-ABA: DADOS CADASTRAIS ────────────────────────────────────────────────
+// Não bloqueia nada — só guarda quem é o responsável e o documento, pra
+// eventual cobrança ou integração futura. Pode ficar incompleto indefinidamente.
+function TabDados({ org, onSalvo }) {
+  const [nome, setNome]              = useState(org?.responsavelNome || '')
+  const [tipo, setTipo]              = useState(org?.documentoTipo || 'cpf')
+  const [documento, setDocumento]    = useState(org?.documento || '')
+  const [razaoSocial, setRazaoSocial] = useState(org?.razaoSocial || '')
+  const [salvando, setSalvando]      = useState(false)
+
+  const salvar = async () => {
+    if (!nome.trim() || !documento.trim()) { toast('Preencha nome e CPF/CNPJ'); return }
+    setSalvando(true)
+    const r = await atualizarDadosOrganizacao(org.orgId, {
+      responsavelNome: nome,
+      razaoSocial: tipo === 'cnpj' ? razaoSocial : '',
+      documento,
+      documentoTipo: tipo,
+    })
+    setSalvando(false)
+    if (r.ok) { toast('Dados salvos'); onSalvo?.() }
+    else toast('Erro ao salvar: ' + r.error)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 text-sm text-amber-700 font-semibold">
+        Esses dados não aparecem pra clientes. Servem pra identificação caso o sistema passe a ter cobrança ou integração com outros serviços no futuro.
+      </div>
+
+      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 space-y-3">
+        <div>
+          <label className="block text-sm font-bold text-stone-600 mb-1">Seu nome (responsável)</label>
+          <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome completo"
+            className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-green-500" />
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-stone-600 mb-1">Tipo de documento</label>
+          <div className="flex gap-2">
+            {['cpf', 'cnpj'].map(t => (
+              <button key={t} onClick={() => setTipo(t)}
+                className={`flex-1 py-2.5 rounded-xl font-black text-sm transition-colors ${tipo === t ? 'bg-green-700 text-white' : 'bg-stone-100 text-stone-500'}`}>
+                {t.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-stone-600 mb-1">{tipo === 'cpf' ? 'CPF' : 'CNPJ'}</label>
+          <input value={documento} onChange={e => setDocumento(e.target.value)}
+            placeholder={tipo === 'cpf' ? '000.000.000-00' : '00.000.000/0000-00'}
+            className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-green-500" />
+        </div>
+
+        {tipo === 'cnpj' && (
+          <div>
+            <label className="block text-sm font-bold text-stone-600 mb-1">Razão social <span className="text-stone-400 font-normal">(opcional)</span></label>
+            <input value={razaoSocial} onChange={e => setRazaoSocial(e.target.value)} placeholder="Nome da empresa"
+              className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-green-500" />
+          </div>
+        )}
+
+        <button onClick={salvar} disabled={salvando}
+          className="w-full py-3.5 bg-green-700 text-white rounded-2xl font-black text-base active:bg-green-800 disabled:opacity-50">
+          {salvando ? '⟳ Salvando…' : '💾 Salvar dados'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+
 function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, onClose }) {
   const [etapa, setEtapa]           = useState('upload') // upload | preview
   const [imagem, setImagem]         = useState(null)
@@ -548,10 +622,12 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
 }
 
 // ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
-export default function WebScreen({ produtos: produtosCorrente, periodo: periodoCorrente, org, onUnidadesChange, onRecarregar }) {
+export default function WebScreen({ produtos: produtosCorrente, periodo: periodoCorrente, org, onUnidadesChange, onRecarregar, abrirEm, onAbrirEmConsumido, onOrgRefresh }) {
   const orgId = org?.orgId
   const orgSlug = org?.slug
-  const [subTab, setSubTab]               = useState('controles')
+  const [subTab, setSubTab]               = useState(abrirEm || 'controles')
+  // Consome abrirEm uma única vez (no mount) — visitas futuras à aba Web voltam a abrir em "Config" normalmente.
+  useEffect(() => { if (abrirEm) onAbrirEmConsumido?.() }, [])
   const [dataLimiteEdit, setDataLimiteEdit] = useState(periodoCorrente?.data_limite ?? null) // pendente até salvar
   const [periodoWeb, setPeriodoWeb]       = useState(periodoCorrente?.id || null) // período sendo visualizado
   const [periodosLista, setPeriodosLista] = useState([])
@@ -670,6 +746,7 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
     { id: 'pedidos',   label: `🛒 Pedidos (${pedidos.filter(p => p.status !== 'cancelado').length})` },
     { id: 'resumo',    label: '📊 Resumo' },
     { id: 'unidades',  label: '📍 Unidades' },
+    { id: 'dados',     label: org?.cadastroCompleto ? '🏢 Dados' : '🏢 Dados ⚠️' },
   ]
 
   return (
@@ -737,6 +814,9 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
       )}
       {subTab === 'unidades' && (
         <UnidadesManager orgId={orgId} modo="settings" onChange={lista => { setUnidades(lista); onUnidadesChange?.(lista) }} />
+      )}
+      {subTab === 'dados' && (
+        <TabDados org={org} onSalvo={() => onOrgRefresh?.()} />
       )}
 
       {modalImportar && (
