@@ -142,14 +142,32 @@ export default function App({ org, onOrgRefresh }) {
     else toast('Erro ao atualizar: ' + r.error)
   }
 
-  // Finaliza entrega com itens ajustados + pagamento
+  // Finaliza entrega com itens ajustados + pagamento. Pedido manual e pedido
+  // do catálogo usam a mesma tela de ajuste (itens chegam aqui sempre como
+  // {produtoId, qty}) — só o destino de gravação muda.
   const finalizarEntrega = async (id, itensAjustados, pagamento, troco, obs) => {
-    const pedido = pedidos.find(x => x.id === id)
-    if (!pedido || !periodoCorrente) return
-    const atualizado = { ...pedido, status: 'entregue', dataEntrega: new Date().toISOString(), itens: itensAjustados, pagamento, troco, obs }
-    const r = await salvarPedidoManual(orgId, periodoCorrente.id, atualizado)
-    if (r.ok) setPedidos(prev => prev.map(x => x.id === id ? r.pedido : x))
-    else toast('Erro ao atualizar: ' + r.error)
+    const manual = pedidos.find(x => x.id === id)
+    if (manual) {
+      if (!periodoCorrente) return
+      const atualizado = { ...manual, status: 'entregue', dataEntrega: new Date().toISOString(), itens: itensAjustados, pagamento, troco, obs }
+      const r = await salvarPedidoManual(orgId, periodoCorrente.id, atualizado)
+      if (r.ok) setPedidos(prev => prev.map(x => x.id === id ? r.pedido : x))
+      else toast('Erro ao atualizar: ' + r.error)
+      return
+    }
+
+    const web = pedidosWebAtivos.find(w => w.id === id)
+    if (web) {
+      // korin_pedidos_web guarda itens por código (não por produtoId) — converte de volta.
+      const itensWeb = itensAjustados
+        .map(it => { const prod = produtos.find(p => p.id === it.produtoId); return prod ? { cod: prod.cod, nome: prod.nome, preco: prod.preco, qty: it.qty } : null })
+        .filter(Boolean)
+      const total = itensWeb.reduce((s, it) => s + it.preco * it.qty, 0)
+      const atualizado = { ...web, status: 'entregue', data_entrega: new Date().toISOString(), itens: itensWeb, total, pagamento, troco, obs }
+      const r = await savePedidoWeb(atualizado)
+      if (r.ok) setPedidosWebAtivos(prev => prev.map(w => w.id === id ? r.data : w))
+      else toast('Erro ao atualizar: ' + r.error)
+    }
   }
 
   // ── AÇÕES — PRODUTOS (ajuste avulso dentro do período corrente) ─────────────
@@ -211,7 +229,8 @@ export default function App({ org, onOrgRefresh }) {
     pagamento: w.pagamento, unidade: w.unidade,
     itens: w.itens.map(it => { const p = prods.find(x => x.cod === it.cod); return p ? { produtoId: p.id, qty: it.qty } : null }).filter(Boolean),
     status: w.status === 'entregue' ? 'entregue' : 'pendente',
-    dataPedido: w.created_at, dataEntrega: w.updated_at,
+    dataPedido: w.created_at, dataEntrega: w.data_entrega || w.updated_at,
+    troco: w.troco != null ? Number(w.troco) : null, obs: w.obs || null,
     origem: 'catalogo', _isWeb: true, _webId: w.id, _webTotal: w.total, _webItens: w.itens,
   })
 
@@ -247,16 +266,9 @@ export default function App({ org, onOrgRefresh }) {
     <PeriodoNav periodoCorrente={periodoCorrente} periodoViz={periodoViz} periodosLista={periodosLista} onChange={viewPeriodo} loading={loadingHist} />
   ) : null
 
-  // Confirmar retirada: pedido do catálogo já vem fechado (sem itens editáveis
-  // por produtoId) — só confirma. Pedido manual passa pelo fluxo de 3 etapas.
-  const handleIniciarEntrega = (p) => {
-    if (p._isWeb) {
-      confirmar(`Confirmar entrega para ${p.clienteNome}?\n${fmt(p._webTotal || 0)} · ${p.pagamento}`)
-        .then(ok => { if (ok) entregarPedidoCombinado(p) })
-    } else {
-      setModoEntrega(p)
-    }
-  }
+  // Mesma regra pra manual e catálogo: ela pode ajustar enquanto o período
+  // estiver aberto. A data limite só vale pro cliente final, no catálogo.
+  const handleIniciarEntrega = (p) => setModoEntrega(p)
 
 
   if (!loaded) return (
