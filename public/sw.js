@@ -1,4 +1,4 @@
-const CACHE = 'korin-admin-v6'
+const CACHE = 'korin-admin-v7'
 
 self.addEventListener('install', e => { self.skipWaiting() })
 
@@ -28,4 +28,31 @@ self.addEventListener('fetch', e => {
 
 self.addEventListener('message', e => {
   if (e.data?.type === 'SKIP_WAITING') self.skipWaiting()
+})
+
+// ── PUSH (pedido novo/alterado vindo do catálogo) ───────────────────────────
+self.addEventListener('push', e => {
+  let dados = {}
+  try { dados = e.data ? e.data.json() : {} } catch {}
+  const titulo = dados.titulo || 'Clube de Compras Korin'
+  const opcoes = {
+    body: dados.corpo || '',
+    icon: '/logo-korin.png',
+    badge: '/logo-korin.png',
+    data: { url: dados.url || '/painel' },
+    tag: dados.tag || undefined,
+  }
+  e.waitUntil(self.registration.showNotification(titulo, opcoes))
+})
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close()
+  const url = e.notification.data?.url || '/painel'
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      const aberto = clients.find(c => c.url.includes('/painel'))
+      if (aberto) return aberto.focus()
+      return self.clients.openWindow(url)
+    })
+  )
 })

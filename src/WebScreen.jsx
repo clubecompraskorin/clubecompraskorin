@@ -7,6 +7,7 @@ import {
   getProdutosDoPeriodo, salvarProdutoNoPeriodo, substituirProdutosDoPeriodo,
 } from './lib/periodos'
 import { getPwaInstallCount } from './lib/pwa'
+import { pushSuportado, pushJaInscrito, ativarPush, desativarPush } from './lib/push'
 import { CAT_COR, CATS_ORDEM } from './lib/catalog'
 import { toast, confirmar } from './lib/dialog'
 import { getUnidades } from './lib/unidades'
@@ -40,6 +41,18 @@ function TabControles({ periodo, dataLimite, onChangeDataLimite, onToggleAberto,
   const linkCatalogo = window.location.origin + '/' + (orgSlug || '') + '/pedido'
   const [instalacoes, setInstalacoes] = useState(null)
   useEffect(() => { getPwaInstallCount('catalogo').then(setInstalacoes) }, [])
+
+  const [pushAtivo, setPushAtivo] = useState(false)
+  const [pushCarregando, setPushCarregando] = useState(false)
+  useEffect(() => { pushJaInscrito().then(setPushAtivo) }, [])
+
+  const toggleNotificacoes = async () => {
+    setPushCarregando(true)
+    const r = pushAtivo ? await desativarPush() : await ativarPush(orgId)
+    setPushCarregando(false)
+    if (r.ok) { setPushAtivo(!pushAtivo); toast(pushAtivo ? 'Notificações desativadas' : 'Notificações ativadas neste dispositivo') }
+    else toast('Erro: ' + r.error)
+  }
 
   return (
     <div className="space-y-4">
@@ -119,6 +132,30 @@ function TabControles({ periodo, dataLimite, onChangeDataLimite, onToggleAberto,
             <span className="text-sm font-bold text-green-700">📲 App instalado por</span>
             <span className="text-2xl font-black text-green-700">{instalacoes}</span>
           </div>
+        )}
+      </div>
+
+      {/* Notificações neste dispositivo */}
+      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
+        <div className="text-xs font-black text-stone-400 uppercase tracking-widest mb-3">Notificações</div>
+        {!pushSuportado() ? (
+          <p className="text-sm text-stone-400">Este navegador não suporta notificações. No iPhone, instale o app na tela inicial primeiro.</p>
+        ) : (
+          <>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-bold text-stone-700">Avisar pedido novo/alterado do catálogo</div>
+                <div className="text-xs text-stone-400 mt-0.5">
+                  {pushAtivo ? '🔔 Ativado neste dispositivo' : 'Avisa aqui mesmo, com o app fechado'}
+                </div>
+              </div>
+              <button onClick={toggleNotificacoes} disabled={pushCarregando}
+                className={`px-4 py-2.5 rounded-xl font-black text-sm flex-shrink-0 transition-colors disabled:opacity-50 ${pushAtivo ? 'bg-stone-100 text-stone-600 active:bg-stone-200' : 'bg-green-600 text-white active:bg-green-700'}`}>
+                {pushCarregando ? '...' : pushAtivo ? 'Desativar' : 'Ativar'}
+              </button>
+            </div>
+            <p className="text-xs text-stone-400 mt-2">No iPhone, só funciona com o app instalado na tela inicial. Em outros aparelhos é por dispositivo — repita em cada um que quiser receber.</p>
+          </>
         )}
       </div>
     </div>
