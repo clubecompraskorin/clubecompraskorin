@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { getPedidosManual, salvarPedidoManual, removerPedidoManual } from './lib/store'
+import { getPedidos, salvarPedido, removerPedido, cancelarPedido } from './lib/store'
 import { useInstallPrompt } from './lib/pwa'
 import * as XLSX from 'xlsx'
 import { fmt, calcTotal, sortByCod } from './lib/helpers'
 import { printPedido, printTodos } from './lib/print'
 import { CAT_COR, CATS_ORDEM, PAGAMENTOS } from './lib/catalog'
 import WebScreen from './WebScreen'
-import { getPedidosWeb, cancelarPedidoWeb, savePedidoWeb } from './lib/store-web'
 import {
   getPeriodoCorrente, listarPeriodos, getProdutosDoPeriodo,
   salvarProdutoNoPeriodo, removerProdutoDoPeriodo, arquivarPeriodo, desarquivarPeriodo,
@@ -54,8 +53,6 @@ export default function App({ org, onOrgRefresh }) {
   const [pedidosViz, setPedidosViz]       = useState(null)
   const [produtosViz, setProdutosViz]     = useState(null)
   const [loadingHist, setLoadingHist]     = useState(false)
-  const [pedidosWebAtivos, setPedidosWebAtivos] = useState([])
-  const [pedidosWebViz, setPedidosWebViz]       = useState([])
   const [unidades, setUnidades] = useState([])
   const recarregarUnidades = useCallback(() => { if (orgId) getUnidades(orgId).then(setUnidades) }, [orgId])
   useEffect(() => { recarregarUnidades() }, [recarregarUnidades])
@@ -72,16 +69,14 @@ export default function App({ org, onOrgRefresh }) {
       const lista = await listarPeriodos(orgId)
       setPeriodosLista(lista)
       if (per) {
-        const [prods, peds, webOrds] = await Promise.all([
+        const [prods, peds] = await Promise.all([
           getProdutosDoPeriodo(per.id),
-          getPedidosManual(per.id),
-          getPedidosWeb(per.id),
+          getPedidos(per.id),
         ])
         setProdutos(prods)
-        setPedidos(peds)
-        setPedidosWebAtivos(webOrds.filter(w => w.status !== 'cancelado'))
+        setPedidos(peds.filter(p => p.status !== 'cancelado'))
       } else {
-        setProdutos([]); setPedidos([]); setPedidosWebAtivos([])
+        setProdutos([]); setPedidos([])
       }
     } finally { setSyncing(false) }
   }, [orgId])
@@ -114,60 +109,46 @@ export default function App({ org, onOrgRefresh }) {
 
   const closeModal = () => { setModal(null); setEditPedido(null); setEditProduto(null); setViewPedido(null) }
 
-  // ── AÇÕES — PEDIDOS MANUAIS (sempre no período corrente) ────────────────────
-  const savePedido = async (p) => {
+  // ── AÇÕES — PEDIDOS (manual e catálogo, sempre no período corrente) ────────
+  const savePedidoForm = async (p) => {
     if (!periodoCorrente) return
     const payload = p.id
       ? p
       : { ...p, status: 'pendente', dataPedido: new Date().toISOString(), origem: p.origem || 'whatsapp', unidade: p.unidade || unidadePadrao }
-    const r = await salvarPedidoManual(orgId, periodoCorrente.id, payload)
+    const r = await salvarPedido(orgId, periodoCorrente.id, payload)
     if (!r.ok) { toast('Erro ao salvar: ' + r.error); return }
     setPedidos(prev => p.id ? prev.map(x => x.id === p.id ? r.pedido : x) : [...prev, r.pedido])
     closeModal()
   }
 
-  const deletePedido = async (id) => {
-    if (!await confirmar('Remover este pedido?')) return
-    const r = await removerPedidoManual(id)
+  // Pedido manual exclui de verdade ("Excluir"); pedido do catálogo só cancela,
+  // mantendo o histórico ("Cancelar") — mesma distinção que já existia antes
+  // de unificar a tabela.
+  const deletePedidoCombinado = async (pedido) => {
+    const ehCatalogo = pedido.origem === 'catalogo'
+    if (!await confirmar(ehCatalogo ? 'Cancelar este pedido?' : 'Remover este pedido?')) return
+    const r = ehCatalogo ? await cancelarPedido(pedido.id) : await removerPedido(pedido.id)
     if (!r.ok) { toast('Erro ao remover: ' + r.error); return }
-    setPedidos(prev => prev.filter(x => x.id !== id))
+    setPedidos(prev => prev.filter(x => x.id !== pedido.id))
   }
 
-  const entregarPedido = async (id) => {
-    const pedido = pedidos.find(x => x.id === id)
-    if (!pedido || !periodoCorrente) return
+  const entregarPedidoCombinado = async (pedido) => {
     const atualizado = { ...pedido, status: 'entregue', dataEntrega: new Date().toISOString() }
-    const r = await salvarPedidoManual(orgId, periodoCorrente.id, atualizado)
-    if (r.ok) setPedidos(prev => prev.map(x => x.id === id ? r.pedido : x))
+    const r = await salvarPedido(orgId, periodoCorrente.id, atualizado)
+    if (r.ok) setPedidos(prev => prev.map(x => x.id === pedido.id ? r.pedido : x))
     else toast('Erro ao atualizar: ' + r.error)
   }
 
   // Finaliza entrega com itens ajustados + pagamento. Pedido manual e pedido
-  // do catálogo usam a mesma tela de ajuste (itens chegam aqui sempre como
-  // {produtoId, qty}) — só o destino de gravação muda.
+  // do catálogo usam a mesma tela de ajuste e a mesma tabela — sem distinção
+  // de formato pra fazer aqui.
   const finalizarEntrega = async (id, itensAjustados, pagamento, troco, obs) => {
-    const manual = pedidos.find(x => x.id === id)
-    if (manual) {
-      if (!periodoCorrente) return
-      const atualizado = { ...manual, status: 'entregue', dataEntrega: new Date().toISOString(), itens: itensAjustados, pagamento, troco, obs }
-      const r = await salvarPedidoManual(orgId, periodoCorrente.id, atualizado)
-      if (r.ok) setPedidos(prev => prev.map(x => x.id === id ? r.pedido : x))
-      else toast('Erro ao atualizar: ' + r.error)
-      return
-    }
-
-    const web = pedidosWebAtivos.find(w => w.id === id)
-    if (web) {
-      // korin_pedidos_web guarda itens por código (não por produtoId) — converte de volta.
-      const itensWeb = itensAjustados
-        .map(it => { const prod = produtos.find(p => p.id === it.produtoId); return prod ? { cod: prod.cod, nome: prod.nome, preco: prod.preco, qty: it.qty } : null })
-        .filter(Boolean)
-      const total = itensWeb.reduce((s, it) => s + it.preco * it.qty, 0)
-      const atualizado = { ...web, status: 'entregue', data_entrega: new Date().toISOString(), itens: itensWeb, total, pagamento, troco, obs }
-      const r = await savePedidoWeb(atualizado)
-      if (r.ok) setPedidosWebAtivos(prev => prev.map(w => w.id === id ? r.data : w))
-      else toast('Erro ao atualizar: ' + r.error)
-    }
+    const pedido = pedidos.find(x => x.id === id)
+    if (!pedido || !periodoCorrente) return
+    const atualizado = { ...pedido, status: 'entregue', dataEntrega: new Date().toISOString(), itens: itensAjustados, pagamento, troco, obs }
+    const r = await salvarPedido(orgId, periodoCorrente.id, atualizado)
+    if (r.ok) setPedidos(prev => prev.map(x => x.id === id ? r.pedido : x))
+    else toast('Erro ao atualizar: ' + r.error)
   }
 
   // ── AÇÕES — PRODUTOS (ajuste avulso dentro do período corrente) ─────────────
@@ -190,16 +171,15 @@ export default function App({ org, onOrgRefresh }) {
   // ── PERÍODO VISUALIZADO (histórico, somente leitura) ─────────────────────────
   const viewPeriodo = async (periodoRow) => {
     if (!periodoRow || periodoRow.id === periodoCorrente?.id) {
-      setPeriodoViz(null); setPedidosViz(null); setProdutosViz(null); setPedidosWebViz([]); return
+      setPeriodoViz(null); setPedidosViz(null); setProdutosViz(null); return
     }
     setLoadingHist(true)
-    const [prods, peds, webOrds] = await Promise.all([
+    const [prods, peds] = await Promise.all([
       getProdutosDoPeriodo(periodoRow.id),
-      getPedidosManual(periodoRow.id),
-      getPedidosWeb(periodoRow.id),
+      getPedidos(periodoRow.id),
     ])
-    setPeriodoViz(periodoRow); setProdutosViz(prods); setPedidosViz(peds)
-    setPedidosWebViz(webOrds.filter(w => w.status !== 'cancelado'))
+    setPeriodoViz(periodoRow); setProdutosViz(prods)
+    setPedidosViz(peds.filter(p => p.status !== 'cancelado'))
     setLoadingHist(false)
   }
 
@@ -223,43 +203,10 @@ export default function App({ org, onOrgRefresh }) {
     if (periodoViz?.id === periodoId && atualizado) setPeriodoViz(atualizado)
   }
 
-  // ── HELPERS PEDIDOS COMBINADOS ──────────────────────────────────────────────
-  const normalizeWebOrder = (w, prods) => ({
-    id: w.id, clienteNome: w.nome, clienteTel: w.telefone || '',
-    pagamento: w.pagamento, unidade: w.unidade,
-    itens: w.itens.map(it => { const p = prods.find(x => x.cod === it.cod); return p ? { produtoId: p.id, qty: it.qty } : null }).filter(Boolean),
-    status: w.status === 'entregue' ? 'entregue' : 'pendente',
-    dataPedido: w.created_at, dataEntrega: w.data_entrega || w.updated_at,
-    troco: w.troco != null ? Number(w.troco) : null, obs: w.obs || null,
-    origem: 'catalogo', _isWeb: true, _webId: w.id, _webTotal: w.total, _webItens: w.itens,
-  })
-
-  const deletePedidoCombinado = async (pedido) => {
-    if (pedido._isWeb) {
-      if (!await confirmar('Remover este pedido?')) return
-      await cancelarPedidoWeb(pedido.id)
-      setPedidosWebAtivos(prev => prev.filter(p => p.id !== pedido.id))
-    } else {
-      await deletePedido(pedido.id)
-    }
-  }
-
-  const entregarPedidoCombinado = async (pedido) => {
-    if (pedido._isWeb) {
-      const orig = pedidosWebAtivos.find(w => w.id === pedido.id)
-      if (!orig) return
-      const upd = { ...orig, status: 'entregue', updated_at: new Date().toISOString() }
-      await savePedidoWeb(upd)
-      setPedidosWebAtivos(prev => prev.map(w => w.id === pedido.id ? upd : w))
-    } else { entregarPedido(pedido.id) }
-  }
-
-  // ── PERÍODO VISUALIZADO ─────────────────────────────────────────────────────
+  // ── PERÍODO ATIVO (corrente ou histórico em visualização) ───────────────────
   const isHistorico    = periodoViz !== null
-  const _waBase        = (isHistorico ? (pedidosViz || []) : pedidos).map(p => ({ ...p, origem: p.origem || 'whatsapp', unidade: p.unidade || unidadePadrao }))
-  const _webBase       = isHistorico ? pedidosWebViz : pedidosWebAtivos
+  const pedidosAtivos  = (isHistorico ? (pedidosViz || []) : pedidos).map(p => ({ ...p, origem: p.origem || 'whatsapp', unidade: p.unidade || unidadePadrao }))
   const produtosAtivos = isHistorico ? (produtosViz || produtos) : produtos
-  const pedidosAtivos  = [..._waBase, ..._webBase.map(w => normalizeWebOrder(w, produtosAtivos))].sort((a,b) => new Date(b.dataPedido)-new Date(a.dataPedido))
   const periodoObjAtivo = isHistorico ? periodoViz : periodoCorrente
   const periodoAtivo    = periodoObjAtivo?.nome || ''
   const periodoNav      = periodosLista.length > 1 ? (
@@ -344,7 +291,7 @@ export default function App({ org, onOrgRefresh }) {
           </div>
         )}
         {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onEntregar={p => entregarPedidoCombinado(p)} onIniciarEntrega={handleIniciarEntrega} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} />}
-        {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onEntregar={entregarPedido} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} />}
+        {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onEntregar={entregarPedidoCombinado} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} />}
         {tab === 'produtos'   && <ProdutosScreen  produtos={produtos} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} />}
         {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} periodoObj={periodoObjAtivo} isCorrente={!isHistorico} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} />}
         {tab === 'web'        && <WebScreen produtos={produtos} periodo={periodoCorrente} org={org} onUnidadesChange={setUnidades} onRecarregar={recarregarTudo} abrirEm={webAbrirEm} onAbrirEmConsumido={() => setWebAbrirEm(null)} onOrgRefresh={onOrgRefresh} />}
@@ -378,10 +325,10 @@ export default function App({ org, onOrgRefresh }) {
       </footer>
 
       {/* MODALS */}
-      {modal === 'pedido'   && <ModalPedido   pedido={editPedido}   produtos={produtos} unidades={nomesUnidades} onSave={savePedido}   onClose={closeModal} />}
+      {modal === 'pedido'   && <ModalPedido   pedido={editPedido}   produtos={produtos} unidades={nomesUnidades} onSave={savePedidoForm}   onClose={closeModal} />}
       {modal === 'detalhe'  && viewPedido && <ModalDetalhe  pedido={viewPedido}  produtos={produtos} periodo={periodoAtivo} onClose={closeModal} onPrint={() => printPedido(viewPedido, produtos, periodoAtivo)} />}
       {modal === 'produto'  && <ModalProduto  produto={editProduto}               onSave={saveProduto}  onClose={closeModal} />}
-      {modal === 'colar'    && <ModalColarPedido produtos={produtos} unidades={nomesUnidades} onSave={savePedido} onClose={closeModal} />}
+      {modal === 'colar'    && <ModalColarPedido produtos={produtos} unidades={nomesUnidades} onSave={savePedidoForm} onClose={closeModal} />}
 
       {/* MODO ENTREGA — overlay global, acessível de qualquer tab */}
       {modoEntrega && (
@@ -862,7 +809,7 @@ function DashboardScreen({ pedidos, produtos, unidades = [] }) {
     .filter(p => filtroUnidade === 'Todas' || (p.unidade || 'Não informada') === filtroUnidade)
     .filter(p => filtroOrigem === 'Todas' || p.origem === filtroOrigem)
 
-  const getVal = p => p._webTotal !== undefined ? p._webTotal : calcTotal(p, produtos)
+  const getVal = p => calcTotal(p, produtos)
   const clientesUnicos  = new Set(lista.map(p => p.clienteNome)).size
   const totalItens      = lista.reduce((s, p) => s + p.itens.reduce((a, i) => a + i.qty, 0), 0)
   const totalValor      = lista.reduce((s, p) => s + getVal(p), 0)
@@ -874,7 +821,7 @@ function DashboardScreen({ pedidos, produtos, unidades = [] }) {
 
   const porProd = {}
   lista.forEach(p => {
-    const itens = p._webItens || p.itens.map(it => { const pr = produtos.find(x => x.id === it.produtoId); return pr ? { cod: pr.cod, nome: pr.nome, preco: pr.preco, qty: it.qty } : null }).filter(Boolean)
+    const itens = p.itens.map(it => { const pr = produtos.find(x => x.id === it.produtoId); return pr ? { cod: pr.cod, nome: pr.nome, preco: pr.preco, qty: it.qty } : null }).filter(Boolean)
     itens.forEach(it => { if (!porProd[it.cod]) porProd[it.cod] = { cod: it.cod, nome: it.nome || it.nome, qty:0, val:0 }; porProd[it.cod].qty += it.qty; porProd[it.cod].val += (it.preco||0)*it.qty })
   })
   const prodList = Object.values(porProd).sort((a,b) => b.qty - a.qty)
@@ -978,9 +925,7 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
   const exportarXLSX = () => {
     const mp = {}
     pedidos.forEach(p => {
-      const itens = p._webItens
-        ? p._webItens.map(it => { const pr = produtos.find(x => x.cod === it.cod); return pr ? { produtoId: pr.id, qty: Number(it.qty) } : null }).filter(Boolean)
-        : p.itens.map(it => ({ produtoId: it.produtoId, qty: Number(it.qty) }))
+      const itens = p.itens.map(it => ({ produtoId: it.produtoId, qty: Number(it.qty) }))
       itens.forEach(it => {
         const prod = produtos.find(x => x.id === it.produtoId)
         if (!prod) return
@@ -1018,13 +963,8 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
     XLSX.utils.book_append_sheet(wb, ws, 'Pedido Korin')
     XLSX.writeFile(wb, `pedido-korin-${periodo.replace('/','-')}.xlsx`)
   }
-  const getV = p => p._webTotal !== undefined ? p._webTotal : calcTotal(p, produtos)
-  const getCusto = p => {
-    const itens = p._webItens
-      ? p._webItens.map(it => { const pr = produtos.find(x => x.cod === it.cod); return pr ? { produtoId: pr.id, qty: it.qty } : null }).filter(Boolean)
-      : p.itens
-    return itens.reduce((s, it) => { const pr = produtos.find(x => x.id === it.produtoId); return s + (pr?.precoCusto || 0) * it.qty }, 0)
-  }
+  const getV = p => calcTotal(p, produtos)
+  const getCusto = p => p.itens.reduce((s, it) => { const pr = produtos.find(x => x.id === it.produtoId); return s + (pr?.precoCusto || 0) * it.qty }, 0)
   const total       = pedidos.reduce((s, p) => s + getV(p), 0)
   const totalCusto  = pedidos.reduce((s, p) => s + getCusto(p), 0)
   const valorLiq    = total - totalCusto

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { getPedidosWeb, cancelarPedidoWeb, getTotaisPorProduto } from './lib/store-web'
+import { getPedidos, cancelarPedido, getTotaisPorProduto } from './lib/store'
+import { calcTotal } from './lib/helpers'
 import { atualizarDadosOrganizacao } from './lib/auth'
 import {
   listarPeriodos, atualizarPeriodo, criarPeriodoComCopia,
@@ -13,6 +14,9 @@ import UnidadesManager from './UnidadesManager'
 
 const fmt = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',')
 const fmtData = iso => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR') : ''
+// Esta aba só monitora pedido vindo do catálogo — pedido manual fica nas
+// abas Pedidos/Entregas do app principal.
+const getPedidosCatalogo = async (periodoId) => (await getPedidos(periodoId)).filter(p => p.origem === 'catalogo')
 const normalizarTexto = s => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 
 function FiltroUnidade({ value, onChange, unidades = [] }) {
@@ -164,7 +168,7 @@ function TabProdutos({ produtos, pedidosWeb, onChange, onSave, salvando, somente
               {lista.map(prod => {
                 const qtdCaixa = prod.qtdCaixa || 0
                 const caixasAbertas = prod.caixasAbertas || 0
-                const totalPedido = totais[prod.cod] || 0
+                const totalPedido = totais[prod.id] || 0
                 const disponivel = qtdCaixa ? caixasAbertas * qtdCaixa : null
 
                 return (
@@ -237,13 +241,13 @@ function TabProdutos({ produtos, pedidosWeb, onChange, onSave, salvando, somente
 }
 
 // ── SUB-ABA: PEDIDOS ──────────────────────────────────────────────────────────
-function TabPedidos({ pedidosWeb, onCancelar, loading, filtroUnidade, somenteLeitura }) {
+function TabPedidos({ pedidosWeb, produtos, onCancelar, loading, filtroUnidade, somenteLeitura }) {
   const base = filtroUnidade && filtroUnidade !== 'Todas'
     ? pedidosWeb.filter(p => p.unidade === filtroUnidade)
     : pedidosWeb
   const ativos = base.filter(p => p.status !== 'cancelado')
   const cancelados = base.filter(p => p.status === 'cancelado')
-  const totalGeral = ativos.reduce((s, p) => s + (p.total || 0), 0)
+  const totalGeral = ativos.reduce((s, p) => s + calcTotal(p, produtos), 0)
 
   if (loading) return (
     <div className="text-center py-12 text-stone-400 font-bold animate-pulse">Carregando pedidos…</div>
@@ -270,26 +274,30 @@ function TabPedidos({ pedidosWeb, onCancelar, loading, filtroUnidade, somenteLei
       )}
 
       {/* Lista */}
-      {ativos.map(pedido => (
+      {ativos.map(pedido => {
+        const itensComProduto = pedido.itens
+          .map(it => { const p = produtos.find(x => x.id === it.produtoId); return p ? { ...it, cod: p.cod, nome: p.nome, preco: p.preco } : null })
+          .filter(Boolean)
+          .sort((a, b) => a.cod - b.cod)
+        return (
         <div key={pedido.id} className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
           <div className="px-4 py-3">
             <div className="flex justify-between items-start mb-1">
-              <div className="text-xl font-black text-stone-800">{pedido.nome}</div>
-              <div className="text-lg font-black text-green-700 ml-2">{fmt(pedido.total || 0)}</div>
+              <div className="text-xl font-black text-stone-800">{pedido.clienteNome}</div>
+              <div className="text-lg font-black text-green-700 ml-2">{fmt(calcTotal(pedido, produtos))}</div>
             </div>
             <div className="text-sm text-stone-500">
               📍 {pedido.unidade} · 💳 {pedido.pagamento}
             </div>
-            {pedido.telefone && (
-              <div className="text-sm text-stone-400">📱 {pedido.telefone}</div>
+            {pedido.clienteTel && (
+              <div className="text-sm text-stone-400">📱 {pedido.clienteTel}</div>
             )}
             <div className="text-xs text-stone-300 mt-0.5">
-              {new Date(pedido.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-              {pedido.updated_at !== pedido.created_at && ' (editado)'}
+              {new Date(pedido.dataPedido).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
             </div>
           </div>
           <div className="px-4 pb-3">
-            {pedido.itens.sort((a, b) => a.cod - b.cod).map(it => (
+            {itensComProduto.map(it => (
               <div key={it.cod} className="flex justify-between text-sm py-0.5">
                 <span className="text-stone-800 font-semibold">
                   <span className="text-xs bg-stone-100 px-1 rounded font-bold mr-1">{it.cod}</span>
@@ -308,7 +316,7 @@ function TabPedidos({ pedidosWeb, onCancelar, loading, filtroUnidade, somenteLei
             </div>
           )}
         </div>
-      ))}
+      )})}
 
       {cancelados.length > 0 && (
         <div className="text-xs text-stone-400 font-semibold text-center mt-2">
@@ -326,7 +334,7 @@ function TabResumo({ produtos, pedidosWeb, filtroUnidade }) {
     : pedidosWeb
   const totais = getTotaisPorProduto(base)
   const produtosComPedido = produtos
-    .filter(p => totais[p.cod] > 0)
+    .filter(p => totais[p.id] > 0)
     .sort((a, b) => a.cod - b.cod)
 
   if (produtosComPedido.length === 0) return (
@@ -344,7 +352,7 @@ function TabResumo({ produtos, pedidosWeb, filtroUnidade }) {
       {produtosComPedido.map(prod => {
         const qtdCaixa = prod.qtdCaixa || 0
         const caixasAbertas = prod.caixasAbertas || 0
-        const totalPedido = totais[prod.cod] || 0
+        const totalPedido = totais[prod.id] || 0
         const caixasNecessarias = qtdCaixa ? Math.ceil(totalPedido / qtdCaixa) : null
         const ok = caixasNecessarias !== null && caixasAbertas >= caixasNecessarias
 
@@ -654,7 +662,7 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
       const lista = await listarPeriodos(orgId)
       setPeriodosLista(lista)
       if (periodoCorrente) {
-        const peds = await getPedidosWeb(periodoCorrente.id)
+        const peds = await getPedidosCatalogo(periodoCorrente.id)
         setPedidos(peds)
       }
       setProdutosWeb(produtosCorrente)
@@ -669,7 +677,7 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
     const carregar = async () => {
       const ehCorrente = periodoWeb === periodoCorrente.id
       const [peds, prods] = await Promise.all([
-        getPedidosWeb(periodoWeb),
+        getPedidosCatalogo(periodoWeb),
         ehCorrente ? Promise.resolve(produtosCorrente) : getProdutosDoPeriodo(periodoWeb),
       ])
       setPedidos(peds)
@@ -710,8 +718,8 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
 
   const handleCancelar = async id => {
     if (!await confirmar('Cancelar este pedido?')) return
-    await cancelarPedidoWeb(id)
-    const peds = await getPedidosWeb(periodoWeb || periodoCorrente?.id)
+    await cancelarPedido(id)
+    const peds = await getPedidosCatalogo(periodoWeb || periodoCorrente?.id)
     setPedidos(peds)
   }
 
@@ -803,7 +811,7 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
       {subTab === 'pedidos' && (
         <>
           <FiltroUnidade value={filtroUnidade} onChange={setFiltroUnidade} unidades={nomesUnidades} />
-          <TabPedidos pedidosWeb={pedidos} onCancelar={handleCancelar} loading={loading} filtroUnidade={filtroUnidade} somenteLeitura={somenteLeitura} />
+          <TabPedidos pedidosWeb={pedidos} produtos={produtosWeb} onCancelar={handleCancelar} loading={loading} filtroUnidade={filtroUnidade} somenteLeitura={somenteLeitura} />
         </>
       )}
       {subTab === 'resumo' && (

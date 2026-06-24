@@ -1,6 +1,7 @@
 // api/pedido.js — Vercel Serverless Function
-// Único ponto de escrita em korin_pedidos_web. Usa service_role porque
-// a tabela não tem mais policy pública (cliente final não tem login).
+// Único ponto de escrita em korin_pedidos (tabela única pra pedido manual e
+// de catálogo — aqui sempre origem='catalogo'). Usa service_role porque a
+// tabela não tem policy pública (cliente final não tem login).
 // Valida o período corrente no servidor — nunca confia no que o cliente envia.
 
 import { createClient } from '@supabase/supabase-js'
@@ -36,20 +37,39 @@ export default async function handler(req, res) {
       if (new Date() > limite) return res.status(403).json({ ok: false, error: 'Pedidos encerrados para este período' })
     }
 
+    // korin_pedidos guarda itens por produtoId (igual pedido manual) — o
+    // catálogo público trabalha por código, então converte aqui.
+    const { data: produtosPeriodo, error: prodError } = await supabaseAdmin
+      .from('periodo_produtos').select('id, cod').eq('periodo_id', periodo.id)
+    if (prodError) throw prodError
+    const idPorCod = {}
+    ;(produtosPeriodo || []).forEach(p => { idPorCod[p.cod] = p.id })
+
+    const itensConvertidos = (pedido.itens || [])
+      .map(it => idPorCod[it.cod] ? { produtoId: idPorCod[it.cod], qty: it.qty } : null)
+      .filter(Boolean)
+
     const payload = {
-      ...pedido,
+      ...(pedido.id ? { id: pedido.id } : { data_pedido: new Date().toISOString() }),
       org_id: org.id,
       periodo_id: periodo.id,
-      periodo: periodo.nome,
+      cliente_nome: pedido.nome,
+      cliente_tel: pedido.telefone,
+      unidade: pedido.unidade,
+      itens: itensConvertidos,
+      pagamento: pedido.pagamento,
+      total: pedido.total,
+      status: pedido.status || 'pendente',
+      origem: 'catalogo',
       updated_at: new Date().toISOString(),
     }
     const { data, error } = await supabaseAdmin
-      .from('korin_pedidos_web')
+      .from('korin_pedidos')
       .upsert(payload, { onConflict: 'id' })
-      .select().maybeSingle()
+      .select('id, status').maybeSingle()
     if (error) throw error
 
-    return res.status(200).json({ ok: true, data })
+    return res.status(200).json({ ok: true, data: { ...pedido, id: data.id, status: data.status } })
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message })
   }

@@ -10,15 +10,12 @@ export const getOrganizacoesGestor = async () => {
   return data || []
 }
 
-// Conta pedidos (web + manuais) por organização — RLS de platform_admin já libera a leitura.
+// Conta pedidos por organização — RLS de platform_admin já libera a leitura.
 export const getPedidosCountPorOrg = async () => {
   if (!supabase) return {}
-  const [web, manual] = await Promise.all([
-    supabase.from('korin_pedidos_web').select('org_id'),
-    supabase.from('korin_pedidos_manual').select('org_id'),
-  ])
+  const { data } = await supabase.from('korin_pedidos').select('org_id')
   const contagem = {}
-  ;[...(web.data || []), ...(manual.data || [])].forEach(p => { contagem[p.org_id] = (contagem[p.org_id] || 0) + 1 })
+  ;(data || []).forEach(p => { contagem[p.org_id] = (contagem[p.org_id] || 0) + 1 })
   return contagem
 }
 

@@ -1,11 +1,15 @@
 /**
- * store.js — Pedidos manuais (WhatsApp/balcão), escopados por período.
+ * store.js — Pedidos (manual + catálogo), escopados por período.
  *
- * Desde a migração de período estrutural: pedidos manuais vivem em
- * `korin_pedidos_manual` (sempre com periodo_id), nunca mais num blob json
- * solto. RLS exige is_org_member + periodo_editavel — por isso toda escrita
- * é uma chamada direta ao Supabase (sem fila offline: não dá pra enfileirar
- * com segurança uma escrita que depende de constraint/RLS do servidor).
+ * Tabela única korin_pedidos, com `origem` ('whatsapp' | 'catalogo')
+ * distinguindo a procedência. Antes eram duas tabelas quase iguais — a
+ * duplicação só gerava tradução de formato e política de segurança em dobro,
+ * sem ganho real de segurança (a escrita do cliente final já passa sempre
+ * pela função do servidor, nunca direto na tabela).
+ *
+ * RLS exige is_org_member + periodo_editavel — por isso toda escrita é uma
+ * chamada direta ao Supabase (sem fila offline: não dá pra enfileirar com
+ * segurança uma escrita que depende de constraint/RLS do servidor).
  *
  * Mantém um cache local só de LEITURA (por período) pra render instantâneo
  * antes do primeiro fetch resolver.
@@ -37,6 +41,8 @@ const fromDb = (row) => ({
   dataEntrega: row.data_entrega || null,
   troco: row.troco != null ? Number(row.troco) : null,
   obs: row.obs || null,
+  total: row.total != null ? Number(row.total) : null,
+  _isWeb: row.origem === 'catalogo',
 })
 
 const toDb = (orgId, periodoId, p) => ({
@@ -54,17 +60,18 @@ const toDb = (orgId, periodoId, p) => ({
   data_entrega: p.dataEntrega || null,
   troco: (p.troco === '' || p.troco == null) ? null : p.troco,
   obs: p.obs || null,
+  total: p.total ?? null,
   updated_at: new Date().toISOString(),
 })
 
 // ── LEITURA ────────────────────────────────────────────────────────────────────
 export const loadCachedPedidos = (periodoId) => cache.get(periodoId)
 
-export const getPedidosManual = async (periodoId) => {
+export const getPedidos = async (periodoId) => {
   if (!supabase || !periodoId) return []
   try {
     const { data, error } = await supabase
-      .from('korin_pedidos_manual').select('*').eq('periodo_id', periodoId)
+      .from('korin_pedidos').select('*').eq('periodo_id', periodoId)
       .order('data_pedido', { ascending: false })
     if (error) throw error
     const lista = (data || []).map(fromDb)
@@ -76,24 +83,46 @@ export const getPedidosManual = async (periodoId) => {
 }
 
 // ── ESCRITA ────────────────────────────────────────────────────────────────────
-/** Cria ou atualiza um pedido manual. Falha se o período estiver arquivado. */
-export const salvarPedidoManual = async (orgId, periodoId, pedidoApp) => {
+/** Cria ou atualiza um pedido (manual ou catálogo). Falha se o período estiver arquivado. */
+export const salvarPedido = async (orgId, periodoId, pedidoApp) => {
   if (!supabase) return { ok: false, error: 'Sem conexão com internet' }
   try {
     const payload = toDb(orgId, periodoId, pedidoApp)
     const { data, error } = await supabase
-      .from('korin_pedidos_manual').upsert(payload, { onConflict: 'id' })
+      .from('korin_pedidos').upsert(payload, { onConflict: 'id' })
       .select().maybeSingle()
     if (error) throw error
     return { ok: true, pedido: fromDb(data) }
   } catch (e) { return { ok: false, error: e.message } }
 }
 
-export const removerPedidoManual = async (id) => {
+/** Exclusão definitiva — usada pra pedido manual ("Excluir"). */
+export const removerPedido = async (id) => {
   if (!supabase) return { ok: false, error: 'Sem conexão com internet' }
   try {
-    const { error } = await supabase.from('korin_pedidos_manual').delete().eq('id', id)
+    const { error } = await supabase.from('korin_pedidos').delete().eq('id', id)
     if (error) throw error
     return { ok: true }
   } catch (e) { return { ok: false, error: e.message } }
+}
+
+/** Cancelamento reversível — usada pra pedido do catálogo ("Cancelar"), mantém o histórico. */
+export const cancelarPedido = async (id) => {
+  if (!supabase) return { ok: false, error: 'Sem conexão com internet' }
+  try {
+    const { error } = await supabase.from('korin_pedidos')
+      .update({ status: 'cancelado', updated_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) throw error
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e.message } }
+}
+
+// ── TOTAIS (uso interno do painel — por produtoId) ──────────────────────────
+export const getTotaisPorProduto = (pedidos) => {
+  const t = {}
+  pedidos
+    .filter(p => p.status !== 'cancelado')
+    .forEach(p => p.itens.forEach(it => { t[it.produtoId] = (t[it.produtoId] || 0) + it.qty }))
+  return t
 }

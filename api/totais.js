@@ -1,7 +1,8 @@
 // api/totais.js — Vercel Serverless Function
-// Retorna só o agregado {cod: quantidade} de um período (por periodoId).
-// Nunca expõe nome/telefone de outros clientes — é o que o catálogo público
-// precisa pra saber quanto já foi vendido, sem vazar dados pessoais de terceiros.
+// Retorna só o agregado {cod: quantidade} de um período (por periodoId),
+// considerando apenas pedidos vindos do catálogo (igual ao comportamento
+// anterior — pedido manual nunca contou pra disponibilidade pública).
+// Nunca expõe nome/telefone de outros clientes.
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -23,14 +24,22 @@ export default async function handler(req, res) {
     if (!org) return res.status(404).json({ ok: false, error: 'Organização não encontrada' })
 
     const { data, error } = await supabaseAdmin
-      .from('korin_pedidos_web').select('itens, status')
-      .eq('org_id', org.id).eq('periodo_id', periodoId)
+      .from('korin_pedidos').select('itens, status')
+      .eq('org_id', org.id).eq('periodo_id', periodoId).eq('origem', 'catalogo')
     if (error) throw error
+
+    const { data: produtosPeriodo } = await supabaseAdmin
+      .from('periodo_produtos').select('id, cod').eq('periodo_id', periodoId)
+    const codPorId = {}
+    ;(produtosPeriodo || []).forEach(p => { codPorId[p.id] = p.cod })
 
     const totais = {}
     ;(data || [])
       .filter(p => p.status !== 'cancelado')
-      .forEach(p => (p.itens || []).forEach(it => { totais[it.cod] = (totais[it.cod] || 0) + it.qty }))
+      .forEach(p => (p.itens || []).forEach(it => {
+        const cod = codPorId[it.produtoId]
+        if (cod != null) totais[cod] = (totais[cod] || 0) + it.qty
+      }))
 
     return res.status(200).json({ ok: true, totais })
   } catch (e) {
