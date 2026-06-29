@@ -107,12 +107,14 @@ export default function Home() {
               categoria e identifica se é o mesmo mês ou um período novo — sem você digitar um número.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3 md:justify-end">
-            {['📦 Produtos', '💰 Preços', '🗓️ Período'].map(t => (
-              <div key={t} className="px-4 py-3 bg-[#1A5C38]/5 border border-[#1A5C38]/15 rounded-2xl font-medium text-sm text-[#14241B]/80">
-                {t}
+          <div className="flex justify-center md:justify-end">
+            <div className="relative">
+              <div className="absolute -inset-3 bg-[#1A5C38]/10 rounded-[32px] -rotate-2" />
+              <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 rotate-1 w-[230px]">
+                <img src="/screenshot-embalagens.jpg" alt="Catálogo importado automaticamente no Clube de Compras Korin"
+                  className="rounded-[20px] w-full h-[400px] object-cover object-top" />
               </div>
-            ))}
+            </div>
           </div>
         </div>
       </section>
