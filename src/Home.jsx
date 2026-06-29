@@ -146,6 +146,47 @@ export default function Home() {
         </div>
       </section>
 
+      {/* GESTÃO COMPLETA — destaque IA WhatsApp + grid de operação */}
+      <section className="bg-white border-y border-[#14241B]/5">
+        <div className="max-w-5xl mx-auto px-6 py-16">
+          <div className="grid md:grid-cols-2 gap-10 items-center">
+            <div>
+              <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Não é só link bonito</div>
+              <h2 className="text-2xl md:text-3xl font-semibold leading-snug" style={display}>
+                O pedido chega de qualquer jeito. A IA organiza.
+              </h2>
+              <p className="mt-4 text-[#14241B]/70 leading-relaxed">
+                Tem cliente que nunca vai clicar em link nenhum — só manda mensagem mesmo. Cole o texto do WhatsApp
+                dele e a IA identifica produto, quantidade e código, e organiza junto com todos os outros pedidos do período.
+              </p>
+            </div>
+            <div className="flex justify-center md:justify-end">
+              <div className="relative">
+                <div className="absolute -inset-3 bg-[#1A5C38]/10 rounded-[32px] -rotate-2" />
+                <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 rotate-1 w-[230px]">
+                  <img src="/screenshot-whatsapp-ia.jpg" alt="Interpretação de pedido do WhatsApp por IA"
+                    className="rounded-[20px] w-full h-[270px] object-cover object-top" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 mt-16">
+            {[
+              { i: '💰', t: 'Custo e venda, lado a lado', d: 'Cada unidade tem seus pedidos separados, e você vê o preço de custo e o de venda juntos — sabe a margem antes de fechar a compra com a Korin.' },
+              { i: '🚚', t: 'Entrega sem perder tempo', d: 'Os pedidos já chegam agrupados por unidade. Na hora de entregar, é só imprimir — vários pedidos numa folha só, sem desperdiçar papel.' },
+              { i: '📊', t: 'Planilha pronta pra Korin', d: 'Quantidade pedida, quanto comprar em caixa fechada, custo total e venda total — por unidade ou tudo junto. Sem montar nada na mão.' },
+            ].map(c => (
+              <div key={c.t}>
+                <div className="text-2xl mb-3">{c.i}</div>
+                <div className="font-semibold mb-1.5">{c.t}</div>
+                <p className="text-sm text-[#14241B]/65 leading-relaxed">{c.d}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* PRO CLIENTE FINAL */}
       <section className="max-w-5xl mx-auto px-6 pb-20">
         <div className="bg-[#1A5C38]/5 border border-[#1A5C38]/15 rounded-[28px] px-8 py-10 md:px-12 grid md:grid-cols-2 gap-10 items-center">
