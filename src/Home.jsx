@@ -44,14 +44,19 @@ function ManifestCard() {
 
 const PASSOS = [
   { n: '01', titulo: 'Catálogo', texto: 'A coordenadora fotografa a tabela de preços da Korin. O sistema lê os produtos e organiza o período sozinho.' },
-  { n: '02', titulo: 'Pedidos',  texto: 'Cada cliente pede pelo link do catálogo — sem instalar nada, sem grupo de WhatsApp pra anotar.' },
+  { n: '02', titulo: 'Pedidos',  texto: 'Cada cliente pede pelo link do catálogo, ou manda a lista pelo grupo mesmo — você só cola a mensagem e a IA organiza.' },
   { n: '03', titulo: 'Fechamento', texto: 'O sistema soma tudo e mostra exatamente quantas caixas comprar. Sem sobra, sem planilha, sem improviso.' },
 ]
 
 const FAQ_HOME = [
-  { p: 'Os pedidos do mês anterior se perdem quando eu importo a tabela nova?', r: 'Não. Cada mês fica guardado separado — dá pra consultar qualquer período anterior depois de arquivado.' },
-  { p: 'Precisa instalar algum aplicativo?', r: 'Não. Funciona direto no navegador, tanto pra você quanto pros seus clientes.' },
-  { p: 'Posso ter mais de um local de retirada?', r: 'Sim, quantos precisar — e os pedidos já chegam organizados por unidade.' },
+  { p: 'Precisa baixar algum aplicativo?', r: 'Não. Funciona direto no navegador, tanto pra você quanto pros seus clientes. Quem quiser, pode "instalar" na tela inicial pra abrir mais rápido, mas isso é opcional.' },
+  { p: 'Funciona sem internet?', r: 'Pra ver o catálogo e fazer pedidos, precisa de internet — os dados são atualizados em tempo real entre você, seus clientes e a Korin.' },
+  { p: 'Precisa ter CNPJ?', r: 'Não necessariamente. O cadastro aceita CPF ou CNPJ, o que você tiver.' },
+  { p: 'Dá pra imprimir os pedidos?', r: 'Sim. Imprime todos os pendentes de uma vez, agrupados numa folha só, e ainda dá pra filtrar por unidade antes de imprimir.' },
+  { p: 'Tem como enviar a compra pronta pra Korin?', r: 'Sim. O sistema gera uma planilha com tudo calculado — quanto comprar em caixa fechada, custo e venda — por unidade ou tudo junto.' },
+  { p: 'O cliente final pode comprar online?', r: 'Sim. Cada cliente recebe um link e monta o pedido direto no catálogo, sem precisar de conta nem instalar nada.' },
+  { p: 'Cuido de mais de uma unidade — dá pra usar pra todas?', r: 'Sim. Você cadastra quantas unidades precisar numa mesma conta, e os pedidos, a entrega e a planilha já vêm organizados separadamente por unidade.' },
+  { p: 'Funciona no iPhone e no Android?', r: 'Sim. É um site, então funciona em qualquer celular com navegador — não depende de loja de aplicativo.' },
 ]
 
 export default function Home() {
@@ -75,7 +80,7 @@ export default function Home() {
       <section className="max-w-5xl mx-auto px-6 pt-10 pb-20 md:pt-16 md:pb-28 grid md:grid-cols-2 gap-12 items-center">
         <div className={`transition-all duration-700 ${pronto ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
           <h1 className="text-[2.4rem] md:text-[3.1rem] leading-[1.08] font-semibold tracking-tight" style={display}>
-            Coordenar o pedido coletivo da Korin, sem planilha e sem grupo de zap.
+            Coordenar o pedido coletivo da Korin, sem planilha e sem digitar pedido um por um.
           </h1>
           <p className="mt-5 text-[1.05rem] text-[#14241B]/70 leading-relaxed max-w-md">
             Catálogo, pedidos, embalagens e fechamento de compra do seu clube — organizados automaticamente, num só lugar.
@@ -112,7 +117,7 @@ export default function Home() {
               <div className="absolute -inset-3 bg-[#1A5C38]/10 rounded-[32px] -rotate-2" />
               <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 rotate-1 w-[230px]">
                 <img src="/screenshot-embalagens.jpg" alt="Catálogo importado automaticamente no Clube de Compras Korin"
-                  className="rounded-[20px] w-full h-[400px] object-cover object-top" />
+                  className="rounded-[20px] w-full h-auto block" />
               </div>
             </div>
           </div>
@@ -165,7 +170,7 @@ export default function Home() {
                 <div className="absolute -inset-3 bg-[#1A5C38]/10 rounded-[32px] -rotate-2" />
                 <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 rotate-1 w-[230px]">
                   <img src="/screenshot-whatsapp-ia.jpg" alt="Interpretação de pedido do WhatsApp por IA"
-                    className="rounded-[20px] w-full h-[270px] object-cover object-top" />
+                    className="rounded-[20px] w-full h-auto block" />
                 </div>
               </div>
             </div>
@@ -197,7 +202,7 @@ export default function Home() {
               {[
                 { i: '🔗', t: 'Pede pelo link', d: 'Sem instalar nada — abre direto no navegador do celular.' },
                 { i: '📍', t: 'Escolhe a unidade', d: 'Indica onde vai retirar, e o pedido já cai separado por local.' },
-                { i: '💬', t: 'Fim do grupo de zap', d: 'Não precisa mais anotar pedido em conversa nem confirmar na mão.' },
+                { i: '💬', t: 'Não importa de onde vem', d: 'Pediu pelo link ou mandou a lista no grupo do WhatsApp mesmo? Os dois caem juntos, sem digitar nada na mão.' },
               ].map(b => (
                 <div key={b.t} className="flex gap-3">
                   <div className="text-xl flex-shrink-0">{b.i}</div>
@@ -214,7 +219,7 @@ export default function Home() {
               <div className="absolute -inset-3 bg-[#1A5C38]/10 rounded-[32px] rotate-2" />
               <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 -rotate-1 w-[230px]">
                 <img src="/screenshot-catalogo.jpg" alt="Catálogo de pedidos visto pelo cliente final"
-                  className="rounded-[20px] w-full h-[400px] object-cover object-top" />
+                  className="rounded-[20px] w-full h-auto block" />
               </div>
             </div>
           </div>
