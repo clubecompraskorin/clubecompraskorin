@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { getPedidos, cancelarPedido, getTotaisPorProduto } from './lib/store'
 import { calcTotal } from './lib/helpers'
 import { atualizarDadosOrganizacao } from './lib/auth'
@@ -671,12 +671,27 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
   const orgId = org?.orgId
   const orgSlug = org?.slug
   const [subTab, setSubTab]               = useState(abrirEm || 'controles')
-  // Consome abrirEm uma única vez (no mount) — visitas futuras à aba Web voltam a abrir em "Config" normalmente.
-  useEffect(() => { if (abrirEm) onAbrirEmConsumido?.() }, [])
+  // Reage a abrirEm tanto no mount quanto em mudanças posteriores (ex: usuário já
+  // está na aba Web e clica em "Completar cadastro" de novo) — antes só lia o
+  // valor inicial e nunca mais reagia, então o botão não fazia nada se a tela
+  // já estivesse montada.
+  useEffect(() => { if (abrirEm) { setSubTab(abrirEm); onAbrirEmConsumido?.() } }, [abrirEm])
   const [dataLimiteEdit, setDataLimiteEdit] = useState(periodoCorrente?.data_limite ?? null) // pendente até salvar
   const [periodoWeb, setPeriodoWeb]       = useState(periodoCorrente?.id || null) // período sendo visualizado
   const [periodosLista, setPeriodosLista] = useState([])
   const [produtosWeb, setProdutosWeb]     = useState(produtosCorrente)  // produtos do período visualizado
+
+  // Ressincroniza produtosWeb quando o CONJUNTO de produtos do período corrente muda
+  // (ex: importação de catálogo adiciona/remove produtos) — sem disparar em edições
+  // de valor (qtdCaixa/caixasAbertas) que só mudam o conteúdo, não a composição, pra
+  // não sobrescrever uma edição em andamento durante o auto-refresh de 60s.
+  const prevCodsRef = useRef(null)
+  useEffect(() => {
+    if (!visualizandoCorrente) return
+    const cods = produtosCorrente.map(p => p.cod).sort().join(',')
+    if (prevCodsRef.current !== null && prevCodsRef.current !== cods) setProdutosWeb(produtosCorrente)
+    prevCodsRef.current = cods
+  }, [produtosCorrente, visualizandoCorrente])
   const [pedidos, setPedidos]             = useState([])
   const [loading, setLoading]             = useState(true)
   const [salvando, setSalvando]           = useState(false)
