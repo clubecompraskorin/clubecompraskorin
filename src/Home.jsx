@@ -148,21 +148,34 @@ export default function Home() {
 
       {/* PRO CLIENTE FINAL */}
       <section className="max-w-5xl mx-auto px-6 pb-20">
-        <div className="bg-[#1A5C38]/5 border border-[#1A5C38]/15 rounded-[28px] px-8 py-10 md:px-12">
-          <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Pro seu cliente</div>
-          <h2 className="text-xl md:text-2xl font-semibold mb-6" style={display}>Quem pede também sente a diferença</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              { i: '🔗', t: 'Pede pelo link', d: 'Sem instalar nada — abre direto no navegador do celular.' },
-              { i: '📍', t: 'Escolhe a unidade', d: 'Indica onde vai retirar, e o pedido já cai separado por local.' },
-              { i: '💬', t: 'Fim do grupo de zap', d: 'Não precisa mais anotar pedido em conversa nem confirmar na mão.' },
-            ].map(b => (
-              <div key={b.t}>
-                <div className="text-2xl mb-2">{b.i}</div>
-                <div className="font-semibold mb-1">{b.t}</div>
-                <p className="text-sm text-[#14241B]/65 leading-relaxed">{b.d}</p>
+        <div className="bg-[#1A5C38]/5 border border-[#1A5C38]/15 rounded-[28px] px-8 py-10 md:px-12 grid md:grid-cols-2 gap-10 items-center">
+          <div>
+            <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Pro seu cliente</div>
+            <h2 className="text-xl md:text-2xl font-semibold mb-6" style={display}>Quem pede também sente a diferença</h2>
+            <div className="space-y-5">
+              {[
+                { i: '🔗', t: 'Pede pelo link', d: 'Sem instalar nada — abre direto no navegador do celular.' },
+                { i: '📍', t: 'Escolhe a unidade', d: 'Indica onde vai retirar, e o pedido já cai separado por local.' },
+                { i: '💬', t: 'Fim do grupo de zap', d: 'Não precisa mais anotar pedido em conversa nem confirmar na mão.' },
+              ].map(b => (
+                <div key={b.t} className="flex gap-3">
+                  <div className="text-xl flex-shrink-0">{b.i}</div>
+                  <div>
+                    <div className="font-semibold mb-0.5">{b.t}</div>
+                    <p className="text-sm text-[#14241B]/65 leading-relaxed">{b.d}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex justify-center">
+            <div className="relative">
+              <div className="absolute -inset-3 bg-[#1A5C38]/10 rounded-[32px] rotate-2" />
+              <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 -rotate-1 w-[230px]">
+                <img src="/screenshot-catalogo.jpg" alt="Catálogo de pedidos visto pelo cliente final"
+                  className="rounded-[20px] w-full h-[400px] object-cover object-top" />
               </div>
-            ))}
+            </div>
           </div>
         </div>
       </section>
