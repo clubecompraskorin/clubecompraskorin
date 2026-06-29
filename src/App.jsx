@@ -58,6 +58,7 @@ export default function App({ org, onOrgRefresh }) {
   useEffect(() => { recarregarUnidades() }, [recarregarUnidades])
   const nomesUnidades = unidades.map(u => u.nome)
   const unidadePadrao = nomesUnidades[0] || ''
+  const [filtroImpressao, setFiltroImpressao] = useState('Todas')
 
   // ── CARREGA TUDO (período corrente, seus produtos/pedidos, lista de períodos) ─
   const recarregarTudo = useCallback(async () => {
@@ -290,10 +291,10 @@ export default function App({ org, onOrgRefresh }) {
             </button>
           </div>
         )}
-        {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onEntregar={p => entregarPedidoCombinado(p)} onIniciarEntrega={handleIniciarEntrega} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} />}
-        {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onEntregar={entregarPedidoCombinado} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} />}
+        {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onEntregar={p => entregarPedidoCombinado(p)} onIniciarEntrega={handleIniciarEntrega} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} unidades={nomesUnidades} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} />}
+        {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onEntregar={entregarPedidoCombinado} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} unidades={nomesUnidades} />}
         {tab === 'produtos'   && <ProdutosScreen  produtos={produtos} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} />}
-        {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos, produtosAtivos, periodoAtivo)} periodoObj={periodoObjAtivo} isCorrente={!isHistorico} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} />}
+        {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} periodoObj={periodoObjAtivo} isCorrente={!isHistorico} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} />}
         {tab === 'web'        && <WebScreen produtos={produtos} periodo={periodoCorrente} org={org} onUnidadesChange={setUnidades} onRecarregar={recarregarTudo} abrirEm={webAbrirEm} onAbrirEmConsumido={() => setWebAbrirEm(null)} onOrgRefresh={onOrgRefresh} />}
       </main>
 
@@ -372,7 +373,7 @@ function PeriodoNav({ periodoCorrente, periodoViz, periodosLista, onChange, load
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: PEDIDOS
 // ═══════════════════════════════════════════════════════════════════════════════
-function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, onView, onEntregar, onIniciarEntrega, onPrintTodos, isHistorico, periodoNav }) {
+function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, onView, onEntregar, onIniciarEntrega, onPrintTodos, isHistorico, periodoNav, unidades = [], filtroImpressao, setFiltroImpressao }) {
   const [busca, setBusca]   = useState('')
   const [filtro, setFiltro] = useState('todos')
 
@@ -408,9 +409,20 @@ function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, on
           <button key={v} onClick={() => setFiltro(v)}
             className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${filtro === v ? 'bg-green-700 text-white' : 'bg-white text-stone-500 border border-stone-200'}`}>{l}</button>
         ))}
-        {pedidos.filter(p => p.status === 'pendente').length > 0 &&
-          <button onClick={onPrintTodos} className="ml-auto px-3 py-1.5 rounded-full text-xs font-bold bg-stone-700 text-white">🖨️ Imprimir</button>
-        }
+        {pedidos.some(p => p.status === 'pendente') && (
+          <div className="ml-auto flex items-center gap-2">
+            <select value={filtroImpressao} onChange={e => setFiltroImpressao(e.target.value)}
+              className="border border-stone-200 rounded-full px-2.5 py-1.5 text-xs font-bold bg-white focus:outline-none focus:border-green-500">
+              <option value="Todas">Todas unidades</option>
+              {unidades.map(u => <option key={u}>{u}</option>)}
+            </select>
+            {pedidos.filter(p => p.status === 'pendente' && (filtroImpressao === 'Todas' || (p.unidade || 'Não informada') === filtroImpressao)).length > 0 ? (
+              <button onClick={onPrintTodos} className="px-3 py-1.5 rounded-full text-xs font-bold bg-stone-700 text-white">🖨️ Imprimir</button>
+            ) : (
+              <span className="text-xs text-stone-400 px-1">Sem pendentes</span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -474,9 +486,12 @@ function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, on
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: ENTREGAS
 // ═══════════════════════════════════════════════════════════════════════════════
-function EntregasScreen({ pedidos, produtos, onEntregar, onFinalizar, onView, onIniciarEntrega, isHistorico, periodoNav }) {
-  const pendentes = pedidos.filter(p => p.status === 'pendente').sort((a, b) => a.clienteNome.localeCompare(b.clienteNome))
-  const entregues = pedidos.filter(p => p.status === 'entregue').sort((a, b) => a.clienteNome.localeCompare(b.clienteNome))
+function EntregasScreen({ pedidos, produtos, onEntregar, onFinalizar, onView, onIniciarEntrega, isHistorico, periodoNav, unidades = [] }) {
+  const [filtroUnidade, setFiltroUnidade] = useState('Todas')
+
+  const base      = pedidos.filter(p => filtroUnidade === 'Todas' || (p.unidade || 'Não informada') === filtroUnidade)
+  const pendentes = base.filter(p => p.status === 'pendente').sort((a, b) => a.clienteNome.localeCompare(b.clienteNome))
+  const entregues = base.filter(p => p.status === 'entregue').sort((a, b) => a.clienteNome.localeCompare(b.clienteNome))
 
   return (
     <div className="px-4 py-4">
@@ -487,6 +502,16 @@ function EntregasScreen({ pedidos, produtos, onEntregar, onFinalizar, onView, on
         </div>
       )}
       {pedidos.length === 0 && <EmptyState icon="🚚" text="Nenhum pedido cadastrado ainda" />}
+      {pedidos.length > 0 && (
+        <select value={filtroUnidade} onChange={e => setFiltroUnidade(e.target.value)}
+          className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-green-500 bg-white mb-3">
+          <option value="Todas">Todas as unidades</option>
+          {unidades.map(u => <option key={u}>{u}</option>)}
+        </select>
+      )}
+      {pedidos.length > 0 && pendentes.length === 0 && entregues.length === 0 && (
+        <EmptyState icon="🚚" text="Nenhum pedido para a unidade selecionada" />
+      )}
       {pendentes.length > 0 && <>
         <SectionLabel icon="⏰" text={`Pendentes · ${pendentes.length}`} color="amber" />
         {pendentes.map(p => (
@@ -496,6 +521,7 @@ function EntregasScreen({ pedidos, produtos, onEntregar, onFinalizar, onView, on
                 <div>
                   <div className="text-2xl font-black text-stone-800">{p.clienteNome}</div>
                   {p.clienteTel && <div className="text-sm text-stone-400 mt-0.5">📱 {p.clienteTel}</div>}
+                  <div className="text-xs text-stone-400 mt-0.5">📍 {p.unidade || 'Não informada'}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-xl font-black text-green-700">{fmt(calcTotal(p, produtos))}</div>
@@ -514,6 +540,7 @@ function EntregasScreen({ pedidos, produtos, onEntregar, onFinalizar, onView, on
               <div className="flex justify-between items-center">
                 <div>
                   <div className="text-xl font-black text-stone-700">{p.clienteNome}</div>
+                  <div className="text-xs text-stone-400 mt-0.5">📍 {p.unidade || 'Não informada'}</div>
                   <div className="text-xs text-green-600 font-bold mt-0.5">
                     ✅ Entregue em {new Date(p.dataEntrega).toLocaleDateString('pt-BR')} · {p.pagamento}
                     {p.troco ? ` · Troco R$${p.troco}` : ''}
@@ -919,63 +946,90 @@ function DashboardScreen({ pedidos, produtos, unidades = [] }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: FECHAMENTO
 // ═══════════════════════════════════════════════════════════════════════════════
-function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, periodoNav, periodoObj, isCorrente, onArquivar, onDesarquivar }) {
+function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, periodoNav, periodoObj, isCorrente, onArquivar, onDesarquivar, filtroImpressao, setFiltroImpressao }) {
   const [subTab, setSubTab]   = useState('resumo')
+  const [filtroUnidadeResumo, setFiltroUnidadeResumo] = useState('Todas')
+  const [unidadesExport, setUnidadesExport] = useState(new Set(unidades))
+  useEffect(() => { setUnidadesExport(new Set(unidades)) }, [unidades.join('|')])
+
+  const pedidosResumo = pedidos.filter(p => filtroUnidadeResumo === 'Todas' || (p.unidade || 'Não informada') === filtroUnidadeResumo)
+
+  const toggleUnidadeExport = (u) => {
+    setUnidadesExport(prev => {
+      const next = new Set(prev)
+      if (next.has(u)) next.delete(u); else next.add(u)
+      return next
+    })
+  }
 
   const exportarXLSX = () => {
-    const mp = {}
-    pedidos.forEach(p => {
-      const itens = p.itens.map(it => ({ produtoId: it.produtoId, qty: Number(it.qty) }))
-      itens.forEach(it => {
-        const prod = produtos.find(x => x.id === it.produtoId)
-        if (!prod) return
-        if (!mp[prod.cod]) mp[prod.cod] = { cod: prod.cod, nome: prod.nome, unidade: prod.unidade, qty: 0, precoCusto: prod.precoCusto ?? null }
-        mp[prod.cod].qty += it.qty
+    if (unidadesExport.size === 0) { alert('Selecione ao menos uma unidade para exportar'); return }
+
+    const montarLinhas = (pedidosUnidade) => {
+      const mp = {}
+      pedidosUnidade.forEach(p => {
+        p.itens.forEach(it => {
+          const prod = produtos.find(x => x.id === it.produtoId)
+          if (!prod) return
+          if (!mp[prod.cod]) mp[prod.cod] = { cod: prod.cod, nome: prod.nome, qty: 0, precoCusto: prod.precoCusto ?? null, preco: prod.preco ?? null, qtdCaixa: prod.qtdCaixa > 0 ? prod.qtdCaixa : null }
+          mp[prod.cod].qty += Number(it.qty)
+        })
       })
+
+      return Object.values(mp)
+        .sort((a, b) => a.cod - b.cod)
+        .map(item => {
+          const qtdCaixa  = item.qtdCaixa
+          const caixas    = qtdCaixa ? Math.ceil(item.qty / qtdCaixa) : null
+          // Quantidade que de fato será paga à Korin: arredondada para caixa fechada quando há config, senão a própria qtd pedida
+          const qtdCompra = qtdCaixa ? caixas * qtdCaixa : item.qty
+          const temCusto  = item.precoCusto != null
+          const temVenda  = item.preco != null
+          return {
+            'Cód':                  item.cod,
+            'Descrição':            item.nome,
+            'Qtd. Pedida':          item.qty,
+            'Qtd./Embalagem':       qtdCaixa ?? '',
+            'Embalagens p/ Korin':  caixas ?? '',
+            'Preço Unit. Custo':    temCusto ? item.precoCusto : '',
+            'Preço Total Custo':    temCusto ? Number((qtdCompra * item.precoCusto).toFixed(2)) : '',
+            'Preço Unit. Venda':    temVenda ? item.preco : '',
+            'Preço Total Venda':    temVenda ? Number((item.qty * item.preco).toFixed(2)) : '',
+          }
+        })
+    }
+
+    const cols = [{wch:6},{wch:35},{wch:11},{wch:14},{wch:16},{wch:14},{wch:15},{wch:14},{wch:15}]
+    const wb = XLSX.utils.book_new()
+    let abasGeradas = 0
+
+    unidades.filter(u => unidadesExport.has(u)).forEach(u => {
+      const pedidosUnidade = pedidos.filter(p => (p.unidade || 'Não informada') === u)
+      const rows = montarLinhas(pedidosUnidade)
+      if (rows.length === 0) return
+      const ws = XLSX.utils.json_to_sheet(rows)
+      ws['!cols'] = cols
+      XLSX.utils.book_append_sheet(wb, ws, u.slice(0, 31))
+      abasGeradas++
     })
 
-    const rows = Object.values(mp)
-      .sort((a, b) => a.cod - b.cod)
-      .map(item => {
-        const prod     = produtos.find(p => p.cod === item.cod)
-        const qtdCaixa = prod?.qtdCaixa > 0 ? prod.qtdCaixa : null
-        const caixas   = qtdCaixa ? Math.ceil(item.qty / qtdCaixa) : null
-        const unCompr  = qtdCaixa ? caixas * qtdCaixa : null
-        const sobra    = qtdCaixa ? unCompr - item.qty : null
-        return {
-          'Cód':               item.cod,
-          'Produto':           item.nome,
-          'Unidade':           item.unidade,
-          'Un./Embalagem':     qtdCaixa ?? '',
-          'Total Pedido':      item.qty,
-          'Caixas a Comprar':  caixas ?? '',
-          'Un. Compradas':     unCompr ?? '',
-          'Ficará de Fora':    sobra ?? '',
-          'Preço de Custo':    item.precoCusto ?? '',
-        }
-      })
+    if (abasGeradas === 0) { alert('Nenhum pedido encontrado para as unidades selecionadas'); return }
 
-    const ws = XLSX.utils.json_to_sheet(rows)
-    ws['!cols'] = [
-      {wch:5},{wch:35},{wch:16},{wch:14},{wch:13},{wch:15},{wch:14},{wch:14},{wch:14}
-    ]
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Pedido Korin')
     XLSX.writeFile(wb, `pedido-korin-${periodo.replace('/','-')}.xlsx`)
   }
   const getV = p => calcTotal(p, produtos)
   const getCusto = p => p.itens.reduce((s, it) => { const pr = produtos.find(x => x.id === it.produtoId); return s + (pr?.precoCusto || 0) * it.qty }, 0)
-  const total       = pedidos.reduce((s, p) => s + getV(p), 0)
-  const totalCusto  = pedidos.reduce((s, p) => s + getCusto(p), 0)
+  const total       = pedidosResumo.reduce((s, p) => s + getV(p), 0)
+  const totalCusto  = pedidosResumo.reduce((s, p) => s + getCusto(p), 0)
   const valorLiq    = total - totalCusto
   const margem      = total > 0 && totalCusto > 0 ? ((valorLiq / total) * 100).toFixed(1) : null
-  const entregue    = pedidos.filter(p => p.status === 'entregue').reduce((s, p) => s + getV(p), 0)
+  const entregue    = pedidosResumo.filter(p => p.status === 'entregue').reduce((s, p) => s + getV(p), 0)
 
   const porPag = {}
-  pedidos.forEach(p => { const k = p.pagamento || 'A Definir'; porPag[k] = (porPag[k] || 0) + getV(p) })
+  pedidosResumo.forEach(p => { const k = p.pagamento || 'A Definir'; porPag[k] = (porPag[k] || 0) + getV(p) })
 
   const porItem = {}
-  pedidos.forEach(p => p.itens.forEach(it => {
+  pedidosResumo.forEach(p => p.itens.forEach(it => {
     const prod = produtos.find(x => x.id === it.produtoId)
     if (!prod) return
     if (!porItem[prod.id]) porItem[prod.id] = { cod: prod.cod, nome: prod.nome, unidade: prod.unidade, qty: 0, total: 0, custo: 0 }
@@ -1021,12 +1075,18 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
         <div className="text-sm text-stone-500 font-semibold">Resumo do Clube de Compras Korin</div>
       </div>
 
+      <select value={filtroUnidadeResumo} onChange={e => setFiltroUnidadeResumo(e.target.value)}
+        className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-green-500 bg-white">
+        <option value="Todas">Todas as unidades</option>
+        {unidades.map(u => <option key={u}>{u}</option>)}
+      </select>
+
       <div className="bg-green-800 text-white rounded-3xl p-5 shadow-lg space-y-3">
         <div>
           <div className="text-xs font-black text-green-400 uppercase tracking-widest">Total de vendas</div>
           <div className="text-5xl font-black">{fmt(total)}</div>
           <div className="text-sm text-green-300 mt-1">
-            {pedidos.length} pedidos · {pedidos.reduce((s, p) => s + p.itens.reduce((a, i) => a + i.qty, 0), 0)} itens
+            {pedidosResumo.length} pedidos · {pedidosResumo.reduce((s, p) => s + p.itens.reduce((a, i) => a + i.qty, 0), 0)} itens
           </div>
         </div>
         {totalCusto > 0 && (
@@ -1053,12 +1113,12 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
         <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm">
           <div className="text-xs text-stone-400 font-bold mb-1">ENTREGUE</div>
           <div className="text-xl font-black text-green-600">{fmt(entregue)}</div>
-          <div className="text-xs text-stone-400">{pedidos.filter(p => p.status === 'entregue').length} clientes</div>
+          <div className="text-xs text-stone-400">{pedidosResumo.filter(p => p.status === 'entregue').length} clientes</div>
         </div>
         <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm">
           <div className="text-xs text-stone-400 font-bold mb-1">PENDENTE</div>
           <div className="text-xl font-black text-amber-600">{fmt(total - entregue)}</div>
-          <div className="text-xs text-stone-400">{pedidos.filter(p => p.status === 'pendente').length} clientes</div>
+          <div className="text-xs text-stone-400">{pedidosResumo.filter(p => p.status === 'pendente').length} clientes</div>
         </div>
       </div>
 
@@ -1099,14 +1159,44 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
         </div>
       )}
 
+      <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-black text-stone-500 uppercase tracking-widest">Unidades na exportação</div>
+          <button onClick={() => setUnidadesExport(unidadesExport.size === unidades.length ? new Set() : new Set(unidades))}
+            className="text-xs font-bold text-green-700">
+            {unidadesExport.size === unidades.length ? 'Limpar' : 'Selecionar todas'}
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {unidades.map(u => (
+            <button key={u} onClick={() => toggleUnidadeExport(u)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-colors ${unidadesExport.has(u) ? 'bg-green-700 text-white border-green-700' : 'bg-white text-stone-500 border-stone-200'}`}>
+              {u}
+            </button>
+          ))}
+        </div>
+        <div className="text-xs text-stone-400">Cada unidade selecionada vira uma aba separada na planilha.</div>
+      </div>
+
       <button onClick={exportarXLSX}
         className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-base flex items-center justify-center gap-2 active:bg-green-800">
         📊 Exportar pedido para Korin (.xlsx)
       </button>
-      {pedidos.filter(p => p.status === 'pendente').length > 0 && (
-        <button onClick={onPrintTodos} className="w-full py-4 bg-stone-800 text-white rounded-2xl font-black text-base flex items-center justify-center gap-2 active:bg-stone-900">
-          🖨️ Imprimir Todos os Pedidos Pendentes
-        </button>
+      {pedidos.some(p => p.status === 'pendente') && (
+        <>
+          <select value={filtroImpressao} onChange={e => setFiltroImpressao(e.target.value)}
+            className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-green-500 bg-white">
+            <option value="Todas">Todas as unidades</option>
+            {unidades.map(u => <option key={u}>{u}</option>)}
+          </select>
+          {pedidos.filter(p => p.status === 'pendente' && (filtroImpressao === 'Todas' || (p.unidade || 'Não informada') === filtroImpressao)).length > 0 ? (
+            <button onClick={onPrintTodos} className="w-full py-4 bg-stone-800 text-white rounded-2xl font-black text-base flex items-center justify-center gap-2 active:bg-stone-900">
+              🖨️ Imprimir Todos os Pedidos Pendentes
+            </button>
+          ) : (
+            <div className="text-center text-sm text-stone-400 font-semibold py-2">Nenhum pedido pendente nessa unidade</div>
+          )}
+        </>
       )}
       </>}
       <div style={{ height: 20 }} />

@@ -71,7 +71,7 @@ export const printTodos = (pedidos, produtos, periodo) => {
         <td style="padding:11px 13px;border-bottom:1px solid #eee;font-size:20px;font-weight:700;text-align:right;color:#1a4a35">R$ ${(p.preco * it.qty).toFixed(2).replace('.', ',')}</td>
       </tr>`
     }).join('')
-    return `<div style="page-break-after:always;padding:28px">
+    return `<div style="page-break-inside:avoid;padding:28px;margin-bottom:36px">
       ${printHeader(pedido.clienteNome, pedido.clienteTel, periodo)}
       <table style="width:100%;border-collapse:collapse">${rows}</table>
       ${printTotal(total, pedido.pagamento)}
@@ -82,7 +82,7 @@ export const printTodos = (pedidos, produtos, periodo) => {
   w.document.write(wrapDoc(`Pedidos ${periodo}`, `
     <div class="noprint" style="text-align:center;padding:18px;background:#f5f5f5">
       <button onclick="window.print()" style="background:#2D6A4F;color:#fff;border:none;padding:12px 36px;border-radius:8px;font-size:18px;cursor:pointer;font-weight:700">🖨️ Imprimir Todos (${pendentes.length} pedidos)</button>
-      <p style="color:#999;font-size:13px;margin-top:6px">Cada pedido em uma folha A4</p>
+      <p style="color:#999;font-size:13px;margin-top:6px">Pedidos agrupados por folha A4 quando possível</p>
     </div>
     ${blocos}`))
   w.document.close()
