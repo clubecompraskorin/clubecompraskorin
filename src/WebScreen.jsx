@@ -680,6 +680,7 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
   const [periodoWeb, setPeriodoWeb]       = useState(periodoCorrente?.id || null) // período sendo visualizado
   const [periodosLista, setPeriodosLista] = useState([])
   const [produtosWeb, setProdutosWeb]     = useState(produtosCorrente)  // produtos do período visualizado
+  const visualizandoCorrente = periodoWeb === periodoCorrente?.id
 
   // Ressincroniza produtosWeb quando o CONJUNTO de produtos do período corrente muda
   // (ex: importação de catálogo adiciona/remove produtos) — sem disparar em edições
@@ -738,7 +739,6 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
     carregar()
   }, [periodoWeb])
 
-  const visualizandoCorrente = periodoWeb === periodoCorrente?.id
   const periodoSelecionado = periodosLista.find(p => p.id === periodoWeb)
   const somenteLeitura = !visualizandoCorrente && periodoSelecionado?.status === 'arquivado'
 
