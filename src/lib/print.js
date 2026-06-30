@@ -55,6 +55,33 @@ export const printPedido = (pedido, produtos, periodo) => {
   w.document.close()
 }
 
+// Versão compacta para impressão em lote (controle interno) — sem logo, sem
+// rodapé de crédito, fontes e espaçamentos reduzidos. printPedido (pedido
+// avulso, entregue ao cliente) continua usando printHeader/printTotal acima,
+// inalterados.
+const compactHeader = (nomeCliente, tel) => `
+  <div style="border-bottom:2px solid #2D6A4F;padding-bottom:5px;margin-bottom:8px">
+    <div style="font-size:19px;font-weight:800;color:#2D6A4F;line-height:1.2">${nomeCliente}${tel ? ` <span style="font-size:11px;font-weight:400;color:#999">· ${tel}</span>` : ''}</div>
+  </div>`
+
+const compactTotal = (total, pagamento) => `
+  <div style="margin-top:6px;background:#2D6A4F;color:#fff;padding:7px 12px;border-radius:7px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:11px;font-weight:700;letter-spacing:0.5px">TOTAL A PAGAR</span>
+    <span style="font-size:17px;font-weight:900">R$ ${total}</span>
+  </div>
+  ${pagamento && pagamento !== 'A Definir'
+    ? `<div style="margin-top:3px;font-size:10px;color:#888">Pagamento: <strong>${pagamento}</strong></div>`
+    : ''}`
+
+const wrapDocCompact = (title, body) => `<!DOCTYPE html><html><head>
+  <meta charset="utf-8"><title>${title}</title>
+  <style>
+    @page{size:A4;margin:9mm}
+    body{font-family:Arial,sans-serif;margin:0;padding:14px}
+    @media print{.noprint{display:none!important}}
+  </style>
+</head><body>${body}</body></html>`
+
 export const printTodos = (pedidos, produtos, periodo) => {
   const pendentes = pedidos
     .filter(p => p.status === 'pendente')
@@ -66,23 +93,23 @@ export const printTodos = (pedidos, produtos, periodo) => {
       const p = produtos.find(x => x.id === it.produtoId)
       if (!p) return ''
       return `<tr>
-        <td style="padding:11px 13px;border-bottom:1px solid #eee;font-size:18px;color:#888;width:48px;font-weight:700">${p.cod}</td>
-        <td style="padding:11px 13px;border-bottom:1px solid #eee;font-size:20px">${it.qty}× ${p.nome}<br><span style="font-size:12px;color:#aaa">${p.unidade}</span></td>
-        <td style="padding:11px 13px;border-bottom:1px solid #eee;font-size:20px;font-weight:700;text-align:right;color:#1a4a35">R$ ${(p.preco * it.qty).toFixed(2).replace('.', ',')}</td>
+        <td style="padding:6px 9px;border-bottom:1px solid #eee;font-size:13px;color:#999;width:34px;font-weight:700">${p.cod}</td>
+        <td style="padding:6px 9px;border-bottom:1px solid #eee;font-size:14px">${it.qty}× ${p.nome} <span style="font-size:10px;color:#aaa">(${p.unidade})</span></td>
+        <td style="padding:6px 9px;border-bottom:1px solid #eee;font-size:14px;font-weight:700;text-align:right;color:#1a4a35">R$ ${(p.preco * it.qty).toFixed(2).replace('.', ',')}</td>
       </tr>`
     }).join('')
-    return `<div style="page-break-inside:avoid;padding:28px;margin-bottom:36px">
-      ${printHeader(pedido.clienteNome, pedido.clienteTel, periodo)}
+    return `<div style="page-break-inside:avoid;padding:10px 12px;margin-bottom:12px;border-bottom:1px dashed #ddd">
+      ${compactHeader(pedido.clienteNome, pedido.clienteTel)}
       <table style="width:100%;border-collapse:collapse">${rows}</table>
-      ${printTotal(total, pedido.pagamento)}
+      ${compactTotal(total, pedido.pagamento)}
     </div>`
   }).join('')
 
   const w = window.open('', '_blank')
-  w.document.write(wrapDoc(`Pedidos ${periodo}`, `
-    <div class="noprint" style="text-align:center;padding:18px;background:#f5f5f5">
+  w.document.write(wrapDocCompact(`Pedidos ${periodo}`, `
+    <div class="noprint" style="text-align:center;padding:14px;background:#f5f5f5">
+      <div style="font-size:13px;color:#666;margin-bottom:6px">Clube de Compras Korin · ${periodo} · Controle interno</div>
       <button onclick="window.print()" style="background:#2D6A4F;color:#fff;border:none;padding:12px 36px;border-radius:8px;font-size:18px;cursor:pointer;font-weight:700">🖨️ Imprimir Todos (${pendentes.length} pedidos)</button>
-      <p style="color:#999;font-size:13px;margin-top:6px">Pedidos agrupados por folha A4 quando possível</p>
     </div>
     ${blocos}`))
   w.document.close()
