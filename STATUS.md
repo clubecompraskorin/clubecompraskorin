@@ -345,8 +345,9 @@ manda pra Korin um pedido só, com as quantidades somadas — não um por unidad
   "📦 Pedido único (soma as unidades marcadas)" e "📄 Separado por unidade (uma aba cada)", em vez
   de um interruptor + confirmação. Resolve em 1 toque.
 - `npx vite build` validado sem erro.
-- **Status no GitHub**: branch `feat/export-consolidado-por-unidades`, commit `08c5e35`,
-  aguardando merge — atualizar este bloco com o SHA do merge assim que for mesclado.
+- **Status no GitHub: mesclada na `main`.** Commit da feature: `08c5e35`
+  (branch `feat/export-consolidado-por-unidades`). Merge commit na `main`: `8120d9f`
+  (`f8336ea..8120d9f`).
 
 ---
 
