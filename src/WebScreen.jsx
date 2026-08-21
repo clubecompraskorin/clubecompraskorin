@@ -210,7 +210,7 @@ function TabProdutos({ produtos, pedidosWeb, onChange, onSave, salvando, somente
                 const disponivel = qtdCaixa ? caixasAbertas * qtdCaixa : null
 
                 return (
-                  <div key={prod.id} className="bg-white rounded-2xl border border-stone-100 shadow-sm p-3">
+                  <div key={prod.id} className={`bg-white rounded-2xl border shadow-sm p-3 ${prod.foraDaTabela ? 'border-amber-300' : 'border-stone-100'}`}>
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-black flex-shrink-0"
                         style={{ background: CAT_COR[prod.categoria] || '#888' }}>
@@ -226,6 +226,9 @@ function TabProdutos({ produtos, pedidosWeb, onChange, onSave, salvando, somente
                         </span>
                       )}
                     </div>
+                    {prod.foraDaTabela && (
+                      <div className="text-xs text-amber-700 font-bold mb-2">⚠️ Fora da última tabela importada — mantido por ter pedido em aberto</div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-2 mb-2">
                       <div>

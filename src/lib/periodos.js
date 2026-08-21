@@ -21,6 +21,7 @@ const produtoFromDb = (row) => ({
   categoria: row.categoria || '',
   qtdCaixa: row.qtd_caixa || 0,
   caixasAbertas: row.caixas_abertas || 0,
+  foraDaTabela: row.fora_da_tabela || false,
 })
 
 const produtoToDb = (periodoId, p) => ({
@@ -33,6 +34,7 @@ const produtoToDb = (periodoId, p) => ({
   categoria: p.categoria || null,
   qtd_caixa: p.qtdCaixa || null,
   caixas_abertas: p.caixasAbertas || null,
+  fora_da_tabela: p.foraDaTabela || false,
 })
 
 // ── PERÍODOS ──────────────────────────────────────────────────────────────────
@@ -158,7 +160,11 @@ export async function removerProdutoDoPeriodo(produtoId, periodoId) {
  * (usado pela importação de catálogo por foto/planilha). Remove o que não
  * está na lista nova e faz upsert do resto, casando por `cod` — exceto
  * produto com pedido ainda ativo vinculado, que é mantido mesmo fora da
- * lista nova (ver produtosVinculadosAPedidos).
+ * lista nova (ver produtosVinculadosAPedidos) e marcado `fora_da_tabela`
+ * pra ficar visível na tela da coordenadora que ele não veio mais na
+ * última importação. Todo produto que VEM na lista nova sai com
+ * `fora_da_tabela = false` (produtoToDb), inclusive se ele tinha sido
+ * marcado numa importação anterior e voltou a aparecer.
  */
 export async function substituirProdutosDoPeriodo(periodoId, produtosApp) {
   if (!supabase) return { ok: false, error: 'Sem conexão com internet' }
@@ -172,11 +178,18 @@ export async function substituirProdutosDoPeriodo(periodoId, produtosApp) {
 
     const vinculados = await produtosVinculadosAPedidos(periodoId)
     const aRemover = candidatosRemocao.filter(e => !vinculados.has(e.id)).map(e => e.id)
-    const mantidosPorPedido = candidatosRemocao.length - aRemover.length
+    const aMarcarForaDaTabela = candidatosRemocao.filter(e => vinculados.has(e.id)).map(e => e.id)
+    const mantidosPorPedido = aMarcarForaDaTabela.length
 
     if (aRemover.length) {
       const { error: e2 } = await supabase.from('periodo_produtos').delete().in('id', aRemover)
       if (e2) throw e2
+    }
+
+    if (aMarcarForaDaTabela.length) {
+      const { error: e2b } = await supabase
+        .from('periodo_produtos').update({ fora_da_tabela: true }).in('id', aMarcarForaDaTabela)
+      if (e2b) throw e2b
     }
 
     const payload = produtosApp.map(p => produtoToDb(periodoId, p))

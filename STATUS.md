@@ -5,7 +5,8 @@
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
 > Última atualização: 21/08/2026 (gaps de integridade produto↔pedido registrados e corrigidos:
-> deleção de produto com pedido vinculado e código reaproveitado por produto diferente).
+> deleção de produto com pedido vinculado, código reaproveitado por produto diferente, e produto
+> "fora da tabela" agora sinalizado na UI da coordenadora).
 
 ---
 
@@ -137,18 +138,48 @@ produto por trás dos panos passava a exibir/cobrar o produto novo, silenciosame
 
 ---
 
+## Produto "fora da tabela" agora sinalizado na UI da coordenadora
+
+Consequência direta do fix de "impedir deletar produto com pedido vinculado": um produto mantido
+no período (não apagado) por ter pedido ativo, mesmo sem estar mais na última tabela importada,
+ficava **indistinguível** de um produto normal — a coordenadora não tinha como saber que aquele
+item não reflete mais a planilha/foto mais recente.
+
+**Correção aplicada**:
+- Migration no Supabase (projeto `nbfvkmdcbfvgpqpvvspv`): `periodo_produtos` ganhou coluna
+  `fora_da_tabela` (boolean, default `false`).
+- `src/lib/periodos.js`: `produtoFromDb`/`produtoToDb` mapeiam o campo novo (`foraDaTabela` no
+  app). `substituirProdutosDoPeriodo` agora marca `fora_da_tabela = true` explicitamente nos
+  produtos mantidos por pedido vinculado; qualquer produto que **vem** na lista nova importada sai
+  com `fora_da_tabela = false` via upsert — inclusive se ele tinha sido marcado numa importação
+  anterior e voltou a aparecer.
+- UI: `App.jsx` (`ProdutosScreen`, aba Produtos) e `WebScreen.jsx` (`TabProdutos`, aba Embalagens)
+  mostram borda âmbar + aviso "⚠️ Fora da última tabela importada — mantido por ter pedido em
+  aberto" no produto marcado.
+- Escopo: só a tela da coordenadora (painel). **Não alterei** o catálogo público
+  (`CatalogoApp.jsx`) — o produto continua comprável por um cliente novo mesmo estando fora da
+  tabela atual; isso não foi pedido nesta rodada, fica como possível próximo passo.
+- `npx vite build` validado sem erro.
+- **Status no GitHub**: branch `feat/marca-produto-fora-da-tabela`, commit `7a43d4f`, aguardando
+  merge — atualizar este bloco com o SHA do merge assim que for mesclado.
+
+---
+
 ## Pendente / próximos passos
 
 1. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
    categorias, se o preview mostra tudo certo, se salva corretamente. Testar também o bloqueio de
-   remoção de produto com pedido vinculado e o novo aviso de código reaproveitado.
-2. **Atualizar o artefato publicado** com a feature de importação por planilha e com os dois gaps
-   de integridade produto↔pedido (documentado em markdown no repo, artefato visual ainda não
+   remoção de produto com pedido vinculado, o aviso de código reaproveitado, e o novo selo de
+   "fora da tabela" (Produtos e Embalagens).
+2. **Decidir se o catálogo público também deve sinalizar/esconder produto "fora da tabela"** —
+   hoje ele continua comprável por qualquer cliente novo mesmo sem estar na última importação.
+3. **Atualizar o artefato publicado** com a feature de importação por planilha e com os gaps de
+   integridade produto↔pedido (documentado em markdown no repo, artefato visual ainda não
    reflete).
-3. **Gap de offline-first do Sistema 2** (identificado no comparativo): existe uma proposta
+4. **Gap de offline-first do Sistema 2** (identificado no comparativo): existe uma proposta
    técnica desenhada (fila de escrita por "intenção", documentada no artefato) mas **nada foi
    implementado**. Ainda não há decisão de seguir com isso.
-4. **Próximas partes do fluxo de campo ainda não levantadas**: como os outros coordenadores
+5. **Próximas partes do fluxo de campo ainda não levantadas**: como os outros coordenadores
    captam pedido dos membros, como enviam o consolidado pra Korin (só cobrimos até
    "divulgação/importação de catálogo").
 
