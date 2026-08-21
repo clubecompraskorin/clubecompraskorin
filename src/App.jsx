@@ -248,7 +248,7 @@ export default function App({ org, onOrgRefresh }) {
         {showInstall && showInstall !== 'manual' && !iosInstall && (
           <div className="mx-4 mt-3 mb-1">
             <div className="bg-green-800 text-white rounded-2xl p-3 flex items-center gap-3 shadow-md">
-              <img src="/logo-korin.png" alt="" className="w-9 h-9 rounded-xl flex-shrink-0" />
+              <img src="/icon-192.png" alt="" className="w-9 h-9 rounded-xl flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-black">Instalar app na tela inicial</div>
                 <div className="text-xs text-green-300">Use sem internet, sempre disponível</div>

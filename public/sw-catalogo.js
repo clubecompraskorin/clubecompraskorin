@@ -1,4 +1,4 @@
-const CACHE = 'korin-cat-v1'
+const CACHE = 'korin-cat-v2'
 const ASSETS = ['/pedido', '/pedido.html', '/icon-192.png', '/icon-512.png', '/logo-korin.png', '/manifest-catalogo.json']
 
 self.addEventListener('install', e => {

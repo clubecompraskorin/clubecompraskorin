@@ -1,4 +1,4 @@
-const CACHE = 'korin-admin-v7'
+const CACHE = 'korin-admin-v8'
 
 self.addEventListener('install', e => { self.skipWaiting() })
 

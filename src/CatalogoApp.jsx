@@ -56,7 +56,7 @@ function TelaFechada({ periodo, org, showInstall, iosInstall, install, dismiss }
         <div className="mx-4 mt-3 rounded-2xl shadow-lg overflow-hidden">
           {showInstall === true && !iosInstall && (
             <div className="bg-green-700 text-white p-3 flex items-center gap-3">
-              <img src="/logo-korin.png" alt="" className="w-10 h-10 rounded-xl flex-shrink-0 bg-white p-1" />
+              <img src="/icon-192.png" alt="" className="w-10 h-10 rounded-xl flex-shrink-0 bg-white p-1" />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-black">Instale o Clube Korin</div>
                 <button onClick={install} className="text-xs bg-white text-green-700 font-black px-3 py-1.5 rounded-full mt-1.5 block active:bg-green-100">📲 Instalar agora</button>
@@ -186,7 +186,7 @@ function TelaCatalogo({ periodo, org, produtos, carrinho, onSetQty, total, total
         <div className="mx-4 mt-3 rounded-2xl shadow-lg overflow-hidden">
           {showInstall === true && !iosInstall && (
             <div className="bg-green-700 text-white p-3 flex items-center gap-3">
-              <img src="/logo-korin.png" alt="" className="w-10 h-10 rounded-xl flex-shrink-0 bg-white p-1" />
+              <img src="/icon-192.png" alt="" className="w-10 h-10 rounded-xl flex-shrink-0 bg-white p-1" />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-black">Instale o Clube Korin</div>
                 <button onClick={install} className="text-xs bg-white text-green-700 font-black px-3 py-1.5 rounded-full mt-1.5 block active:bg-green-100">📲 Instalar agora</button>
