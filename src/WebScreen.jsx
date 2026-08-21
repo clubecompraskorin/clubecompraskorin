@@ -11,6 +11,7 @@ import { pushSuportado, pushJaInscrito, ativarPush, desativarPush } from './lib/
 import { CAT_COR, CATS_ORDEM } from './lib/catalog'
 import { toast, confirmar } from './lib/dialog'
 import { getUnidades } from './lib/unidades'
+import { ehPlanilha, parseTabelaKorin } from './lib/importarPlanilha'
 import UnidadesManager from './UnidadesManager'
 
 const fmt = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',')
@@ -500,6 +501,8 @@ function TabDados({ org, onSalvo }) {
 
 function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, onClose }) {
   const [etapa, setEtapa]           = useState('upload') // upload | preview
+  const [tipoArquivo, setTipoArquivo] = useState(null) // null | 'imagem' | 'planilha'
+  const [arquivo, setArquivo]       = useState(null)
   const [imagem, setImagem]         = useState(null)
   const [imgBase64, setImgBase64]   = useState(null)
   const [importados, setImportados] = useState([])
@@ -513,45 +516,77 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
   const handleFile = e => {
     const file = e.target.files?.[0]
     if (!file) return
-    setImagem(URL.createObjectURL(file))
-    const reader = new FileReader()
-    reader.onload = ev => setImgBase64(ev.target.result.split(',')[1])
-    reader.readAsDataURL(file)
+    setErro('')
+    setArquivo(file)
+    if (ehPlanilha(file)) {
+      setTipoArquivo('planilha')
+      setImagem(null); setImgBase64(null)
+    } else {
+      setTipoArquivo('imagem')
+      setImagem(URL.createObjectURL(file))
+      const reader = new FileReader()
+      reader.onload = ev => setImgBase64(ev.target.result.split(',')[1])
+      reader.readAsDataURL(file)
+    }
   }
 
-  const interpretar = async () => {
-    if (!imgBase64) return
+  // Mistura o resultado (foto ou planilha) com o que já existe no período: id
+  // e caixasAbertas sempre vêm do produto já cadastrado (são configuração
+  // local, nenhuma fonte externa sabe disso). precoCusto e qtdCaixa só são
+  // preservados do existente quando a fonte nova não trouxe valor melhor —
+  // a planilha traz custo e un./embalagem reais da Korin, então prevalecem;
+  // a foto nunca traz custo, então preserva o que já estava configurado.
+  const mesclarComExistentes = (produtosNovos) =>
+    produtosNovos.map(p => {
+      const exist = produtosAtuais.find(x => x.cod === p.cod)
+      return {
+        ...p,
+        id: exist?.id,
+        precoCusto: p.precoCusto ?? exist?.precoCusto ?? null,
+        qtdCaixa: exist?.qtdCaixa ?? p.qtdCaixa ?? 0,
+        caixasAbertas: exist?.caixasAbertas ?? 0,
+      }
+    })
+
+  const processar = async () => {
+    if (!arquivo) return
     setCarregando(true); setErro('')
     try {
-      const res  = await fetch('/api/interpretar-catalogo', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ imagemBase64: imgBase64 })
-      })
-      const data = await res.json()
-      if (data.produtos?.length > 0) {
-        const prods = data.produtos.map(p => {
-          const exist = produtosAtuais.find(x => x.cod === p.cod)
-          return {
-            ...p,
-            id: exist?.id,
-            precoCusto: exist?.precoCusto ?? null,
-            qtdCaixa: exist?.qtdCaixa ?? 0,
-            caixasAbertas: exist?.caixasAbertas ?? 0,
-          }
-        })
-        setImportados(prods)
-        setPeriodoTabela(data.periodo)
+      let periodoLido, produtosBase
 
-        // Compara contra o período corrente DO BANCO — nunca contra o relógio do celular.
-        const bate = data.periodo && periodo?.nome && normalizarTexto(data.periodo) === normalizarTexto(periodo.nome)
-        setMesmoMes(Boolean(bate))
-        setEtapa('preview')
+      if (tipoArquivo === 'planilha') {
+        const { periodo: p, produtos } = await parseTabelaKorin(arquivo)
+        if (!produtos.length) { setErro('Nenhum produto reconhecido nesta planilha. Confira se é o arquivo .xlsx original da Korin.'); return }
+
+        const catRes  = await fetch('/api/classificar-categorias', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ produtos: produtos.map(x => ({ cod: x.cod, nome: x.nome })) })
+        })
+        const catData = await catRes.json()
+        const categorias = catData.categorias || {}
+        produtosBase = produtos.map(x => ({ ...x, categoria: categorias[String(x.cod)] || CATS_ORDEM[0] }))
+        periodoLido = p
       } else {
-        setErro(data.erro || 'Nenhum produto encontrado. Tente com uma foto mais nítida.')
+        const res  = await fetch('/api/interpretar-catalogo', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imagemBase64: imgBase64 })
+        })
+        const data = await res.json()
+        if (!data.produtos?.length) { setErro(data.erro || 'Nenhum produto encontrado. Tente com uma foto mais nítida.'); return }
+        produtosBase = data.produtos
+        periodoLido = data.periodo
       }
-    } catch { setErro('Erro de conexão. Tente novamente.') }
-    finally  { setCarregando(false) }
+
+      setImportados(mesclarComExistentes(produtosBase))
+      setPeriodoTabela(periodoLido)
+
+      // Compara contra o período corrente DO BANCO — nunca contra o relógio do celular.
+      const bate = periodoLido && periodo?.nome && normalizarTexto(periodoLido) === normalizarTexto(periodo.nome)
+      setMesmoMes(Boolean(bate))
+      setEtapa('preview')
+    } catch {
+      setErro(tipoArquivo === 'planilha' ? 'Erro ao ler a planilha. Confira se é um arquivo .xlsx válido.' : 'Erro de conexão. Tente novamente.')
+    } finally { setCarregando(false) }
   }
 
   const confirmarSalvar = async () => {
@@ -578,25 +613,35 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
           <div className="text-xl font-black">Importar catálogo</div>
           <button onClick={onClose} className="p-2 rounded-full bg-stone-100 text-xl">✕</button>
         </div>
-        {!imagem ? (
+        {!arquivo ? (
           <label>
             <div className="border-2 border-dashed border-green-300 rounded-2xl p-10 text-center cursor-pointer active:bg-green-50">
               <div className="text-5xl mb-3">📷</div>
-              <div className="text-base font-black text-green-700">Tirar foto ou escolher imagem</div>
-              <div className="text-sm text-stone-400 mt-1">Foto da tabela da Korin</div>
+              <div className="text-base font-black text-green-700">Tirar foto ou escolher arquivo</div>
+              <div className="text-sm text-stone-400 mt-1">Foto ou planilha (.xlsx) da tabela da Korin</div>
             </div>
-            <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
+            <input type="file" accept="image/*,.xlsx,.xls" className="hidden" onChange={handleFile} />
           </label>
+        ) : tipoArquivo === 'planilha' ? (
+          <div className="flex items-center gap-3 bg-stone-50 rounded-2xl p-4 border border-stone-100">
+            <div className="text-3xl flex-shrink-0">📊</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-bold text-stone-800 truncate">{arquivo.name}</div>
+              <button onClick={() => { setArquivo(null); setTipoArquivo(null) }} className="text-xs text-stone-400 underline mt-0.5">Trocar arquivo</button>
+            </div>
+          </div>
         ) : (
           <div>
             <img src={imagem} alt="Tabela" className="w-full rounded-2xl max-h-60 object-contain bg-stone-50" />
-            <button onClick={() => { setImagem(null); setImgBase64(null) }} className="mt-1 text-xs text-stone-400 underline">Trocar imagem</button>
+            <button onClick={() => { setArquivo(null); setTipoArquivo(null); setImagem(null); setImgBase64(null) }} className="mt-1 text-xs text-stone-400 underline">Trocar imagem</button>
           </div>
         )}
         {erro && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 font-semibold">{erro}</div>}
-        <button onClick={interpretar} disabled={!imgBase64 || carregando}
+        <button onClick={processar} disabled={!arquivo || carregando}
           className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-lg active:bg-green-800 disabled:opacity-50 flex items-center justify-center gap-2">
-          {carregando ? <><span className="animate-spin inline-block">⟳</span> Interpretando com IA…</> : '🤖 Interpretar com IA'}
+          {carregando
+            ? <><span className="animate-spin inline-block">⟳</span> {tipoArquivo === 'planilha' ? 'Lendo planilha…' : 'Interpretando com IA…'}</>
+            : tipoArquivo === 'planilha' ? '📊 Ler planilha' : '🤖 Interpretar com IA'}
         </button>
       </div>
     </div>
@@ -645,7 +690,15 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
               <div className="w-8 h-8 rounded-lg bg-green-700 text-white flex items-center justify-center text-xs font-black flex-shrink-0">{p.cod}</div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-bold text-stone-800 truncate">{p.nome}</div>
-                <div className="text-xs text-stone-400">{p.unidade} · {p.categoria}</div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  {p.unidade && <span className="text-xs text-stone-400">{p.unidade}</span>}
+                  <select value={p.categoria}
+                    onChange={e => { const cat = e.target.value; setImportados(prev => prev.map((x, j) => j === i ? { ...x, categoria: cat } : x)) }}
+                    className="text-xs font-bold bg-white border border-stone-200 rounded-lg pl-1.5 pr-5 py-0.5 focus:outline-none focus:border-green-500"
+                    style={{ color: CAT_COR[p.categoria] || '#555' }}>
+                    {CATS_ORDEM.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
               </div>
               <div className="text-sm font-black text-green-700 flex-shrink-0">{fmt(p.preco)}</div>
               <button onClick={() => setImportados(prev => prev.filter((_,j) => j !== i))}
