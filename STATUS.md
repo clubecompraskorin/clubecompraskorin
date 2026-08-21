@@ -8,8 +8,8 @@
 > deleção de produto com pedido vinculado, código reaproveitado por produto diferente, produto
 > "fora da tabela" sinalizado na UI da coordenadora; cadastro leve de clientes criado; unidade de
 > retirada agora obrigatória nos 3 fluxos de pedido; código morto de entrega removido; nome/
-> telefone/unidade visíveis nas 3 etapas do fluxo de entrega; e encerramento de pedidos por
-> unidade implementado — levantamento de fechamento por unidade/grupo de unidades registrado).
+> telefone/unidade visíveis nas 3 etapas do fluxo de entrega; encerramento de pedidos por unidade
+> implementado; e export consolidado (pedido único somando unidades) implementado).
 
 ---
 
@@ -293,11 +293,9 @@ Isso não existia no sistema (só existia abrir/fechar o período inteiro). Duas
 discutidas — a segunda (encerramento por unidade) foi implementada nesta rodada; a primeira
 (export consolidado somando unidades pra Korin) fica pendente:
 
-1. **Export consolidado por seleção livre de unidades** (Fechamento → XLSX) — ainda não
-   implementado. Hoje o export já deixa marcar quais unidades incluir, mas gera uma aba por
-   unidade; falta o modo "uma aba só, somando as unidades marcadas", pro caso de pedido único
-   consolidado.
-2. **Encerrar pedidos por unidade — implementado nesta rodada** (ver bloco abaixo).
+1. **Export consolidado por seleção livre de unidades** (Fechamento → XLSX) — **implementado**
+   (ver bloco "Export consolidado" mais abaixo).
+2. **Encerrar pedidos por unidade — implementado** (ver bloco abaixo).
 
 ## Encerramento de pedidos por unidade — implementado
 
@@ -330,6 +328,28 @@ discutidas — a segunda (encerramento por unidade) foi implementada nesta rodad
 
 ---
 
+## Export consolidado (pedido único somando unidades) — implementado
+
+Segunda parte da prática real trazida pelo Junior: coordenadora que agrupa unidades próximas
+manda pra Korin um pedido só, com as quantidades somadas — não um por unidade.
+
+**Correção aplicada** (`FechamentoScreen`, `App.jsx`):
+- `montarLinhasExport` extraído da função de export original (soma itens por produto, calcula
+  embalagens fechadas pra Korin) — agora reutilizável pelos dois modos.
+- `exportarSeparado`: exatamente o comportamento que já existia (uma aba por unidade marcada,
+  mesmo nome de arquivo `pedido-korin-{periodo}.xlsx`) — nada mudou pra quem já usa assim.
+- `exportarConsolidado` (novo): soma os pedidos de todas as unidades marcadas numa aba só
+  ("Consolidado"), arquivo `pedido-korin-consolidado-{periodo}.xlsx` (sufixo diferente pra não
+  confundir com o separado).
+- UI: reaproveita a mesma seleção de unidades que já existia (checkboxes) — dois botões diretos,
+  "📦 Pedido único (soma as unidades marcadas)" e "📄 Separado por unidade (uma aba cada)", em vez
+  de um interruptor + confirmação. Resolve em 1 toque.
+- `npx vite build` validado sem erro.
+- **Status no GitHub**: branch `feat/export-consolidado-por-unidades`, commit `08c5e35`,
+  aguardando merge — atualizar este bloco com o SHA do merge assim que for mesclado.
+
+---
+
 ## Pendente / próximos passos
 
 1. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
@@ -346,17 +366,16 @@ discutidas — a segunda (encerramento por unidade) foi implementada nesta rodad
    implementado**. Ainda não há decisão de seguir com isso.
 5. **Próximas partes do fluxo de campo ainda não totalmente levantadas**: como os outros
    coordenadores captam pedido dos membros (coberto), como fecham/enviam o consolidado pra Korin
-   (levantamento feito, encerramento por unidade implementado — falta o export consolidado
-   somando unidades, item 7).
+   (levantamento feito, encerramento por unidade e export consolidado implementados).
 6. **Aguardando o Junior trazer o requisito de uso futuro do cadastro de clientes** — a base
    (tabela + upsert automático + autocomplete) já está funcionando, mas nenhuma tela de gestão foi
    desenhada de propósito, até saber o que de fato vai ser construído em cima disso.
-7. **Export consolidado por seleção de unidades** (Fechamento → XLSX) — somar quantidades de
-   unidades marcadas numa aba só, em vez de uma aba por unidade, pro caso de pedido único
-   consolidado pra Korin (ver bloco "Prática real trazida pelo Junior" acima).
-8. **Testar de verdade o encerramento por unidade**: fechar uma unidade e confirmar que bloqueia
+7. **Testar de verdade o encerramento por unidade**: fechar uma unidade e confirmar que bloqueia
    pedido novo nos 3 caminhos (catálogo, manual, colado) sem travar pedido/entrega já existente;
    testar reabrir.
+8. **Testar de verdade o export consolidado**: gerar planilha "Pedido único" com 2+ unidades
+   marcadas e conferir que soma certo (quantidade e embalagens fechadas), e que "Separado por
+   unidade" continua idêntico ao de antes.
 
 ---
 
