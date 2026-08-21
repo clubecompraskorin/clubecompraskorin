@@ -320,10 +320,10 @@ export default function App({ org, onOrgRefresh }) {
       </footer>
 
       {/* MODALS */}
-      {modal === 'pedido'   && <ModalPedido   pedido={editPedido}   produtos={produtos} unidades={nomesUnidades} orgId={orgId} onSave={savePedidoForm}   onClose={closeModal} />}
+      {modal === 'pedido'   && <ModalPedido   pedido={editPedido}   produtos={produtos} unidades={unidades} orgId={orgId} onSave={savePedidoForm}   onClose={closeModal} />}
       {modal === 'detalhe'  && viewPedido && <ModalDetalhe  pedido={viewPedido}  produtos={produtos} periodo={periodoAtivo} onClose={closeModal} onPrint={() => printPedido(viewPedido, produtos, periodoAtivo)} />}
       {modal === 'produto'  && <ModalProduto  produto={editProduto}               onSave={saveProduto}  onClose={closeModal} />}
-      {modal === 'colar'    && <ModalColarPedido produtos={produtos} unidades={nomesUnidades} orgId={orgId} onSave={savePedidoForm} onClose={closeModal} />}
+      {modal === 'colar'    && <ModalColarPedido produtos={produtos} unidades={unidades} orgId={orgId} onSave={savePedidoForm} onClose={closeModal} />}
 
       {/* MODO ENTREGA — overlay global, acessível de qualquer tab */}
       {modoEntrega && (
@@ -1229,7 +1229,10 @@ function ModalPedido({ pedido, produtos, unidades = [], orgId, onSave, onClose }
     const match = clientesConhecidos.find(c => c.nome.trim().toLowerCase() === v.trim().toLowerCase())
     if (match) {
       if (!tel.trim()) setTel(match.telefone)
-      if (match.unidade) setUnidade(match.unidade)
+      // Não preenche sozinho uma unidade que foi encerrada nesse meio-tempo —
+      // ela precisa escolher outra de propósito.
+      const unidadeAinda = unidades.find(u => u.nome === match.unidade)
+      if (match.unidade && unidadeAinda?.aberto !== false) setUnidade(match.unidade)
     }
   }
 
@@ -1251,6 +1254,13 @@ function ModalPedido({ pedido, produtos, unidades = [], orgId, onSave, onClose }
   const handleSave = () => {
     if (!nome.trim())      { toast('Informe o nome do cliente'); return }
     if (!unidade)          { toast('Selecione a unidade de retirada'); return }
+    // "Encerrar pedidos" bloqueia só pedido NOVO — ajustar um pedido que já
+    // existia antes de encerrar (item, quantidade) continua permitido, senão
+    // ela fica impedida de corrigir algo que ainda precisa entregar.
+    if (!pedido && unidades.find(u => u.nome === unidade)?.aberto === false) {
+      toast('Esta unidade está com pedidos encerrados — escolha outra')
+      return
+    }
     if (!itens.length)     { toast('Adicione pelo menos 1 item'); return }
     onSave({ ...pedido, clienteNome: nome.trim(), clienteTel: tel, pagamento: pagto, itens, unidade, origem: pedido?.origem || 'whatsapp' })
   }
@@ -1279,7 +1289,11 @@ function ModalPedido({ pedido, produtos, unidades = [], orgId, onSave, onClose }
             <select value={unidade} onChange={e => setUnidade(e.target.value)}
               className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:border-green-500 font-semibold">
               <option value="" disabled>Selecione a unidade de retirada *</option>
-              {(unidades).map(u => <option key={u}>{u}</option>)}
+              {unidades.map(u => (
+                <option key={u.id} value={u.nome} disabled={u.aberto === false && u.nome !== pedido?.unidade}>
+                  {u.nome}{u.aberto === false ? ' (pedidos encerrados)' : ''}
+                </option>
+              ))}
             </select>
             <select value={pagto} onChange={e => setPagto(e.target.value)}
               className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:border-green-500 font-semibold">
@@ -1542,7 +1556,9 @@ function ModalColarPedido({ produtos, unidades = [], orgId, onSave, onClose }) {
     const match = clientesConhecidos.find(c => c.nome.trim().toLowerCase() === v.trim().toLowerCase())
     if (match) {
       if (!tel.trim()) setTel(match.telefone)
-      if (match.unidade) setUnidade(match.unidade)
+      // Não preenche sozinho uma unidade que foi encerrada nesse meio-tempo.
+      const unidadeAinda = unidades.find(u => u.nome === match.unidade)
+      if (match.unidade && unidadeAinda?.aberto !== false) setUnidade(match.unidade)
     }
   }
 
@@ -1582,6 +1598,10 @@ function ModalColarPedido({ produtos, unidades = [], orgId, onSave, onClose }) {
   const confirmar = () => {
     if (!nome.trim()) { toast('Informe o nome do cliente'); return }
     if (!unidade)     { toast('Selecione a unidade de retirada'); return }
+    if (unidades.find(u => u.nome === unidade)?.aberto === false) {
+      toast('Esta unidade está com pedidos encerrados — escolha outra')
+      return
+    }
     onSave({ clienteNome: nome.trim(), clienteTel: tel, pagamento: pagto, itens: parsed.itens, unidade, origem: 'whatsapp' })
   }
 
@@ -1637,7 +1657,11 @@ function ModalColarPedido({ produtos, unidades = [], orgId, onSave, onClose }) {
               <select value={unidade} onChange={e => setUnidade(e.target.value)}
                 className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:border-green-500 font-semibold">
                 <option value="" disabled>Selecione a unidade de retirada *</option>
-                {unidades.map(u => <option key={u}>{u}</option>)}
+                {unidades.map(u => (
+                  <option key={u.id} value={u.nome} disabled={u.aberto === false}>
+                    {u.nome}{u.aberto === false ? ' (pedidos encerrados)' : ''}
+                  </option>
+                ))}
               </select>
               <select value={pagto} onChange={e => setPagto(e.target.value)}
                 className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:border-green-500 font-semibold">

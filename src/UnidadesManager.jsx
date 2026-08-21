@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getUnidades, addUnidade, updateUnidade, deleteUnidade } from './lib/unidades'
+import { getUnidades, addUnidade, updateUnidade, deleteUnidade, setUnidadeAberto } from './lib/unidades'
 import { toast, confirmar, ToastHost, ConfirmHost } from './lib/dialog'
 
 function Field({ label, children }) {
@@ -70,6 +70,14 @@ export default function UnidadesManager({ orgId, modo = 'settings', onConcluir, 
     catch { toast('Erro ao remover unidade') }
   }
 
+  // Encerrar bloqueia pedido novo pra essa unidade (catálogo, manual, WhatsApp) —
+  // por isso pede confirmação. Reabrir é reversível e não precisa.
+  const alternarAberto = async (u) => {
+    if (u.aberto && !await confirmar(`Encerrar pedidos da unidade "${u.nome}"? Ninguém vai conseguir fazer pedido novo pra ela até você reabrir.`)) return
+    try { await setUnidadeAberto(u.id, !u.aberto); recarregar() }
+    catch { toast('Erro ao atualizar unidade') }
+  }
+
   if (unidades === null) {
     return <div className="flex items-center justify-center py-10 text-green-800 font-bold">Carregando…</div>
   }
@@ -92,15 +100,24 @@ export default function UnidadesManager({ orgId, modo = 'settings', onConcluir, 
             onSalvou={() => { setEditandoId(null); recarregar() }}
             onCancelar={() => setEditandoId(null)} />
         ) : (
-          <div key={u.id} className="bg-white rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="font-black text-stone-800 truncate">{u.nome}</div>
-              {u.endereco && <div className="text-sm text-stone-500 truncate">{u.endereco}</div>}
+          <div key={u.id} className={`bg-white rounded-2xl p-4 shadow-sm space-y-2.5 border ${u.aberto === false ? 'border-amber-300' : 'border-transparent'}`}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-black text-stone-800 truncate">{u.nome}</div>
+                {u.endereco && <div className="text-sm text-stone-500 truncate">{u.endereco}</div>}
+                {u.aberto === false && <div className="text-xs text-amber-700 font-bold mt-0.5">🔒 Pedidos encerrados</div>}
+              </div>
+              <div className="flex gap-1 flex-shrink-0">
+                <button onClick={() => setEditandoId(u.id)} className="w-9 h-9 rounded-xl bg-stone-100 text-stone-600 active:bg-stone-200 flex items-center justify-center">✏️</button>
+                <button onClick={() => remover(u.id)} className="w-9 h-9 rounded-xl bg-red-50 text-red-500 active:bg-red-100 flex items-center justify-center">🗑️</button>
+              </div>
             </div>
-            <div className="flex gap-1 flex-shrink-0">
-              <button onClick={() => setEditandoId(u.id)} className="w-9 h-9 rounded-xl bg-stone-100 text-stone-600 active:bg-stone-200 flex items-center justify-center">✏️</button>
-              <button onClick={() => remover(u.id)} className="w-9 h-9 rounded-xl bg-red-50 text-red-500 active:bg-red-100 flex items-center justify-center">🗑️</button>
-            </div>
+            {modo !== 'onboarding' && (
+              <button onClick={() => alternarAberto(u)}
+                className={`w-full py-2.5 rounded-xl font-bold text-sm active:opacity-80 ${u.aberto === false ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                {u.aberto === false ? '🔓 Reabrir pedidos desta unidade' : '🔒 Encerrar pedidos desta unidade'}
+              </button>
+            )}
           </div>
         ))}
 

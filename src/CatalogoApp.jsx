@@ -400,7 +400,12 @@ function TelaDados({ clienteDados, setClienteDados, unidades = [], onVoltar, onA
             {unidades.length === 0 && (
               <div className="text-sm text-stone-400 bg-stone-50 rounded-xl px-4 py-3">Nenhuma unidade de retirada cadastrada ainda. Fale com a coordenadora.</div>
             )}
-            {unidades.map(u => (
+            {unidades.map(u => u.aberto === false ? (
+              <div key={u.id} className="w-full text-left px-5 py-4 rounded-2xl border-2 border-stone-100 bg-stone-50 opacity-60">
+                <div className="text-xl font-bold text-stone-400">{u.nome}</div>
+                <div className="text-sm mt-0.5 text-amber-600 font-bold">🔒 Pedidos encerrados pra essa unidade</div>
+              </div>
+            ) : (
               <button key={u.id} onClick={() => setClienteDados(prev => ({ ...prev, unidade: u.nome }))}
                 className={`w-full text-left px-5 py-4 rounded-2xl border-2 transition-colors ${clienteDados.unidade === u.nome ? 'bg-green-700 text-white border-green-700' : 'bg-white text-stone-700 border-stone-200 active:bg-stone-50'}`}>
                 <div className="text-xl font-bold">{u.nome}</div>
@@ -624,8 +629,11 @@ export default function CatalogoApp() {
       // (conveniência — normalmente é sempre o mesmo local). Cliente novo
       // começa sem nada selecionado, pra forçar escolha consciente — não dá
       // pra supor "primeira unidade da lista" com várias unidades cadastradas.
+      // Se a unidade salva foi encerrada nesse meio-tempo, também não
+      // pré-seleciona — ela precisa escolher outra de propósito.
       const dadosSalvos = loadClienteDados()
-      setClienteDados(prev => ({ ...prev, ...dadosSalvos, unidade: dadosSalvos?.unidade || '' }))
+      const unidadeSalvaAinda = unis.find(u => u.nome === dadosSalvos?.unidade)
+      setClienteDados(prev => ({ ...prev, ...dadosSalvos, unidade: unidadeSalvaAinda?.aberto !== false ? (dadosSalvos?.unidade || '') : '' }))
       if (dadosSalvos?.telefone && per) {
         if (!isPeriodoFechado(per)) {
           const pedExistente = await consultarMeuPedido(slug, dadosSalvos.telefone, per.id)
@@ -696,6 +704,9 @@ export default function CatalogoApp() {
     if (!clienteDados.nome.trim()) { setErro('Informe seu nome completo'); setTela('dados'); return }
     if (!clienteDados.telefone.trim()) { setErro('Informe seu telefone/WhatsApp'); setTela('dados'); return }
     if (!clienteDados.unidade) { setErro('Selecione o local de retirada'); setTela('dados'); return }
+    if (unidades.find(u => u.nome === clienteDados.unidade)?.aberto === false) {
+      setErro('Essa unidade está com pedidos encerrados no momento'); setTela('dados'); return
+    }
     if (!clienteDados.pagamento) { setErro('Selecione a forma de pagamento'); return }
     if (Object.keys(carrinho).length === 0) { setErro('Adicione pelo menos um produto'); return }
 
