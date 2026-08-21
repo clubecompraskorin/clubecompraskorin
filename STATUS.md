@@ -324,8 +324,9 @@ discutidas — a segunda (encerramento por unidade) foi implementada nesta rodad
 - `api/pedido.js`: revalida no servidor, nunca confia no cliente — mesmo padrão já usado pra
   período/prazo.
 - `npx vite build` validado sem erro.
-- **Status no GitHub**: branch `feat/encerrar-pedidos-por-unidade`, commit `1b331b9`, aguardando
-  merge — atualizar este bloco com o SHA do merge assim que for mesclado.
+- **Status no GitHub: mesclada na `main`.** Commit da feature: `1b331b9`
+  (branch `feat/encerrar-pedidos-por-unidade`). Merge commit na `main`: `0f56e73`
+  (`2049fb4..0f56e73`).
 
 ---
 
