@@ -122,9 +122,31 @@ export async function salvarProdutoNoPeriodo(periodoId, produtoApp) {
   } catch (e) { return { ok: false, error: e.message } }
 }
 
-export async function removerProdutoDoPeriodo(produtoId) {
+/**
+ * IDs de periodo_produtos referenciados por pedidos ainda ativos (status
+ * diferente de 'cancelado') do período. Não existe FK no banco amarrando
+ * korin_pedidos.itens (jsonb) a periodo_produtos — sem essa checagem,
+ * remover um produto com pedido em aberto faz o item sumir da tela do
+ * pedido e o total cair sozinho, sem erro nenhum pra coordenadora.
+ */
+async function produtosVinculadosAPedidos(periodoId) {
+  const { data, error } = await supabase
+    .from('korin_pedidos').select('itens').eq('periodo_id', periodoId).neq('status', 'cancelado')
+  if (error) throw error
+  const ids = new Set()
+  for (const pedido of data || []) {
+    for (const it of pedido.itens || []) if (it.produtoId) ids.add(it.produtoId)
+  }
+  return ids
+}
+
+export async function removerProdutoDoPeriodo(produtoId, periodoId) {
   if (!supabase) return { ok: false, error: 'Sem conexão com internet' }
   try {
+    const vinculados = await produtosVinculadosAPedidos(periodoId)
+    if (vinculados.has(produtoId)) {
+      return { ok: false, error: 'Este produto está em um pedido ainda não cancelado — não pode ser removido.' }
+    }
     const { error } = await supabase.from('periodo_produtos').delete().eq('id', produtoId)
     if (error) throw error
     return { ok: true }
@@ -133,8 +155,10 @@ export async function removerProdutoDoPeriodo(produtoId) {
 
 /**
  * Substitui completamente os produtos de um período pela lista informada
- * (usado pela importação de catálogo por foto/IA). Remove o que não está
- * na lista nova e faz upsert do resto, casando por `cod`.
+ * (usado pela importação de catálogo por foto/planilha). Remove o que não
+ * está na lista nova e faz upsert do resto, casando por `cod` — exceto
+ * produto com pedido ainda ativo vinculado, que é mantido mesmo fora da
+ * lista nova (ver produtosVinculadosAPedidos).
  */
 export async function substituirProdutosDoPeriodo(periodoId, produtosApp) {
   if (!supabase) return { ok: false, error: 'Sem conexão com internet' }
@@ -144,7 +168,12 @@ export async function substituirProdutosDoPeriodo(periodoId, produtosApp) {
     if (e1) throw e1
 
     const codsNovos = new Set(produtosApp.map(p => p.cod))
-    const aRemover = (existentes || []).filter(e => !codsNovos.has(e.cod)).map(e => e.id)
+    const candidatosRemocao = (existentes || []).filter(e => !codsNovos.has(e.cod))
+
+    const vinculados = await produtosVinculadosAPedidos(periodoId)
+    const aRemover = candidatosRemocao.filter(e => !vinculados.has(e.id)).map(e => e.id)
+    const mantidosPorPedido = candidatosRemocao.length - aRemover.length
+
     if (aRemover.length) {
       const { error: e2 } = await supabase.from('periodo_produtos').delete().in('id', aRemover)
       if (e2) throw e2
@@ -155,6 +184,6 @@ export async function substituirProdutosDoPeriodo(periodoId, produtosApp) {
       .from('periodo_produtos').upsert(payload, { onConflict: 'periodo_id,cod' }).select()
     if (e3) throw e3
 
-    return { ok: true, produtos: (data || []).map(produtoFromDb) }
+    return { ok: true, produtos: (data || []).map(produtoFromDb), mantidosPorPedido }
   } catch (e) { return { ok: false, error: e.message } }
 }
