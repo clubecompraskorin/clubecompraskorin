@@ -494,7 +494,9 @@ continua sendo a coordenadora.
   proteção contra isso (nada é gravado sem ela ver os números primeiro), mas o ideal é testar
   com uma planilha real assim que possível e ajustar a coluna se necessário.
 - `npx vite build` validado sem erro.
-- **Status no GitHub**: branch `feat/sobra-e-compra-confirmada`, ainda não mesclada.
+- **Status no GitHub: mesclada na `main`.** Commit da feature: `21f9aa8`
+  (branch `feat/sobra-e-compra-confirmada`). Merge commit na `main`: `2741a2e`
+  (`783e61d..2741a2e`).
 
 ---
 
