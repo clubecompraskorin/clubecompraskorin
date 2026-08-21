@@ -17,12 +17,12 @@ const PASSOS = [
   {
     n: '03',
     titulo: 'Importe a primeira tabela de preços',
-    texto: 'Na aba Web → Config, toque em "Importar catálogo da Korin" e tire uma foto da tabela de preços. O sistema lê os produtos e cria o período automaticamente — sem digitar nada.',
+    texto: 'Na aba Web → Config, toque em "Importar catálogo da Korin" e tire uma foto da tabela de preços, ou suba a planilha oficial da Korin (.xlsx) direto. O sistema lê os produtos e cria o período automaticamente — sem digitar nada.',
   },
   {
     n: '04',
     titulo: 'Compartilhe o link do catálogo',
-    texto: 'Ainda na aba Web → Config tem um link pronto pra copiar e enviar pros seus clientes. Eles pedem direto por ali, sem precisar instalar nada.',
+    texto: 'Ainda na aba Web → Config tem um link pronto pra copiar e enviar pros seus membros. Eles pedem direto por ali, sem precisar instalar nada.',
   },
   {
     n: '05',
@@ -31,8 +31,13 @@ const PASSOS = [
   },
   {
     n: '06',
+    titulo: 'Se tiver representante numa unidade, gere o link de entrega dele',
+    texto: 'Em Web → Unidades, gere o link de entrega daquela unidade (com PIN). O representante abre pelo celular, sem precisar de login completo, separa e confirma a entrega direto por ali — você acompanha tudo em tempo real.',
+  },
+  {
+    n: '07',
     titulo: 'Feche a compra do mês',
-    texto: 'Na aba Fechamento, o sistema soma tudo e mostra quantas caixas comprar de cada produto. Dá pra exportar em planilha pra levar direto pra Korin.',
+    texto: 'Na aba Fechamento, o sistema soma tudo e mostra quantas caixas comprar de cada produto. Dá pra exportar em planilha pra levar direto pra Korin — ou, depois de comprar, reimportar a mesma planilha já preenchida pra confirmar a quantidade real.',
   },
 ]
 
@@ -53,15 +58,22 @@ const FAQ = [
     p: 'Preciso preencher CPF/CNPJ pra usar o sistema?',
     r: 'Não é obrigatório. É só pra identificação caso o sistema passe a ter cobrança ou integração com outros serviços no futuro. Você completa quando quiser, em Web → Dados.',
   },
+  {
+    p: 'Como funciona o link de entrega por PIN?',
+    r: 'Em Web → Unidades, gere o link daquela unidade — o sistema cria um PIN de 4 dígitos. Passe o link e o PIN pro representante; ele acessa pelo celular sem precisar de login completo, vê só os pedidos daquela unidade, separa e confirma a entrega. Se trocar de representante, é só gerar um PIN novo — o antigo para de funcionar.',
+  },
+  {
+    p: 'Como sei quanto sobrou de cada produto pro próximo período?',
+    r: 'Em Web → Produtos/Embalagens, o sistema mostra a sobra do período anterior por produto (compra em caixa fechada menos o que foi vendido) — é só informativo, não trava nada. Você decide quantas caixas marcar como abertas no período novo.',
+  },
 ]
 
 export default function Ajuda() {
   return (
     <div className="bg-[#F6F2EA] text-[#14241B] min-h-screen">
       <nav className="max-w-3xl mx-auto px-6 py-5 flex items-center justify-between">
-        <a href="/" className="flex items-center gap-2">
-          <img src="/icon-192.png" alt="" className="h-8 w-8 rounded-lg" />
-          <span className="font-semibold text-sm" style={display}>Clube de Compras Korin</span>
+        <a href="/">
+          <img src="/logo-korin.png" alt="Clube de Compras Korin" className="h-11 w-auto" />
         </a>
         <a href="/painel" className="text-sm font-semibold text-[#1A5C38] hover:text-[#0F3D24] transition-colors">
           Entrar →
@@ -74,7 +86,7 @@ export default function Ajuda() {
           Do cadastro ao primeiro pedido recebido
         </h1>
         <p className="mt-3 text-[#14241B]/65 leading-relaxed">
-          Pra uma coordenadora nova começar a usar sozinha, sem precisar perguntar nada pra ninguém.
+          Pra uma Dedicante nova começar a usar sozinha, sem precisar perguntar nada pra ninguém.
         </p>
       </header>
 
