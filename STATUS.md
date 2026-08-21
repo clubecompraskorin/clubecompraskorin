@@ -6,8 +6,8 @@
 >
 > Última atualização: 21/08/2026 (gaps de integridade produto↔pedido registrados e corrigidos:
 > deleção de produto com pedido vinculado, código reaproveitado por produto diferente, produto
-> "fora da tabela" sinalizado na UI da coordenadora; cadastro leve de clientes criado; e unidade de
-> retirada agora obrigatória nos 3 fluxos de pedido).
+> "fora da tabela" sinalizado na UI da coordenadora; cadastro leve de clientes criado; unidade de
+> retirada agora obrigatória nos 3 fluxos de pedido; e código morto de entrega removido).
 
 ---
 
@@ -233,6 +233,23 @@ criado sem atenção ia parar silenciosamente na unidade #1 de até 15.
 - **Status no GitHub: mesclada na `main`.** Commit do fix: `4f098f7`
   (branch `fix/unidade-obrigatoria-nos-pedidos`). Merge commit na `main`: `4d3b0ac`
   (`bd42db1..4d3b0ac`).
+
+---
+
+## Código morto de entrega removido (achado ao explicar o fluxo de Entregas)
+
+Ao documentar como o sistema trata entregas, achei `entregarPedidoCombinado` (`App.jsx`): marcava
+pedido como `entregue` **direto**, sem passar pelos 3 passos do `ModoEntrega` (ajustar itens,
+forma de pagamento, troco). Estava conectada como prop em `PedidosScreen` e `EntregasScreen`, mas
+**nenhum botão da UI a chamava** — inalcançável, e perigosa se algum dia fosse conectada por
+engano: entregaria pedido sem registrar como ele saiu de verdade, quebrando o Resumo/Fechamento
+(que depende de itens ajustados + pagamento + troco pra faturamento real).
+
+**Removida** (função + as duas props + os dois parâmetros nas assinaturas dos componentes). Único
+caminho de entrega continua sendo o `ModoEntrega` completo. `npx vite build` validado sem erro.
+
+**Status no GitHub**: branch `chore/remove-entregarPedidoCombinado-morto`, commit `77149f6`,
+aguardando merge — atualizar este bloco com o SHA do merge assim que for mesclado.
 
 ---
 
