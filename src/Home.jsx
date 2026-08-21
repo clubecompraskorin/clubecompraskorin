@@ -4,44 +4,6 @@ import SiteFooter from './lib/SiteFooter'
 const display = { fontFamily: "'Space Grotesk', sans-serif" }
 const mono = { fontFamily: "'JetBrains Mono', monospace" }
 
-function ManifestCard() {
-  const linhas = [
-    { cod: '01', nome: 'Coxa s/transgênico', cx: 17 },
-    { cod: '02', nome: 'Alface crespa',      cx: 4 },
-    { cod: '03', nome: 'Tomate italiano',    cx: 6 },
-  ]
-  return (
-    <div className="relative select-none">
-      <div className="absolute -inset-4 bg-[#1A5C38]/10 rounded-[28px] rotate-2" />
-      <div
-        className="relative bg-white rounded-[22px] shadow-2xl shadow-[#0F3D24]/20 px-6 py-6 w-full max-w-[340px] -rotate-1"
-        style={mono}
-      >
-        <div className="text-[11px] text-stone-400 tracking-widest uppercase mb-1">Pedido Korin · Junho/2026</div>
-        <div className="h-px bg-stone-100 mb-3" />
-        {linhas.map(l => (
-          <div key={l.cod} className="flex items-center justify-between text-[13px] py-1 text-stone-700">
-            <span className="text-stone-400 mr-2">{l.cod}</span>
-            <span className="flex-1 truncate">{l.nome}</span>
-            <span className="font-medium text-stone-800">{l.cx} cx</span>
-          </div>
-        ))}
-        <div className="h-px bg-stone-100 my-3" />
-        <div className="flex items-center justify-between text-[13px] text-stone-500">
-          <span>Pedidos confirmados</span><span className="font-semibold text-stone-800">47</span>
-        </div>
-        <div className="flex items-center justify-between text-[13px] text-stone-500 mt-1">
-          <span>Caixas a comprar</span><span className="font-semibold text-stone-800">27</span>
-        </div>
-        <div className="flex items-center justify-between text-[13px] mt-1">
-          <span className="text-[#1A5C38] font-semibold">Sobra</span>
-          <span className="font-semibold text-[#1A5C38]">0</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 const PASSOS = [
   { n: '01', titulo: 'Catálogo', texto: 'A coordenadora fotografa a tabela de preços da Korin. O sistema lê os produtos e organiza o período sozinho.' },
   { n: '02', titulo: 'Pedidos',  texto: 'Cada cliente pede pelo link do catálogo, ou manda a lista pelo grupo mesmo — você só cola a mensagem e a IA organiza.' },
@@ -67,10 +29,7 @@ export default function Home() {
     <div className="bg-[#F6F2EA] text-[#14241B] min-h-screen">
       {/* NAV */}
       <nav className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <img src="/icon-192.png" alt="" className="h-8 w-8 rounded-lg" />
-          <span className="font-semibold text-sm" style={display}>Clube de Compras Korin</span>
-        </div>
+        <img src="/logo-korin.png" alt="Clube de Compras Korin" className="h-11 md:h-12 w-auto" />
         <a href="/painel" className="text-sm font-semibold text-[#1A5C38] hover:text-[#0F3D24] transition-colors">
           Entrar / Criar conta →
         </a>
@@ -95,7 +54,13 @@ export default function Home() {
           </div>
         </div>
         <div className={`flex justify-center md:justify-end transition-all duration-700 delay-150 ${pronto ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
-          <ManifestCard />
+          <div className="relative">
+            <div className="absolute -inset-4 bg-[#1A5C38]/10 rounded-[28px] rotate-2" />
+            <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 -rotate-1 w-[260px]">
+              <img src="/screenshot-resumo.jpg" alt="Tela de fechamento do Clube de Compras Korin mostrando quantas caixas comprar da Korin, sem sobra"
+                className="rounded-[20px] w-full h-auto block" />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -105,11 +70,13 @@ export default function Home() {
           <div>
             <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Sem digitar nada</div>
             <h2 className="text-2xl md:text-3xl font-semibold leading-snug" style={display}>
-              Tira uma foto da tabela. A IA monta o catálogo sozinha.
+              Tira uma foto ou sobe a planilha da Korin. O catálogo se monta sozinho.
             </h2>
             <p className="mt-4 text-[#14241B]/70 leading-relaxed">
-              Você fotografa a tabela de preços que a Korin manda todo mês. O sistema lê os produtos, organiza por
-              categoria e identifica se é o mesmo mês ou um período novo — sem você digitar um número.
+              Você manda a tabela de preços que a Korin manda todo mês — foto ou a planilha oficial mesmo. O sistema
+              lê os produtos, organiza por categoria e identifica se é o mesmo mês ou um período novo, sem você
+              digitar um número. E na hora de comprar, é a mesma planilha que volta pronta — com a quantidade certa
+              em caixa fechada, sem você recontar nada.
             </p>
           </div>
           <div className="flex justify-center md:justify-end">
@@ -192,12 +159,42 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ENTREGA POR UNIDADE / REPRESENTANTE */}
+      <section className="max-w-5xl mx-auto px-6 py-4 pb-16">
+        <div className="grid md:grid-cols-2 gap-10 items-center">
+          <div>
+            <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Separação por unidade</div>
+            <h2 className="text-2xl md:text-3xl font-semibold leading-snug" style={display}>
+              Tem representante numa unidade? Ele entrega sem você conferir nome por nome.
+            </h2>
+            <p className="mt-4 text-[#14241B]/70 leading-relaxed">
+              Cada unidade ganha um link só dela, com PIN — sem precisar de login completo. O representante abre,
+              vê exatamente quem pediu o quê ali, separa e confirma a entrega direto por ali, e você acompanha tudo
+              em tempo real no seu painel.
+            </p>
+          </div>
+          <div className="flex justify-center md:justify-end">
+            <div className="relative">
+              <div className="absolute -inset-3 bg-[#1A5C38]/10 rounded-[32px] rotate-2" />
+              <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 rotate-1 w-[230px]">
+                <img src="/screenshot-entrega.jpg" alt="Lista de entrega separada por unidade, com pedidos pendentes e entregues"
+                  className="rounded-[20px] w-full h-auto block" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* PRO CLIENTE FINAL */}
       <section className="max-w-5xl mx-auto px-6 pb-20">
         <div className="bg-[#1A5C38]/5 border border-[#1A5C38]/15 rounded-[28px] px-8 py-10 md:px-12 grid md:grid-cols-2 gap-10 items-center">
           <div>
             <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Pro seu cliente</div>
-            <h2 className="text-xl md:text-2xl font-semibold mb-6" style={display}>Quem pede também sente a diferença</h2>
+            <h2 className="text-xl md:text-2xl font-semibold mb-3" style={display}>Quem pede também sente a diferença</h2>
+            <p className="text-[#14241B]/70 leading-relaxed mb-6">
+              E você não fica presa passando pedido pro sistema um por um — cada cliente que usa o link já cai
+              pronto, sem passar pela sua mão.
+            </p>
             <div className="space-y-5">
               {[
                 { i: '🔗', t: 'Pede pelo link', d: 'Sem instalar nada — abre direto no navegador do celular.' },
