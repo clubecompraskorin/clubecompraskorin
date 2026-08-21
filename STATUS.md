@@ -13,7 +13,10 @@
 > favicon novo, imagem de compartilhamento); **página inicial reformulada** com prints reais em
 > vez de mockup e nova seção de entrega por unidade; e **terminologia oficial trocada em todo
 > texto visível pro usuário**: "coordenadora" → "Dedicante" (forma curta de "Dedicante do Clube
-> de Compras"), "cliente" → "membro" — não mexeu em nome de variável/coluna do banco.
+> de Compras"), "cliente" → "membro" — não mexeu em nome de variável/coluna do banco; e
+> **Dashboard do Fechamento ganhou ticket médio, membros atendidos e comparativo com o período
+> anterior** (membros/ticket/produtos vendidos, sempre em cima de pedido entregue), com barra
+> proporcional em CSS puro nos rankings — sem instalar biblioteca de gráfico.
 
 ---
 
@@ -588,52 +591,99 @@ Ajuda tinha o nav no padrão antigo (ícone pequeno + nome repetido) e passo-a-p
 
 ---
 
+## Dashboard: ticket médio, membros atendidos e comparativo com período anterior — implementado
+
+**Contexto trazido pelo Junior**: perguntou o que já existia de acompanhamento no Fechamento
+(valores, preços, pedidos, membros) — mapeei tudo que já tinha (Resumo e Dashboard) e identifiquei
+4 gaps: sem ticket médio, sem contagem de membros filtrável por unidade que já respeitasse o
+filtro (na real já respeitava, só não tinha ticket médio), sem comparação membros/produtos entre
+o mês atual e o anterior, e **nenhum gráfico** — o `package.json` não tinha biblioteca de gráfico
+nenhuma instalada, e não tinha nenhum SVG/barra desenhada na mão em lugar nenhum do app.
+
+**Decisão confirmada pelo Junior**: fechar os 3 gaps de dado, sempre em cima de pedido
+**entregue** (pendente ainda pode mudar, não é venda realizada) — e também comparativo de
+produtos vendidos mês × mês anterior, com filtro.
+
+**O que foi construído**:
+- **`src/lib/periodos.js`**: extraída `getPeriodoAnteriorArquivado(orgId, periodoAtualId)`,
+  compartilhada entre `getSobraPeriodoAnterior` (feature de ontem) e a nova
+  `getComparativoPeriodoAnterior(orgId, periodoAtualId)` (retorna produtos+pedidos crus do
+  período anterior, sem filtrar — quem chama aplica o mesmo filtro que já está usando no atual).
+  **Correção de bug junto**: a busca antes pegava "o arquivado mais recente que não é o atual",
+  o que dava errado ao visualizar um período histórico antigo (pegava o mês passado em vez do
+  mês *imediatamente anterior ao período visualizado*) — agora compara por `created_at <`.
+- **`DashboardScreen` (`App.jsx`)**: novos cards "Membros atendidos" e "Ticket médio", os dois só
+  com pedido `entregue`, respeitando o filtro de unidade/origem já existente na tela. Novo bloco
+  "Comparativo com o período anterior": membros atendidos e ticket médio lado a lado, e produtos
+  vendidos casados por **código** (não por ID, que muda a cada período) — trata certo produto
+  novo (sem histórico anterior) e produto que saiu do catálogo (sem venda no período atual),
+  ordenado pela maior variação absoluta primeiro.
+- **`BarraProporcional`**: barra em CSS puro (só `width: %`, sem SVG nem lib) — aplicada nos
+  rankings que já existiam (top produtos, ranking unidades, que eram só texto antes) e nos
+  comparativos novos. Decisão deliberada de não instalar biblioteca de gráfico — o bundle do
+  painel já é o maior do build (`592KB`), e o resto do app inteiro é Tailwind à mão.
+- **Validação**: matemática conferida com script Node espelhando a lógica exata do componente —
+  11 checagens (pedido pendente/cancelado excluído do "entregue", produto novo, produto que saiu
+  do catálogo, ordenação por maior variação), todas passaram. Visual conferido via harness
+  descartável (só os cards que não dependem de rede — o comparativo em si depende de dado real do
+  Supabase, não testado com conta de verdade).
+- `npx vite build` validado sem erro.
+- **Status no GitHub: mesclada na `main`.** Commit: `ee2207d`
+  (branch `feat/dashboard-comparativo-periodo-anterior`). Merge commit na `main`: `8340d4f`
+  (`720d937..8340d4f`).
+
+---
+
 ## Pendente / próximos passos
 
-1. **Testar de verdade o link de entrega por PIN**: gerar um link numa unidade, abrir como
+1. **Testar de verdade o comparativo do Dashboard com dado real**: abrir Fechamento → Dashboard
+   com pelo menos 2 períodos arquivados na conta, conferir que "Comparativo com o período
+   anterior" aparece com os números certos, testar trocando o filtro de unidade, e conferir o
+   caso de só ter 1 período (comparativo não deve aparecer, sem erro).
+2. **Testar de verdade o link de entrega por PIN**: gerar um link numa unidade, abrir como
    representante (nome + PIN), separar/entregar um pedido de teste e conferir que aparece em
    tempo real na tela "Entregas" do painel com `entregue_por` preenchido; testar PIN errado,
    trocar PIN e confirmar que o antigo para de funcionar, e a instalação como PWA a partir do
    link (deve abrir direto na unidade certa).
-2. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
+3. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
    categorias, se o preview mostra tudo certo, se salva corretamente. Testar também o bloqueio de
    remoção de produto com pedido vinculado, o aviso de código reaproveitado, e o novo selo de
    "fora da tabela" (Produtos e Embalagens).
-3. **Decidir se o catálogo público também deve sinalizar/esconder produto "fora da tabela"** —
+4. **Decidir se o catálogo público também deve sinalizar/esconder produto "fora da tabela"** —
    hoje ele continua comprável por qualquer cliente novo mesmo sem estar na última importação.
-4. **Atualizar o artefato publicado** com a feature de importação por planilha, com os gaps de
+5. **Atualizar o artefato publicado** com a feature de importação por planilha, com os gaps de
    integridade produto↔pedido, com o link de entrega por PIN e com o gap de estoque/compra
    confirmada (documentado em markdown no repo, artefato visual ainda não reflete).
-5. **Gap de offline-first do Sistema 2** (identificado no comparativo): existe uma proposta
+6. **Gap de offline-first do Sistema 2** (identificado no comparativo): existe uma proposta
    técnica desenhada (fila de escrita por "intenção", documentada no artefato) mas **nada foi
    implementado**. Ainda não há decisão de seguir com isso.
-6. **Próximas partes do fluxo de campo ainda não totalmente levantadas**: como os outros
+7. **Próximas partes do fluxo de campo ainda não totalmente levantadas**: como os outros
    coordenadores captam pedido dos membros (coberto), como fecham/enviam o consolidado pra Korin
    (levantamento feito, encerramento por unidade e export consolidado implementados).
-7. **Aguardando o Junior trazer o requisito de uso futuro do cadastro de clientes** — a base
+8. **Aguardando o Junior trazer o requisito de uso futuro do cadastro de clientes** — a base
    (tabela + upsert automático + autocomplete) já está funcionando, mas nenhuma tela de gestão foi
    desenhada de propósito, até saber o que de fato vai ser construído em cima disso.
-8. **Testar de verdade o encerramento por unidade**: fechar uma unidade e confirmar que bloqueia
+9. **Testar de verdade o encerramento por unidade**: fechar uma unidade e confirmar que bloqueia
    pedido novo nos 3 caminhos (catálogo, manual, colado) sem travar pedido/entrega já existente;
    testar reabrir.
-9. **Testar de verdade o export consolidado**: gerar planilha "Pedido único" com 2+ unidades
+10. **Testar de verdade o export consolidado**: gerar planilha "Pedido único" com 2+ unidades
    marcadas e conferir que soma certo (quantidade e embalagens fechadas), e que "Separado por
    unidade" continua idêntico ao de antes.
-10. **Testar de verdade renomear/excluir unidade**: renomear uma unidade com pedido vinculado e
+11. **Testar de verdade renomear/excluir unidade**: renomear uma unidade com pedido vinculado e
    conferir que o pedido acompanha o nome novo (e que período arquivado não muda); tentar excluir
    unidade com histórico e conferir que bloqueia com a mensagem certa; excluir unidade sem
    histórico e conferir que continua funcionando normal.
-11. **PDV / estoque persistente por unidade (modo "feira")** — deliberadamente deixado de fora
+12. **PDV / estoque persistente por unidade (modo "feira")** — deliberadamente deixado de fora
    desta rodada. Só faz sentido desenhar quando houver mais clareza de quantas coordenadoras
    realmente operam em venda contínua (não pedido único/data única). Ver conversa no histórico
    da sessão pra contexto completo do desenho pensado (PDV como atalho de lançamento rápido,
    ainda gravando em `korin_pedidos`, com estoque persistente isolado só pra unidade que ligar
    esse modo — sem afetar o fluxo padrão).
-12. **Conferir visualmente a logo nova em produção**: preview de compartilhamento no WhatsApp de
+13. **Conferir visualmente a logo nova em produção**: preview de compartilhamento no WhatsApp de
    verdade (link do `/painel` ou `/pedido`), favicon na aba do navegador, ícone do PWA instalado
    na tela inicial (Android/iOS) — só validei os arquivos estáticos, não o comportamento real de
    cache/preview de cada plataforma.
-13. **Conferir a página inicial em produção** (`clubecompraskorin.vercel.app`) — layout, prints
+14. **Conferir a página inicial em produção** (`clubecompraskorin.vercel.app`) — layout, prints
    novos e responsividade mobile de verdade, num navegador real.
 
 ---
