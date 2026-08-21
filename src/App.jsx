@@ -164,7 +164,7 @@ export default function App({ org, onOrgRefresh }) {
 
   const deleteProduto = async (id) => {
     if (!await confirmar('Remover este produto?')) return
-    const r = await removerProdutoDoPeriodo(id)
+    const r = await removerProdutoDoPeriodo(id, periodoCorrente.id)
     if (!r.ok) { toast('Erro ao remover: ' + r.error); return }
     setProdutos(prev => prev.filter(x => x.id !== id))
   }

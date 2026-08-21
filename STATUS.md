@@ -4,7 +4,7 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
-> Última atualização: 21/08/2026.
+> Última atualização: 21/08/2026 (gap de integridade produto↔pedido registrado e corrigido).
 
 ---
 
@@ -71,13 +71,56 @@
 
 ---
 
+## Gap de integridade produto↔pedido — identificado e corrigido
+
+**Achado**: `korin_pedidos.itens` (jsonb, `{produtoId, qty}`) **não tem FK** com `periodo_produtos`
+no banco (confirmado direto no schema via Supabase MCP). O casamento entre importação/edição de
+catálogo e produtos existentes é feito só pelo `cod`, via `upsert(..., { onConflict:
+'periodo_id,cod' })`. Isso abria 3 cenários de quebra silenciosa, sem erro nem aviso:
+
+1. **Reimportar o catálogo no mesmo período** (planilha ou foto) **sem incluir um código** que já
+   tinha pedido em aberto: `substituirProdutosDoPeriodo` deletava a linha de `periodo_produtos`
+   porque ela some não é mais associada a um pedido. Como não há FK, a deleção não é bloqueada —
+   e o pedido pendente que referenciava aquele `produtoId` fica órfão.
+2. **Coordenadora deleta manualmente um produto** com pedido em aberto vinculado (`ModalProduto` /
+   `removerProdutoDoPeriodo`) — mesmo efeito do item 1.
+3. Em ambos os casos, o sintoma é **silencioso**: `itensComProduto` (`WebScreen.jsx`) faz
+   `.filter(Boolean)` e o item some da tela do pedido; `calcTotal` (`helpers.js`) trata produto
+   não encontrado como preço `0` — o total do pedido **cai sozinho**, sem log nem aviso. Depois,
+   mesmo reimportando o código de volta, o pedido não se recupera: o `upsert` cria uma linha nova
+   (id novo), a antiga já foi apagada.
+   - Cenário adjacente, **ainda não corrigido**: se um código é reaproveitado por um produto
+     *diferente* (ex: numeração sequencial deslocando, como já documentado pro fluxo manual da
+     Valéria), o `upsert` **atualiza a linha existente** em vez de criar uma nova — um pedido
+     pendente pode passar a exibir/cobrar como se fosse o produto errado. A planilha oficial da
+     Korin (SKU estável) não sofre isso; a numeração sequencial manual, sim. Fica registrado como
+     risco conhecido, não como algo corrigido nesta rodada.
+
+**Correção aplicada** (`src/lib/periodos.js`): nova função interna `produtosVinculadosAPedidos`
+consulta `korin_pedidos` do período com `status <> 'cancelado'` e monta o conjunto de `produtoId`
+ainda em uso.
+- `removerProdutoDoPeriodo(produtoId, periodoId)` agora recebe o período e bloqueia a remoção
+  (retorna erro) se o produto está vinculado a pedido ativo.
+- `substituirProdutosDoPeriodo` exclui da lista de remoção qualquer produto vinculado a pedido
+  ativo — ele é **mantido no período mesmo fora da tabela nova** em vez de apagado, e o retorno
+  ganhou `mantidosPorPedido` (contagem) pra UI avisar a coordenadora.
+- Chamadores atualizados: `App.jsx` (`deleteProduto` passa `periodoCorrente.id`) e
+  `WebScreen.jsx` (`confirmarSalvar` mostra toast com a contagem de produtos mantidos, quando > 0).
+- `npx vite build` validado sem erro.
+- **Status no GitHub**: branch `fix/protege-produtos-com-pedido-vinculado`, aguardando merge —
+  atualizar este bloco com o SHA assim que for mesclado.
+
+---
+
 ## Pendente / próximos passos
 
-1. **Confirmar que o deploy no Vercel saiu certo** a partir do merge `a4236c7`.
-2. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
-   categorias, se o preview mostra tudo certo, se salva corretamente.
-3. **Atualizar o artefato publicado** com essa feature nova implementada (documentado em markdown
-   no repo, mas o artefato visual ainda não reflete essa parte — só o comparativo e o inventário).
+1. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
+   categorias, se o preview mostra tudo certo, se salva corretamente. Testar também o novo bloqueio
+   de remoção de produto com pedido vinculado.
+2. **Atualizar o artefato publicado** com a feature de importação por planilha e com o gap de
+   integridade produto↔pedido (documentado em markdown no repo, artefato visual ainda não reflete).
+3. **Risco de reaproveitamento de código por produto diferente** (ver acima) — ainda sem correção;
+   avaliar se vale detectar mudança de nome no mesmo `cod` e alertar em vez de sobrescrever direto.
 4. **Gap de offline-first do Sistema 2** (identificado no comparativo): existe uma proposta
    técnica desenhada (fila de escrita por "intenção", documentada no artefato) mas **nada foi
    implementado**. Ainda não há decisão de seguir com isso.

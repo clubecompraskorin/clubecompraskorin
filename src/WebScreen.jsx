@@ -601,7 +601,11 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
       }
       const r2 = await substituirProdutosDoPeriodo(periodoAlvo, importados)
       if (!r2.ok) { toast('Erro ao salvar produtos: ' + r2.error); setSalvando(false); return }
-      toast(mesmoMes ? 'Catálogo atualizado' : `Período "${periodoTabela}" criado e catálogo importado`)
+      const msgBase = mesmoMes ? 'Catálogo atualizado' : `Período "${periodoTabela}" criado e catálogo importado`
+      const avisoPedidos = r2.mantidosPorPedido
+        ? ` (${r2.mantidosPorPedido} produto${r2.mantidosPorPedido > 1 ? 's' : ''} fora da tabela mantido${r2.mantidosPorPedido > 1 ? 's' : ''} por ter pedido em aberto)`
+        : ''
+      toast(msgBase + avisoPedidos)
       onConcluido()
     } finally { setSalvando(false) }
   }
