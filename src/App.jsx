@@ -800,13 +800,16 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
             </div>
             <div className="space-y-2">
               {list.map(prod => (
-                <div key={prod.id} className="bg-white rounded-2xl border border-stone-100 px-3 py-3 flex items-center gap-3 shadow-sm">
+                <div key={prod.id} className={`bg-white rounded-2xl border px-3 py-3 flex items-center gap-3 shadow-sm ${prod.foraDaTabela ? 'border-amber-300' : 'border-stone-100'}`}>
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0" style={{ background: CAT_COR[prod.categoria] || '#888' }}>
                     {prod.cod}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-bold text-stone-800 leading-tight">{prod.nome}</div>
                     <div className="text-xs text-stone-400">{prod.unidade}</div>
+                    {prod.foraDaTabela && (
+                      <div className="text-xs text-amber-700 font-bold mt-0.5">⚠️ Fora da última tabela importada — mantido por ter pedido em aberto</div>
+                    )}
                   </div>
                   <div className="text-base font-black text-green-700 flex-shrink-0">{fmt(prod.preco)}</div>
                   <div className="flex gap-1.5 flex-shrink-0">
