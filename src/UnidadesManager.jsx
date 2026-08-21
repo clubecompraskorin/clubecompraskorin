@@ -24,7 +24,7 @@ function FormUnidade({ orgId, editando, ordemProxima, onSalvou, onCancelar }) {
     setSalvando(true)
     try {
       if (editando) {
-        await updateUnidade(editando.id, { nome, endereco })
+        await updateUnidade(editando.id, { nome, endereco }, { orgId, nomeAntigo: editando.nome })
       } else {
         await addUnidade(orgId, { nome, endereco }, ordemProxima)
       }
@@ -64,10 +64,10 @@ export default function UnidadesManager({ orgId, modo = 'settings', onConcluir, 
 
   useEffect(() => { recarregar() }, [orgId])
 
-  const remover = async (id) => {
+  const remover = async (u) => {
     if (!await confirmar('Remover esta unidade de retirada?')) return
-    try { await deleteUnidade(id); recarregar() }
-    catch { toast('Erro ao remover unidade') }
+    try { await deleteUnidade(u.id, orgId, u.nome); recarregar() }
+    catch (e) { toast(e.message || 'Erro ao remover unidade') }
   }
 
   // Encerrar bloqueia pedido novo pra essa unidade (catálogo, manual, WhatsApp) —
@@ -109,7 +109,7 @@ export default function UnidadesManager({ orgId, modo = 'settings', onConcluir, 
               </div>
               <div className="flex gap-1 flex-shrink-0">
                 <button onClick={() => setEditandoId(u.id)} className="w-9 h-9 rounded-xl bg-stone-100 text-stone-600 active:bg-stone-200 flex items-center justify-center">✏️</button>
-                <button onClick={() => remover(u.id)} className="w-9 h-9 rounded-xl bg-red-50 text-red-500 active:bg-red-100 flex items-center justify-center">🗑️</button>
+                <button onClick={() => remover(u)} className="w-9 h-9 rounded-xl bg-red-50 text-red-500 active:bg-red-100 flex items-center justify-center">🗑️</button>
               </div>
             </div>
             {modo !== 'onboarding' && (
