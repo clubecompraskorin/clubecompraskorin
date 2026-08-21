@@ -4,19 +4,16 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
-> Última atualização: 21/08/2026 (gaps de integridade produto↔pedido registrados e corrigidos:
-> deleção de produto com pedido vinculado, código reaproveitado por produto diferente, produto
-> "fora da tabela" sinalizado na UI da coordenadora; cadastro leve de clientes criado; unidade de
-> retirada agora obrigatória nos 3 fluxos de pedido; código morto de entrega removido; nome/
-> telefone/unidade visíveis nas 3 etapas do fluxo de entrega; encerramento de pedidos por unidade
-> e export consolidado implementados; matemática das planilhas validada; renomear/excluir
-> unidade corrigidos — renomear propaga, excluir bloqueia com histórico; link de entrega por
-> PIN pro representante da unidade implementado — separação/entrega sem login completo; e gap de
-> estoque/sobra entre caixa fechada e pedido real endereçado — sobra do período anterior visível
-> (informativo, não trava nada) e opção de confirmar a compra real enviada pra Korin,
-> substituindo a estimativa; logo oficial nova aplicada em todo o sistema — headers, ícones
-> PWA, favicon (novo) e imagem de compartilhamento no WhatsApp; e página inicial reformulada com
-> prints reais em vez de mockup no hero, nova seção de entrega por unidade e logo maior no nav).
+> Última atualização: 21/08/2026. Resumo das entregas recentes (detalhes em cada seção abaixo):
+> gaps de integridade produto↔pedido corrigidos; cadastro leve de clientes; unidade de retirada
+> obrigatória; encerramento por unidade + export consolidado; renomear/excluir unidade corrigidos;
+> **link de entrega por PIN pro representante da unidade** (separação/entrega sem login completo);
+> **sobra do período anterior + confirmação de compra real** enviada pra Korin (substitui a
+> estimativa, é só informativo); **logo oficial nova** em todo o sistema (headers, ícones PWA,
+> favicon novo, imagem de compartilhamento); **página inicial reformulada** com prints reais em
+> vez de mockup e nova seção de entrega por unidade; e **terminologia oficial trocada em todo
+> texto visível pro usuário**: "coordenadora" → "Dedicante" (forma curta de "Dedicante do Clube
+> de Compras"), "cliente" → "membro" — não mexeu em nome de variável/coluna do banco.
 
 ---
 
@@ -558,6 +555,36 @@ pra coordenadora que visita pela primeira vez — "era isso que eu tava procuran
 - **Status no GitHub: mesclada na `main`.** Commit: `3fa7415`
   (branch `feat/landing-page-prints-reais`). Merge commit na `main`: `6210566`
   (`558fb56..6210566`).
+
+---
+
+## Terminologia oficial: "coordenadora" → "Dedicante", "cliente" → "membro" — implementado
+
+**Pedido do Junior**: o termo correto pro papel da coordenadora é **"Dedicante"** (forma curta de
+"Dedicante do Clube de Compras" — confirmado que "Dedicante" sozinho está certo pra uso corrente,
+igual "coordenadora" nunca foi escrito por extenso antes). O cliente final vira **"membro"**.
+
+**O que foi trocado**: todo texto **visível pro usuário** — Home, Ajuda, painel (`App.jsx`),
+catálogo público (`CatalogoApp.jsx`), tela de entrega por PIN (`EntregaApp.jsx`),
+`WebScreen.jsx`, `UnidadesManager.jsx`, `Login.jsx`. Mapeamento feito com grep em todo `src/` (17
+arquivos tinham "cliente" ou "coordenador" em algum lugar) e revisado ocorrência por ocorrência.
+
+**O que ficou como estava (deliberado)**: identificadores internos — `clienteNome`, `clienteTel`,
+a tabela `clientes` e colunas `cliente_nome`/`cliente_tel` no banco, funções como
+`listarClientes`/`upsertCliente`, e comentários de código. Mexer nisso seria migração de banco +
+risco de quebrar referência em cascata, sem nenhum ganho — ninguém vê essas strings, só o texto
+renderizado na tela importa pro pedido do Junior.
+
+**Aproveitado o embalo pra fechar 2 gaps encontrados numa revisão completa de Home e Ajuda** (a
+pedido do Junior, que perguntou se eu tinha analisado as páginas inteiras — não tinha, revisei na
+hora): "Como funciona" na Home não citava a Entrega (a página já tinha seção dedicada a isso mais
+abaixo); FAQ da Home e da Ajuda não mencionavam entrega por PIN nem confirmação de compra real; a
+Ajuda tinha o nav no padrão antigo (ícone pequeno + nome repetido) e passo-a-passo desatualizado.
+
+- `npx vite build` validado sem erro; nav da Ajuda conferido visualmente antes do merge.
+- **Status no GitHub: mesclada na `main`.** Commit: `2847545`
+  (branch `feat/terminologia-dedicante-membro`). Merge commit na `main`: `a03c064`
+  (`f1d7530..a03c064`).
 
 ---
 
