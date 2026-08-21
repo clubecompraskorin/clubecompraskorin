@@ -107,8 +107,9 @@ ainda em uso.
 - Chamadores atualizados: `App.jsx` (`deleteProduto` passa `periodoCorrente.id`) e
   `WebScreen.jsx` (`confirmarSalvar` mostra toast com a contagem de produtos mantidos, quando > 0).
 - `npx vite build` validado sem erro.
-- **Status no GitHub**: branch `fix/protege-produtos-com-pedido-vinculado`, aguardando merge —
-  atualizar este bloco com o SHA assim que for mesclado.
+- **Status no GitHub: mesclada na `main`.** Commit do fix: `dd3d8b0`
+  (branch `fix/protege-produtos-com-pedido-vinculado`). Merge commit na `main`: `44564fe`
+  (`8b25aaa..44564fe`).
 
 ---
 
