@@ -14,8 +14,9 @@
 > PIN pro representante da unidade implementado — separação/entrega sem login completo; e gap de
 > estoque/sobra entre caixa fechada e pedido real endereçado — sobra do período anterior visível
 > (informativo, não trava nada) e opção de confirmar a compra real enviada pra Korin,
-> substituindo a estimativa; e logo oficial nova aplicada em todo o sistema — headers, ícones
-> PWA, favicon (novo) e imagem de compartilhamento no WhatsApp).
+> substituindo a estimativa; logo oficial nova aplicada em todo o sistema — headers, ícones
+> PWA, favicon (novo) e imagem de compartilhamento no WhatsApp; e página inicial reformulada com
+> prints reais em vez de mockup no hero, nova seção de entrega por unidade e logo maior no nav).
 
 ---
 
@@ -526,6 +527,40 @@ substituindo a marca antiga (o "pote/lata Korin" que era usada até então). Apl
 
 ---
 
+## Página inicial: logo maior e prints reais em vez de mockups — implementado
+
+**Contexto trazido pelo Junior**: a logo ficou pequena no nav depois da troca, e a ideia de
+mostrar prints reais das telas do sistema (em vez de mockup desenhado) é um bom gatilho de venda
+pra coordenadora que visita pela primeira vez — "era isso que eu tava procurando".
+
+**O que foi feito**:
+- **Nav**: logo completa (retangular, com "Clube de Compras") em vez do ícone pequeno recortado
+  com o nome repetido do lado.
+- **Hero**: o mockup falso (`ManifestCard`, componente desenhado à mão com "Sobra: 0" fixo) foi
+  removido e substituído por um print real da tela de Fechamento/Resumo — mostra de verdade
+  quantas caixas comprar, o que falta e a compra confirmada.
+- **Nova seção "Separação por unidade"**: print real da lista de entrega que o representante vê
+  pelo link com PIN (feature do dia anterior) — diferencial que nenhum fluxo manual de WhatsApp
+  tem.
+- **Copy reforçada**: seção "Foto + IA" agora menciona que a mesma planilha oficial da Korin
+  serve tanto pra montar o catálogo quanto pra confirmar a compra depois; seção "Pro seu cliente"
+  ganhou uma frase deixando explícito que a coordenadora não fica digitando pedido um por um.
+- **Prints antigos corrigidos**: `screenshot-embalagens.jpg` e `screenshot-catalogo.jpg` tiveram
+  a faixa com a logo antiga recortada — senão ficariam inconsistentes com a logo nova no resto da
+  página.
+- **Como os prints novos foram gerados**: sem acesso a login real, os componentes de tela usados
+  (`TabResumo` de `WebScreen.jsx`, `TelaLista` de `EntregaApp.jsx`) foram temporariamente
+  exportados, renderizados com dado fictício realista (nomes/telefones inventados, nunca dado de
+  cliente real) numa página `showcase.html` descartável, capturados via Playwright e depois a
+  página e as exportações temporárias foram revertidas — não sobrou nenhum código de teste no
+  repositório.
+- `npx vite build` validado sem erro; preview enviado pro Junior antes do merge.
+- **Status no GitHub: mesclada na `main`.** Commit: `3fa7415`
+  (branch `feat/landing-page-prints-reais`). Merge commit na `main`: `6210566`
+  (`558fb56..6210566`).
+
+---
+
 ## Pendente / próximos passos
 
 1. **Testar de verdade o link de entrega por PIN**: gerar um link numa unidade, abrir como
@@ -571,6 +606,8 @@ substituindo a marca antiga (o "pote/lata Korin" que era usada até então). Apl
    verdade (link do `/painel` ou `/pedido`), favicon na aba do navegador, ícone do PWA instalado
    na tela inicial (Android/iOS) — só validei os arquivos estáticos, não o comportamento real de
    cache/preview de cada plataforma.
+13. **Conferir a página inicial em produção** (`clubecompraskorin.vercel.app`) — layout, prints
+   novos e responsividade mobile de verdade, num navegador real.
 
 ---
 
