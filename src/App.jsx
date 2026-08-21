@@ -140,7 +140,7 @@ export default function App({ org, onOrgRefresh }) {
   const finalizarEntrega = async (id, itensAjustados, pagamento, troco, obs) => {
     const pedido = pedidos.find(x => x.id === id)
     if (!pedido || !periodoCorrente) return
-    const atualizado = { ...pedido, status: 'entregue', dataEntrega: new Date().toISOString(), itens: itensAjustados, pagamento, troco, obs }
+    const atualizado = { ...pedido, status: 'entregue', dataEntrega: new Date().toISOString(), itens: itensAjustados, pagamento, troco, obs, entreguePor: org?.responsavelNome || null }
     const r = await salvarPedido(orgId, periodoCorrente.id, atualizado)
     if (r.ok) setPedidos(prev => prev.map(x => x.id === id ? r.pedido : x))
     else toast('Erro ao atualizar: ' + r.error)
@@ -539,6 +539,7 @@ function EntregasScreen({ pedidos, produtos, onFinalizar, onView, onIniciarEntre
                     ✅ Entregue em {new Date(p.dataEntrega).toLocaleDateString('pt-BR')} · {p.pagamento}
                     {p.troco ? ` · Troco R$${p.troco}` : ''}
                   </div>
+                  {p.entreguePor && <div className="text-xs text-stone-400 mt-0.5">Por {p.entreguePor}</div>}
                 </div>
                 <div className="text-lg font-black text-green-700">{fmt(calcTotal(p, produtos))}</div>
               </div>

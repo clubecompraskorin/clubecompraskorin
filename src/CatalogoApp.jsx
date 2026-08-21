@@ -13,7 +13,7 @@ import { useInstallPrompt } from './lib/pwa'
 export const getSlugDaURL = () => window.location.pathname.split('/').filter(Boolean)[0] || null
 
 // ── CONSTANTES ────────────────────────────────────────────────────────────────
-import { getUnidades } from './lib/unidades'
+import { getUnidadesPublicas } from './lib/unidades'
 const PAGAMENTOS_CLI = ['PIX', 'Dinheiro', 'Cartão Crédito', 'Cartão Débito']
 const fmt = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',')
 
@@ -613,7 +613,7 @@ export default function CatalogoApp() {
       if (!orgEncontrada || !orgEncontrada.ativo) { setTela('org-invalida'); return }
       setOrg(orgEncontrada)
 
-      const unis = await getUnidades(orgEncontrada.id)
+      const unis = await getUnidadesPublicas(orgEncontrada.id)
       setUnidades(unis)
 
       const per = await getPeriodoCorrente(orgEncontrada.id)
