@@ -111,6 +111,21 @@ export default async function handler(req, res) {
       .select('id, status').maybeSingle()
     if (error) throw error
 
+    // Efeito colateral, nunca derruba a confirmação do pedido pro cliente se falhar.
+    try {
+      const telefone_normalizado = (pedido.telefone || '').replace(/\D/g, '')
+      if (telefone_normalizado) {
+        await supabaseAdmin.from('clientes').upsert({
+          org_id: org.id,
+          nome: pedido.nome,
+          telefone: pedido.telefone,
+          telefone_normalizado,
+          unidade: pedido.unidade,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'org_id,telefone_normalizado' })
+      }
+    } catch {}
+
     await notificarPedido(org.id, { ehNovo, nome: pedido.nome, total: pedido.total })
 
     return res.status(200).json({ ok: true, data: { ...pedido, id: data.id, status: data.status } })

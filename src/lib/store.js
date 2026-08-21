@@ -15,6 +15,7 @@
  * antes do primeiro fetch resolver.
  */
 import { supabase } from './supabase'
+import { upsertCliente } from './clientes'
 
 const cacheKey = (periodoId) => `korin-pedidos-cache:${periodoId}`
 
@@ -92,6 +93,7 @@ export const salvarPedido = async (orgId, periodoId, pedidoApp) => {
       .from('korin_pedidos').upsert(payload, { onConflict: 'id' })
       .select().maybeSingle()
     if (error) throw error
+    upsertCliente(orgId, { nome: pedidoApp.clienteNome, telefone: pedidoApp.clienteTel, unidade: pedidoApp.unidade })
     return { ok: true, pedido: fromDb(data) }
   } catch (e) { return { ok: false, error: e.message } }
 }

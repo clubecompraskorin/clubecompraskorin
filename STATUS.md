@@ -5,8 +5,8 @@
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
 > Última atualização: 21/08/2026 (gaps de integridade produto↔pedido registrados e corrigidos:
-> deleção de produto com pedido vinculado, código reaproveitado por produto diferente, e produto
-> "fora da tabela" agora sinalizado na UI da coordenadora).
+> deleção de produto com pedido vinculado, código reaproveitado por produto diferente, produto
+> "fora da tabela" sinalizado na UI da coordenadora; e cadastro leve de clientes criado).
 
 ---
 
@@ -166,6 +166,46 @@ item não reflete mais a planilha/foto mais recente.
 
 ---
 
+## Cadastro leve de clientes (base pra uso futuro — Junior vai detalhar depois)
+
+Sistema não tinha nenhum cadastro de cliente — `cliente_nome`/`cliente_tel` eram só texto solto
+em cada pedido, sem entidade nenhuma amarrando isso, sem histórico entre meses, sem autocomplete
+(levantamento registrado numa conversa anterior). O Junior confirmou que vai usar isso no futuro
+("te digo depois") — esta rodada só constrói a base, sem tela de gestão nova.
+
+**Restrições de design que guiaram a implementação** (analfabetismo digital dos dois lados — a
+coordenadora e o cliente final — e cada passo/campo a mais é risco de desistência):
+- **Zero campo novo, zero passo novo** em qualquer fluxo existente (manual, colado do WhatsApp,
+  catálogo público). O cadastro se alimenta sozinho, como efeito colateral de salvar um pedido.
+- Onde ajudou a coordenadora (menos digitação), usei o **mesmo input que já existia**, com
+  autocomplete nativo do navegador (`<datalist>`) — não é um componente novo pra ela aprender.
+- No catálogo público, **não toquei em nada visível** — o cliente final nem sabe que esse cadastro
+  existe.
+
+**Implementado**:
+- Migration no Supabase (`nbfvkmdcbfvgpqpvvspv`): tabela `clientes` (`org_id`, `nome`, `telefone`,
+  `telefone_normalizado`, `unidade`), `unique (org_id, telefone_normalizado)` — telefone só
+  dígitos é a chave de dedup. RLS: **SELECT restrito** a `is_org_member`/`is_platform_admin` (é
+  PII — nome+telefone de pessoas — mesmo padrão de `korin_pedidos`, nunca leitura pública, ao
+  contrário de `periodos`/`periodo_produtos`/`org_unidades` que são `SELECT true`). INSERT/UPDATE
+  por `is_org_member`.
+- `src/lib/clientes.js`: `normalizarTelefone`, `upsertCliente` (nunca derruba o pedido se falhar
+  — é efeito colateral, não o dado principal), `listarClientes`.
+- `src/lib/store.js` (`salvarPedido`): upsert automático a cada pedido manual/colado salvo.
+- `api/pedido.js`: mesmo upsert no caminho do catálogo público, via `service_role`, em try/catch
+  próprio — nunca quebra a confirmação do pedido pro cliente se o upsert de cliente falhar.
+- `src/App.jsx` (`ModalPedido`, `ModalColarPedido`): `<datalist>` no campo de nome já existente —
+  ao bater com cliente conhecido, preenche telefone/unidade sozinho (só quando ainda vazio, nunca
+  sobrescreve o que a coordenadora já digitou). No `ModalColarPedido`, roda também sobre o nome
+  que a IA já extrai do texto colado do WhatsApp.
+- `npx vite build` validado sem erro.
+- **Ainda não existe**: tela "Clientes" de gestão/consulta — combinado que o Junior traz o
+  requisito de uso futuro antes de desenhar isso.
+- **Status no GitHub**: branch `feat/cadastro-leve-de-clientes`, commit `f5e29b7`, aguardando
+  merge — atualizar este bloco com o SHA do merge assim que for mesclado.
+
+---
+
 ## Pendente / próximos passos
 
 1. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
@@ -183,6 +223,9 @@ item não reflete mais a planilha/foto mais recente.
 5. **Próximas partes do fluxo de campo ainda não levantadas**: como os outros coordenadores
    captam pedido dos membros, como enviam o consolidado pra Korin (só cobrimos até
    "divulgação/importação de catálogo").
+6. **Aguardando o Junior trazer o requisito de uso futuro do cadastro de clientes** — a base
+   (tabela + upsert automático + autocomplete) já está funcionando, mas nenhuma tela de gestão foi
+   desenhada de propósito, até saber o que de fato vai ser construído em cima disso.
 
 ---
 
