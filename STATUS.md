@@ -6,7 +6,8 @@
 >
 > Última atualização: 21/08/2026 (gaps de integridade produto↔pedido registrados e corrigidos:
 > deleção de produto com pedido vinculado, código reaproveitado por produto diferente, produto
-> "fora da tabela" sinalizado na UI da coordenadora; e cadastro leve de clientes criado).
+> "fora da tabela" sinalizado na UI da coordenadora; cadastro leve de clientes criado; e unidade de
+> retirada agora obrigatória nos 3 fluxos de pedido).
 
 ---
 
@@ -204,6 +205,33 @@ coordenadora e o cliente final — e cada passo/campo a mais é risco de desist�
 - **Status no GitHub: mesclada na `main`.** Commit da feature: `f5e29b7`
   (branch `feat/cadastro-leve-de-clientes`). Merge commit na `main`: `face932`
   (`ebcf71f..face932`).
+
+---
+
+## Unidade de retirada agora obrigatória nos 3 fluxos de pedido
+
+Levantamento de campo: existem coordenadoras que gerenciam **até 15 unidades de retirada** numa
+mesma organização (mesmo catálogo, mesmo período — "unidade" aqui é local de entrega/retirada,
+não organização separada; confirmado que multi-org de verdade não existe no sistema, só
+single-org por login). Verifiquei os 3 fluxos de criação de pedido e **nenhum exigia de fato**
+escolher a unidade certa — o campo nunca ficava vazio (sempre pré-selecionado com a primeira da
+lista, ordenada por `ordem`), então nada travava se ninguém tocasse nele. Risco real: pedido
+criado sem atenção ia parar silenciosamente na unidade #1 de até 15.
+
+**Correção aplicada**:
+- `ModalPedido`/`ModalColarPedido` (`App.jsx`, pedido manual e colado do WhatsApp): unidade nasce
+  vazia (sem default), `<select>` ganhou opção placeholder "Selecione a unidade de retirada *", e
+  `handleSave`/`confirmar` bloqueiam salvar sem escolha — mesmo padrão já usado pra nome do
+  cliente.
+- `CatalogoApp.jsx` (catálogo público): já existia uma validação (`if (!clienteDados.unidade)`)
+  que nunca disparava porque o campo vinha pré-preenchido com `unis[0]?.nome` pra quem nunca
+  comprou antes. Removido só esse fallback — **cliente que já comprou continua vendo a última
+  unidade dele pré-selecionada** (pedido explícito do Junior: é conveniência real, normalmente é
+  sempre o mesmo local). Cliente novo agora começa sem nada selecionado, e a validação que já
+  existia passa a funcionar de verdade.
+- `npx vite build` validado sem erro.
+- **Status no GitHub**: branch `fix/unidade-obrigatoria-nos-pedidos`, commit `4f098f7`, aguardando
+  merge — atualizar este bloco com o SHA do merge assim que for mesclado.
 
 ---
 
