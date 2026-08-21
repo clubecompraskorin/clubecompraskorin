@@ -60,7 +60,7 @@ export default function Ajuda() {
     <div className="bg-[#F6F2EA] text-[#14241B] min-h-screen">
       <nav className="max-w-3xl mx-auto px-6 py-5 flex items-center justify-between">
         <a href="/" className="flex items-center gap-2">
-          <img src="/logo-korin.png" alt="" className="h-8 w-8 rounded-lg" />
+          <img src="/icon-192.png" alt="" className="h-8 w-8 rounded-lg" />
           <span className="font-semibold text-sm" style={display}>Clube de Compras Korin</span>
         </a>
         <a href="/painel" className="text-sm font-semibold text-[#1A5C38] hover:text-[#0F3D24] transition-colors">

@@ -1,4 +1,4 @@
-const CACHE = 'korin-entrega-v1'
+const CACHE = 'korin-entrega-v2'
 const ASSETS = ['/icon-192.png', '/icon-512.png', '/logo-korin.png']
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.filter(Boolean)).catch(()=>{})))
