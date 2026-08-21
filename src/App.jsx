@@ -594,11 +594,12 @@ function ModoEntrega({ pedido, produtos, onCancelar, onFinalizar }) {
     <div className="px-4 py-4 space-y-3">
       <div className="flex items-center gap-3">
         <button onClick={onCancelar} className="text-stone-400 text-2xl active:text-stone-600">←</button>
-        <div className="flex-1">
-          <div className="text-xl font-black text-stone-800">{pedido.clienteNome}</div>
-          <div className="text-xs text-stone-400">{pedido.clienteTel}</div>
+        <div className="flex-1 min-w-0">
+          <div className="text-xl font-black text-stone-800 truncate">{pedido.clienteNome}</div>
+          {pedido.clienteTel && <div className="text-xs text-stone-400">📱 {pedido.clienteTel}</div>}
+          <div className="text-xs text-stone-400">📍 {pedido.unidade || 'Não informada'}</div>
         </div>
-        <div className="text-right">
+        <div className="text-right flex-shrink-0">
           <div className="text-xs text-stone-400 font-bold">ETAPA 1 DE 3</div>
           <div className="text-base font-black text-green-700">{fmt(total)}</div>
         </div>
@@ -675,10 +676,12 @@ function ModoEntrega({ pedido, produtos, onCancelar, onFinalizar }) {
     <div className="px-4 py-4 space-y-4">
       <div className="flex items-center gap-3">
         <button onClick={() => setEtapa(1)} className="text-stone-400 text-2xl active:text-stone-600">←</button>
-        <div className="flex-1">
-          <div className="text-xl font-black text-stone-800">{pedido.clienteNome}</div>
+        <div className="flex-1 min-w-0">
+          <div className="text-xl font-black text-stone-800 truncate">{pedido.clienteNome}</div>
+          {pedido.clienteTel && <div className="text-xs text-stone-400">📱 {pedido.clienteTel}</div>}
+          <div className="text-xs text-stone-400">📍 {pedido.unidade || 'Não informada'}</div>
         </div>
-        <div className="text-right">
+        <div className="text-right flex-shrink-0">
           <div className="text-xs text-stone-400 font-bold">ETAPA 2 DE 3</div>
         </div>
       </div>
@@ -731,8 +734,12 @@ function ModoEntrega({ pedido, produtos, onCancelar, onFinalizar }) {
     <div className="px-4 py-4 space-y-4">
       <div className="flex items-center gap-3">
         <button onClick={() => setEtapa(2)} className="text-stone-400 text-2xl active:text-stone-600">←</button>
-        <div className="flex-1 text-xl font-black text-stone-800">{pedido.clienteNome}</div>
-        <div className="text-xs text-stone-400 font-bold">ETAPA 3 DE 3</div>
+        <div className="flex-1 min-w-0">
+          <div className="text-xl font-black text-stone-800 truncate">{pedido.clienteNome}</div>
+          {pedido.clienteTel && <div className="text-xs text-stone-400">📱 {pedido.clienteTel}</div>}
+          <div className="text-xs text-stone-400">📍 {pedido.unidade || 'Não informada'}</div>
+        </div>
+        <div className="text-xs text-stone-400 font-bold flex-shrink-0">ETAPA 3 DE 3</div>
       </div>
 
       <div className="flex gap-1.5">
