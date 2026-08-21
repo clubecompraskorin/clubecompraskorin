@@ -392,8 +392,9 @@ filtro/export silenciosamente (achado documentado acima).
   cadastrada por engano ou nunca usada continua podendo ser excluída livremente. Erro claro
   explica o motivo e sugere renomear ou encerrar em vez de excluir.
 - `npx vite build` validado sem erro.
-- **Status no GitHub**: branch `fix/renomear-com-propagacao-e-bloquear-exclusao`, commit
-  `cbbcb0a`, aguardando merge — atualizar este bloco com o SHA do merge assim que for mesclado.
+- **Status no GitHub: mesclada na `main`.** Commit do fix: `cbbcb0a`
+  (branch `fix/renomear-com-propagacao-e-bloquear-exclusao`). Merge commit na `main`: `9a8ddba`
+  (`cffed90..9a8ddba`).
 
 ---
 
