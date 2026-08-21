@@ -9,7 +9,8 @@
 > "fora da tabela" sinalizado na UI da coordenadora; cadastro leve de clientes criado; unidade de
 > retirada agora obrigatória nos 3 fluxos de pedido; código morto de entrega removido; nome/
 > telefone/unidade visíveis nas 3 etapas do fluxo de entrega; encerramento de pedidos por unidade
-> implementado; e export consolidado (pedido único somando unidades) implementado).
+> e export consolidado implementados; matemática das planilhas validada; e renomear/excluir
+> unidade corrigidos — renomear propaga, excluir bloqueia com histórico).
 
 ---
 
@@ -351,6 +352,51 @@ manda pra Korin um pedido só, com as quantidades somadas — não um por unidad
 
 ---
 
+## Matemática das planilhas — validada
+
+O Junior pediu conferência da conta das planilhas de export (Fechamento → XLSX). Simulei
+`montarLinhasExport` com Node e casos numéricos concretos (não só li o código):
+
+- Soma de quantidade por produto, inclusive somando entre unidades diferentes no consolidado: ✅
+  correto.
+- Arredondamento pra caixa fechada (`Math.ceil`): ✅ correto — 15un com caixa de 12 vira 2 caixas
+  (24un), nunca fração.
+- Custo total usa a quantidade **arredondada pra caixa fechada** (o que ela paga a Korin de
+  verdade); venda total usa a quantidade **exata pedida** (o que ela cobra do cliente) — bases
+  diferentes de propósito, confirmado correto.
+- Produto sem custo/sem `qtdCaixa` cadastrado: fica em branco, não quebra nem gera `NaN`.
+- **Testei o cenário que motiva juntar unidades**: unidade A pede 5un, unidade C pede 4un
+  (caixa=12). Separado = 1+1 = 2 caixas (R$ 228). Consolidado = 1 caixa só (R$ 114) — a planilha
+  captura a economia real de arredondamento que justifica consolidar.
+
+**Achado durante a validação (não é bug novo, é comportamento pré-existente)**: pedido com
+`unidade` em branco, ou com nome que não bate mais com nenhuma `org_unidades` cadastrada (ex:
+unidade renomeada/excluída depois do pedido feito), fica de fora de **qualquer** exportação,
+silenciosamente — porque os checkboxes vêm de `org_unidades`, não dos pedidos. Checagem no banco
+confirmou zero pedido órfão hoje (organização ainda em fase de teste, sem pedido real). Esse
+achado motivou a correção abaixo.
+
+## Renomear unidade propaga; excluir bloqueia com histórico — implementado
+
+`unidade` em `korin_pedidos` e `clientes` é texto solto, nunca foi migrado pra FK — excluir ou
+renomear uma unidade sem cuidado deixa pedido antigo "grudado" no nome velho, sumindo de
+filtro/export silenciosamente (achado documentado acima).
+
+**Correção aplicada** (`src/lib/unidades.js`, `UnidadesManager.jsx`):
+- `updateUnidade` agora propaga o rename pra `korin_pedidos` e `clientes` que referenciavam o
+  nome antigo. Pedido de período **arquivado** não é tocado — bloqueado pela própria RLS
+  (`periodo_editavel`), o que é o comportamento certo: histórico fechado não deveria mudar
+  retroativamente.
+- `deleteUnidade` bloqueia excluir **só quando a unidade tem pedido no histórico**
+  (`unidadeTemHistorico`, qualquer status) — decisão deliberada de não bloquear sempre: unidade
+  cadastrada por engano ou nunca usada continua podendo ser excluída livremente. Erro claro
+  explica o motivo e sugere renomear ou encerrar em vez de excluir.
+- `npx vite build` validado sem erro.
+- **Status no GitHub**: branch `fix/renomear-com-propagacao-e-bloquear-exclusao`, commit
+  `cbbcb0a`, aguardando merge — atualizar este bloco com o SHA do merge assim que for mesclado.
+
+---
+
 ## Pendente / próximos passos
 
 1. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
@@ -377,6 +423,10 @@ manda pra Korin um pedido só, com as quantidades somadas — não um por unidad
 8. **Testar de verdade o export consolidado**: gerar planilha "Pedido único" com 2+ unidades
    marcadas e conferir que soma certo (quantidade e embalagens fechadas), e que "Separado por
    unidade" continua idêntico ao de antes.
+9. **Testar de verdade renomear/excluir unidade**: renomear uma unidade com pedido vinculado e
+   conferir que o pedido acompanha o nome novo (e que período arquivado não muda); tentar excluir
+   unidade com histórico e conferir que bloqueia com a mensagem certa; excluir unidade sem
+   histórico e conferir que continua funcionando normal.
 
 ---
 
