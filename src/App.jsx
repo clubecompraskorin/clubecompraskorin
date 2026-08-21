@@ -966,60 +966,78 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
     })
   }
 
-  const exportarXLSX = () => {
-    if (unidadesExport.size === 0) { alert('Selecione ao menos uma unidade para exportar'); return }
-
-    const montarLinhas = (pedidosUnidade) => {
-      const mp = {}
-      pedidosUnidade.forEach(p => {
-        p.itens.forEach(it => {
-          const prod = produtos.find(x => x.id === it.produtoId)
-          if (!prod) return
-          if (!mp[prod.cod]) mp[prod.cod] = { cod: prod.cod, nome: prod.nome, qty: 0, precoCusto: prod.precoCusto ?? null, preco: prod.preco ?? null, qtdCaixa: prod.qtdCaixa > 0 ? prod.qtdCaixa : null }
-          mp[prod.cod].qty += Number(it.qty)
-        })
+  // Soma os itens dos pedidos informados numa lista única de linhas (1 linha
+  // por produto) — usado tanto pra montar a aba de 1 unidade quanto pra somar
+  // várias unidades juntas no modo consolidado.
+  const montarLinhasExport = (pedidosDoGrupo) => {
+    const mp = {}
+    pedidosDoGrupo.forEach(p => {
+      p.itens.forEach(it => {
+        const prod = produtos.find(x => x.id === it.produtoId)
+        if (!prod) return
+        if (!mp[prod.cod]) mp[prod.cod] = { cod: prod.cod, nome: prod.nome, qty: 0, precoCusto: prod.precoCusto ?? null, preco: prod.preco ?? null, qtdCaixa: prod.qtdCaixa > 0 ? prod.qtdCaixa : null }
+        mp[prod.cod].qty += Number(it.qty)
       })
+    })
 
-      return Object.values(mp)
-        .sort((a, b) => a.cod - b.cod)
-        .map(item => {
-          const qtdCaixa  = item.qtdCaixa
-          const caixas    = qtdCaixa ? Math.ceil(item.qty / qtdCaixa) : null
-          // Quantidade que de fato será paga à Korin: arredondada para caixa fechada quando há config, senão a própria qtd pedida
-          const qtdCompra = qtdCaixa ? caixas * qtdCaixa : item.qty
-          const temCusto  = item.precoCusto != null
-          const temVenda  = item.preco != null
-          return {
-            'Cód':                  item.cod,
-            'Descrição':            item.nome,
-            'Qtd. Pedida':          item.qty,
-            'Qtd./Embalagem':       qtdCaixa ?? '',
-            'Embalagens p/ Korin':  caixas ?? '',
-            'Preço Unit. Custo':    temCusto ? item.precoCusto : '',
-            'Preço Total Custo':    temCusto ? Number((qtdCompra * item.precoCusto).toFixed(2)) : '',
-            'Preço Unit. Venda':    temVenda ? item.preco : '',
-            'Preço Total Venda':    temVenda ? Number((item.qty * item.preco).toFixed(2)) : '',
-          }
-        })
-    }
+    return Object.values(mp)
+      .sort((a, b) => a.cod - b.cod)
+      .map(item => {
+        const qtdCaixa  = item.qtdCaixa
+        const caixas    = qtdCaixa ? Math.ceil(item.qty / qtdCaixa) : null
+        // Quantidade que de fato será paga à Korin: arredondada para caixa fechada quando há config, senão a própria qtd pedida
+        const qtdCompra = qtdCaixa ? caixas * qtdCaixa : item.qty
+        const temCusto  = item.precoCusto != null
+        const temVenda  = item.preco != null
+        return {
+          'Cód':                  item.cod,
+          'Descrição':            item.nome,
+          'Qtd. Pedida':          item.qty,
+          'Qtd./Embalagem':       qtdCaixa ?? '',
+          'Embalagens p/ Korin':  caixas ?? '',
+          'Preço Unit. Custo':    temCusto ? item.precoCusto : '',
+          'Preço Total Custo':    temCusto ? Number((qtdCompra * item.precoCusto).toFixed(2)) : '',
+          'Preço Unit. Venda':    temVenda ? item.preco : '',
+          'Preço Total Venda':    temVenda ? Number((item.qty * item.preco).toFixed(2)) : '',
+        }
+      })
+  }
+  const colsExport = [{wch:6},{wch:35},{wch:11},{wch:14},{wch:16},{wch:14},{wch:15},{wch:14},{wch:15}]
 
-    const cols = [{wch:6},{wch:35},{wch:11},{wch:14},{wch:16},{wch:14},{wch:15},{wch:14},{wch:15}]
+  // Uma aba por unidade selecionada — pra quem manda o pedido separado por
+  // unidade pra Korin (o que já existia antes).
+  const exportarSeparado = () => {
+    if (unidadesExport.size === 0) { alert('Selecione ao menos uma unidade para exportar'); return }
     const wb = XLSX.utils.book_new()
     let abasGeradas = 0
 
     unidades.filter(u => unidadesExport.has(u)).forEach(u => {
       const pedidosUnidade = pedidos.filter(p => (p.unidade || 'Não informada') === u)
-      const rows = montarLinhas(pedidosUnidade)
+      const rows = montarLinhasExport(pedidosUnidade)
       if (rows.length === 0) return
       const ws = XLSX.utils.json_to_sheet(rows)
-      ws['!cols'] = cols
+      ws['!cols'] = colsExport
       XLSX.utils.book_append_sheet(wb, ws, u.slice(0, 31))
       abasGeradas++
     })
 
     if (abasGeradas === 0) { alert('Nenhum pedido encontrado para as unidades selecionadas'); return }
-
     XLSX.writeFile(wb, `pedido-korin-${periodo.replace('/','-')}.xlsx`)
+  }
+
+  // Soma as unidades selecionadas numa aba só — pra quem junta unidades
+  // próximas e manda um pedido único consolidado pra Korin.
+  const exportarConsolidado = () => {
+    if (unidadesExport.size === 0) { alert('Selecione ao menos uma unidade para exportar'); return }
+    const pedidosDoGrupo = pedidos.filter(p => unidadesExport.has(p.unidade || 'Não informada'))
+    const rows = montarLinhasExport(pedidosDoGrupo)
+    if (rows.length === 0) { alert('Nenhum pedido encontrado para as unidades selecionadas'); return }
+
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(rows)
+    ws['!cols'] = colsExport
+    XLSX.utils.book_append_sheet(wb, ws, 'Consolidado')
+    XLSX.writeFile(wb, `pedido-korin-consolidado-${periodo.replace('/','-')}.xlsx`)
   }
   const getV = p => calcTotal(p, produtos)
   const getCusto = p => p.itens.reduce((s, it) => { const pr = produtos.find(x => x.id === it.produtoId); return s + (pr?.precoCusto || 0) * it.qty }, 0)
@@ -1179,13 +1197,19 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
             </button>
           ))}
         </div>
-        <div className="text-xs text-stone-400">Cada unidade selecionada vira uma aba separada na planilha.</div>
+        <div className="text-xs text-stone-400">Escolha abaixo se quer um pedido único (soma as unidades marcadas) ou separado (uma aba por unidade).</div>
       </div>
 
-      <button onClick={exportarXLSX}
-        className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-base flex items-center justify-center gap-2 active:bg-green-800">
-        📊 Exportar pedido para Korin (.xlsx)
-      </button>
+      <div className="grid grid-cols-1 gap-2">
+        <button onClick={exportarConsolidado}
+          className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-base flex items-center justify-center gap-2 active:bg-green-800">
+          📦 Pedido único (soma as unidades marcadas)
+        </button>
+        <button onClick={exportarSeparado}
+          className="w-full py-4 bg-white text-green-700 border-2 border-green-700 rounded-2xl font-black text-base flex items-center justify-center gap-2 active:bg-green-50">
+          📄 Separado por unidade (uma aba cada)
+        </button>
+      </div>
       {pedidos.some(p => p.status === 'pendente') && (
         <>
           <select value={filtroImpressao} onChange={e => setFiltroImpressao(e.target.value)}
