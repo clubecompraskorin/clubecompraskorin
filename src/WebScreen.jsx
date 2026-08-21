@@ -512,6 +512,7 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
   const [periodoTabela, setPeriodoTabela] = useState(null)
   const [mesmoMes, setMesmoMes]     = useState(true)
   const [dataLimite, setDataLimite] = useState('')
+  const [confirmouConflitos, setConfirmouConflitos] = useState(false)
 
   const handleFile = e => {
     const file = e.target.files?.[0]
@@ -536,15 +537,26 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
   // preservados do existente quando a fonte nova não trouxe valor melhor —
   // a planilha traz custo e un./embalagem reais da Korin, então prevalecem;
   // a foto nunca traz custo, então preserva o que já estava configurado.
+  //
+  // O casamento com o produto existente é só pelo `cod` — se o código já
+  // pertencia a um produto de NOME diferente, é sinal de que o código foi
+  // reaproveitado (ex: numeração sequencial manual que desloca quando um
+  // item é inserido no meio do bloco). Sinalizamos (conflitoCod) em vez de
+  // sobrescrever direto, porque um pedido pendente que referencia esse
+  // mesmo produto por trás dos panos passaria a exibir/cobrar o produto
+  // novo sem nenhum aviso.
   const mesclarComExistentes = (produtosNovos) =>
     produtosNovos.map(p => {
       const exist = produtosAtuais.find(x => x.cod === p.cod)
+      const nomeMudou = exist && normalizarTexto(exist.nome) !== normalizarTexto(p.nome)
       return {
         ...p,
         id: exist?.id,
         precoCusto: p.precoCusto ?? exist?.precoCusto ?? null,
         qtdCaixa: exist?.qtdCaixa ?? p.qtdCaixa ?? 0,
         caixasAbertas: exist?.caixasAbertas ?? 0,
+        conflitoCod: nomeMudou,
+        nomeAnterior: nomeMudou ? exist.nome : null,
       }
     })
 
@@ -579,6 +591,7 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
 
       setImportados(mesclarComExistentes(produtosBase))
       setPeriodoTabela(periodoLido)
+      setConfirmouConflitos(false)
 
       // Compara contra o período corrente DO BANCO — nunca contra o relógio do celular.
       const bate = periodoLido && periodo?.nome && normalizarTexto(periodoLido) === normalizarTexto(periodo.nome)
@@ -589,8 +602,11 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
     } finally { setCarregando(false) }
   }
 
+  const conflitos = importados.filter(p => p.conflitoCod)
+
   const confirmarSalvar = async () => {
     if (!mesmoMes && !dataLimite) { toast('Informe a data limite do novo período'); return }
+    if (conflitos.length > 0 && !confirmouConflitos) { toast('Revise e confirme os produtos com código reaproveitado antes de salvar'); return }
     setSalvando(true)
     try {
       let periodoAlvo = periodo?.id
@@ -688,12 +704,41 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
           </div>
         )}
 
+        {conflitos.length > 0 && (
+          <div className="px-4 pt-3 flex-shrink-0">
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-sm text-amber-800 space-y-2">
+              <div className="font-bold">
+                ⚠️ {conflitos.length} código{conflitos.length > 1 ? 's' : ''} da tabela nova já {conflitos.length > 1 ? 'eram' : 'era'} de outro produto
+              </div>
+              <div className="space-y-1">
+                {conflitos.map(c => (
+                  <div key={c.cod} className="text-xs">
+                    <span className="font-bold bg-white px-1 rounded">{c.cod}</span>{' '}
+                    era "<span className="font-semibold">{c.nomeAnterior}</span>", agora é "<span className="font-semibold">{c.nome}</span>"
+                  </div>
+                ))}
+              </div>
+              <div className="text-xs">
+                Se o código foi reaproveitado por engano (ex: um item inserido no meio da tabela deslocou a numeração), corrija a tabela de origem antes de importar de novo. Se está correto, confirme abaixo pra continuar.
+              </div>
+              <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                <input type="checkbox" checked={confirmouConflitos} onChange={e => setConfirmouConflitos(e.target.checked)}
+                  className="w-4 h-4 accent-amber-600" />
+                <span className="text-xs font-bold">Revisei e confirmo que esses códigos mudaram de produto mesmo</span>
+              </label>
+            </div>
+          </div>
+        )}
+
         <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2">
           {importados.map((p, i) => (
-            <div key={p.cod} className="flex items-center gap-3 bg-stone-50 rounded-xl px-3 py-2.5">
-              <div className="w-8 h-8 rounded-lg bg-green-700 text-white flex items-center justify-center text-xs font-black flex-shrink-0">{p.cod}</div>
+            <div key={p.cod} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${p.conflitoCod ? 'bg-amber-50 border border-amber-200' : 'bg-stone-50'}`}>
+              <div className={`w-8 h-8 rounded-lg text-white flex items-center justify-center text-xs font-black flex-shrink-0 ${p.conflitoCod ? 'bg-amber-600' : 'bg-green-700'}`}>{p.cod}</div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-bold text-stone-800 truncate">{p.nome}</div>
+                {p.conflitoCod && (
+                  <div className="text-xs text-amber-700 font-semibold truncate">⚠️ código {p.cod} era "{p.nomeAnterior}"</div>
+                )}
                 <div className="flex items-center gap-1.5 mt-0.5">
                   {p.unidade && <span className="text-xs text-stone-400">{p.unidade}</span>}
                   <select value={p.categoria}
@@ -713,7 +758,7 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
         <div className="p-4 border-t border-stone-100 flex gap-3 flex-shrink-0">
           <button onClick={() => setEtapa('upload')}
             className="px-5 py-3.5 bg-stone-100 text-stone-600 rounded-2xl font-black active:bg-stone-200">← Voltar</button>
-          <button onClick={confirmarSalvar} disabled={salvando || (!mesmoMes && !dataLimite)}
+          <button onClick={confirmarSalvar} disabled={salvando || (!mesmoMes && !dataLimite) || (conflitos.length > 0 && !confirmouConflitos)}
             className="flex-1 py-3.5 bg-green-700 text-white rounded-2xl font-black text-base active:bg-green-800 disabled:opacity-50">
             {salvando ? '⟳ Salvando…' : `✅ Salvar ${importados.length} produtos`}
           </button>
