@@ -160,8 +160,9 @@ item não reflete mais a planilha/foto mais recente.
   (`CatalogoApp.jsx`) — o produto continua comprável por um cliente novo mesmo estando fora da
   tabela atual; isso não foi pedido nesta rodada, fica como possível próximo passo.
 - `npx vite build` validado sem erro.
-- **Status no GitHub**: branch `feat/marca-produto-fora-da-tabela`, commit `7a43d4f`, aguardando
-  merge — atualizar este bloco com o SHA do merge assim que for mesclado.
+- **Status no GitHub: mesclada na `main`.** Commit da feature: `7a43d4f`
+  (branch `feat/marca-produto-fora-da-tabela`). Merge commit na `main`: `88f7304`
+  (`5069fdc..88f7304`).
 
 ---
 
