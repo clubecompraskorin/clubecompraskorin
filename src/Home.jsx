@@ -5,20 +5,23 @@ const display = { fontFamily: "'Space Grotesk', sans-serif" }
 const mono = { fontFamily: "'JetBrains Mono', monospace" }
 
 const PASSOS = [
-  { n: '01', titulo: 'Catálogo', texto: 'A coordenadora fotografa a tabela de preços da Korin. O sistema lê os produtos e organiza o período sozinho.' },
-  { n: '02', titulo: 'Pedidos',  texto: 'Cada cliente pede pelo link do catálogo, ou manda a lista pelo grupo mesmo — você só cola a mensagem e a IA organiza.' },
-  { n: '03', titulo: 'Fechamento', texto: 'O sistema soma tudo e mostra exatamente quantas caixas comprar. Sem sobra, sem planilha, sem improviso.' },
+  { n: '01', titulo: 'Catálogo', texto: 'A Dedicante fotografa a tabela de preços da Korin. O sistema lê os produtos e organiza o período sozinho.' },
+  { n: '02', titulo: 'Pedidos',  texto: 'Cada membro pede pelo link do catálogo, ou manda a lista pelo grupo mesmo — você só cola a mensagem e a IA organiza.' },
+  { n: '03', titulo: 'Entrega', texto: 'Cada unidade separa e confirma a entrega pelo próprio link, com PIN — você acompanha tudo em tempo real, sem conferir nome por nome.' },
+  { n: '04', titulo: 'Fechamento', texto: 'O sistema soma tudo e mostra exatamente quantas caixas comprar. Sem sobra, sem planilha, sem improviso.' },
 ]
 
 const FAQ_HOME = [
-  { p: 'Precisa baixar algum aplicativo?', r: 'Não. Funciona direto no navegador, tanto pra você quanto pros seus clientes. Quem quiser, pode "instalar" na tela inicial pra abrir mais rápido, mas isso é opcional.' },
-  { p: 'Funciona sem internet?', r: 'Pra ver o catálogo e fazer pedidos, precisa de internet — os dados são atualizados em tempo real entre você, seus clientes e a Korin.' },
+  { p: 'Precisa baixar algum aplicativo?', r: 'Não. Funciona direto no navegador, tanto pra você quanto pros seus membros. Quem quiser, pode "instalar" na tela inicial pra abrir mais rápido, mas isso é opcional.' },
+  { p: 'Funciona sem internet?', r: 'Pra ver o catálogo e fazer pedidos, precisa de internet — os dados são atualizados em tempo real entre você, seus membros e a Korin.' },
   { p: 'Precisa ter CNPJ?', r: 'Não necessariamente. O cadastro aceita CPF ou CNPJ, o que você tiver.' },
   { p: 'Dá pra imprimir os pedidos?', r: 'Sim. Imprime todos os pendentes de uma vez, agrupados numa folha só, e ainda dá pra filtrar por unidade antes de imprimir.' },
   { p: 'Tem como enviar a compra pronta pra Korin?', r: 'Sim. O sistema gera uma planilha com tudo calculado — quanto comprar em caixa fechada, custo e venda — por unidade ou tudo junto.' },
-  { p: 'O cliente final pode comprar online?', r: 'Sim. Cada cliente recebe um link e monta o pedido direto no catálogo, sem precisar de conta nem instalar nada.' },
+  { p: 'O membro pode comprar online?', r: 'Sim. Cada membro recebe um link e monta o pedido direto no catálogo, sem precisar de conta nem instalar nada.' },
   { p: 'Cuido de mais de uma unidade — dá pra usar pra todas?', r: 'Sim. Você cadastra quantas unidades precisar numa mesma conta, e os pedidos, a entrega e a planilha já vêm organizados separadamente por unidade.' },
   { p: 'Funciona no iPhone e no Android?', r: 'Sim. É um site, então funciona em qualquer celular com navegador — não depende de loja de aplicativo.' },
+  { p: 'Tem como o representante de uma unidade entregar sem eu conferir tudo?', r: 'Sim. Cada unidade ganha um link próprio com PIN — o representante vê os pedidos daquela unidade, separa e confirma a entrega direto por ali, sem precisar de login completo.' },
+  { p: 'Dá pra confirmar o que realmente foi comprado da Korin?', r: 'Sim. Você reimporta a mesma planilha que enviou pra Korin, já preenchida, e o sistema usa a quantidade real em vez da estimativa — inclusive pra calcular a sobra do período seguinte.' },
 ]
 
 export default function Home() {
@@ -46,7 +49,7 @@ export default function Home() {
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <a href="/painel" className="px-6 py-3.5 rounded-xl bg-[#1A5C38] text-white font-semibold text-sm hover:bg-[#0F3D24] transition-colors">
-              Sou coordenadora →
+              Sou Dedicante →
             </a>
             <a href="/ajuda" className="px-6 py-3.5 rounded-xl border border-[#1A5C38]/25 text-[#1A5C38] font-semibold text-sm hover:bg-[#1A5C38]/5 transition-colors">
               Como funciona
@@ -97,9 +100,9 @@ export default function Home() {
           <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Por que existe</div>
           <p className="text-lg md:text-xl leading-relaxed text-[#14241B]/80">
             Hoje, organizar um pedido coletivo da Korin costuma significar anotar pedido por pedido no WhatsApp,
-            somar tudo na mão pra saber quantas caixas comprar, e separar o total de cada cliente numa planilha.
-            O Clube de Compras Korin faz esse trabalho automaticamente — cada coordenadora com seu próprio catálogo,
-            cada cliente pedindo direto por um link.
+            somar tudo na mão pra saber quantas caixas comprar, e separar o total de cada membro numa planilha.
+            O Clube de Compras Korin faz esse trabalho automaticamente — cada Dedicante com seu próprio catálogo,
+            cada membro pedindo direto por um link.
           </p>
         </div>
       </section>
@@ -107,7 +110,7 @@ export default function Home() {
       {/* COMO FUNCIONA */}
       <section className="max-w-5xl mx-auto px-6 py-20">
         <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-10 text-center">Como funciona</div>
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid md:grid-cols-4 gap-8">
           {PASSOS.map(p => (
             <div key={p.n}>
               <div className="text-sm font-medium text-[#1A5C38]/50 mb-2" style={mono}>{p.n}</div>
@@ -128,7 +131,7 @@ export default function Home() {
                 O pedido chega de qualquer jeito. A IA organiza.
               </h2>
               <p className="mt-4 text-[#14241B]/70 leading-relaxed">
-                Tem cliente que nunca vai clicar em link nenhum — só manda mensagem mesmo. Cole o texto do WhatsApp
+                Tem membro que nunca vai clicar em link nenhum — só manda mensagem mesmo. Cole o texto do WhatsApp
                 dele e a IA identifica produto, quantidade e código, e organiza junto com todos os outros pedidos do período.
               </p>
             </div>
@@ -189,10 +192,10 @@ export default function Home() {
       <section className="max-w-5xl mx-auto px-6 pb-20">
         <div className="bg-[#1A5C38]/5 border border-[#1A5C38]/15 rounded-[28px] px-8 py-10 md:px-12 grid md:grid-cols-2 gap-10 items-center">
           <div>
-            <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Pro seu cliente</div>
+            <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Pro seu membro</div>
             <h2 className="text-xl md:text-2xl font-semibold mb-3" style={display}>Quem pede também sente a diferença</h2>
             <p className="text-[#14241B]/70 leading-relaxed mb-6">
-              E você não fica presa passando pedido pro sistema um por um — cada cliente que usa o link já cai
+              E você não fica presa passando pedido pro sistema um por um — cada membro que usa o link já cai
               pronto, sem passar pela sua mão.
             </p>
             <div className="space-y-5">
@@ -215,7 +218,7 @@ export default function Home() {
             <div className="relative">
               <div className="absolute -inset-3 bg-[#1A5C38]/10 rounded-[32px] rotate-2" />
               <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 -rotate-1 w-[230px]">
-                <img src="/screenshot-catalogo.jpg" alt="Catálogo de pedidos visto pelo cliente final"
+                <img src="/screenshot-catalogo.jpg" alt="Catálogo de pedidos visto pelo membro"
                   className="rounded-[20px] w-full h-auto block" />
               </div>
             </div>
@@ -237,7 +240,7 @@ export default function Home() {
             <div className="w-10 h-10 rounded-full bg-[#1A5C38]/10 flex items-center justify-center font-semibold text-[#1A5C38]" style={display}>V</div>
             <div>
               <div className="font-semibold text-sm">Valéria</div>
-              <div className="text-xs text-[#14241B]/55">Coordenadora · Lattuga Orgânicos</div>
+              <div className="text-xs text-[#14241B]/55">Dedicante · Lattuga Orgânicos</div>
             </div>
           </div>
         </div>

@@ -62,7 +62,7 @@ export default function Login({ onSuccess }) {
           <div className="text-4xl mb-2">🌿</div>
           <div className="text-xl font-black text-green-800">Korin Gestão</div>
           <div className="text-sm text-stone-500">
-            {modo === 'login' ? 'Entre na sua conta' : 'Crie sua conta de coordenadora'}
+            {modo === 'login' ? 'Entre na sua conta' : 'Crie sua conta de Dedicante'}
           </div>
         </div>
 

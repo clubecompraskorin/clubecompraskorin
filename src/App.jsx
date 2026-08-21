@@ -394,7 +394,7 @@ function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, on
 
       <div className="relative">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-base">🔍</span>
-        <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar cliente…"
+        <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar membro…"
           className="w-full pl-9 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-green-500 shadow-sm" />
       </div>
 
@@ -882,7 +882,7 @@ function DashboardScreen({ pedidos, produtos, unidades = [] }) {
         <EmptyState icon="📊" text="Nenhum pedido para os filtros selecionados" />
       ) : (<>
         <div className="grid grid-cols-2 gap-3">
-          <Stat label="Clientes" value={clientesUnicos} color="teal" />
+          <Stat label="Membros" value={clientesUnicos} color="teal" />
           <Stat label="Pedidos" value={lista.length} color="teal" />
           <Stat label="Itens" value={totalItens} color="amber" />
           <Stat label="Total" value={fmt(totalValor)} color="green" />
@@ -1136,12 +1136,12 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
         <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm">
           <div className="text-xs text-stone-400 font-bold mb-1">ENTREGUE</div>
           <div className="text-xl font-black text-green-600">{fmt(entregue)}</div>
-          <div className="text-xs text-stone-400">{pedidosResumo.filter(p => p.status === 'entregue').length} clientes</div>
+          <div className="text-xs text-stone-400">{pedidosResumo.filter(p => p.status === 'entregue').length} membros</div>
         </div>
         <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm">
           <div className="text-xs text-stone-400 font-bold mb-1">PENDENTE</div>
           <div className="text-xl font-black text-amber-600">{fmt(total - entregue)}</div>
-          <div className="text-xs text-stone-400">{pedidosResumo.filter(p => p.status === 'pendente').length} clientes</div>
+          <div className="text-xs text-stone-400">{pedidosResumo.filter(p => p.status === 'pendente').length} membros</div>
         </div>
       </div>
 
@@ -1277,7 +1277,7 @@ function ModalPedido({ pedido, produtos, unidades = [], orgId, onSave, onClose }
     .sort((a, b) => a.cod - b.cod)
 
   const handleSave = () => {
-    if (!nome.trim())      { toast('Informe o nome do cliente'); return }
+    if (!nome.trim())      { toast('Informe o nome do membro'); return }
     if (!unidade)          { toast('Selecione a unidade de retirada'); return }
     // "Encerrar pedidos" bloqueia só pedido NOVO — ajustar um pedido que já
     // existia antes de encerrar (item, quantidade) continua permitido, senão
@@ -1303,7 +1303,7 @@ function ModalPedido({ pedido, produtos, unidades = [], orgId, onSave, onClose }
 
         <div className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-100 space-y-3">
-            <div className="text-xs font-black text-stone-400 uppercase tracking-widest">Cliente</div>
+            <div className="text-xs font-black text-stone-400 uppercase tracking-widest">Membro</div>
             <input value={nome} onChange={e => handleNome(e.target.value)} placeholder="Nome completo *" list="clientes-lista"
               className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base font-semibold focus:outline-none focus:border-green-500" />
             <datalist id="clientes-lista">
@@ -1621,7 +1621,7 @@ function ModalColarPedido({ produtos, unidades = [], orgId, onSave, onClose }) {
   }
 
   const confirmar = () => {
-    if (!nome.trim()) { toast('Informe o nome do cliente'); return }
+    if (!nome.trim()) { toast('Informe o nome do membro'); return }
     if (!unidade)     { toast('Selecione a unidade de retirada'); return }
     if (unidades.find(u => u.nome === unidade)?.aberto === false) {
       toast('Esta unidade está com pedidos encerrados — escolha outra')
@@ -1645,7 +1645,7 @@ function ModalColarPedido({ produtos, unidades = [], orgId, onSave, onClose }) {
         <div className="bg-white flex items-center justify-between px-5 py-4 border-b border-stone-100 rounded-t-3xl flex-shrink-0">
           <div>
             <div className="text-lg font-black text-stone-800">📋 Colar Pedido do WhatsApp</div>
-            <div className="text-xs text-stone-400">{etapa === 1 ? 'Cole a mensagem do cliente' : 'Confirme os dados'}</div>
+            <div className="text-xs text-stone-400">{etapa === 1 ? 'Cole a mensagem do membro' : 'Confirme os dados'}</div>
           </div>
           <button onClick={onClose} className="p-2 rounded-full bg-stone-100 text-xl">✕</button>
         </div>
@@ -1671,7 +1671,7 @@ function ModalColarPedido({ produtos, unidades = [], orgId, onSave, onClose }) {
           {/* ETAPA 2: confirmar */}
           {etapa === 2 && parsed && <>
             <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm space-y-3">
-              <div className="text-xs font-black text-stone-400 uppercase tracking-widest">Cliente</div>
+              <div className="text-xs font-black text-stone-400 uppercase tracking-widest">Membro</div>
               <input value={nome} onChange={e => handleNome(e.target.value)} placeholder="Nome completo *" list="clientes-lista-colar"
                 className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base font-semibold focus:outline-none focus:border-green-500"/>
               <datalist id="clientes-lista-colar">

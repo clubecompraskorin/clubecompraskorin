@@ -135,7 +135,7 @@ export default function UnidadesManager({ orgId, orgSlug, modo = 'settings', onC
         <div className="mb-6 text-center">
           <div className="text-4xl mb-2">📍</div>
           <h1 className="text-xl font-black text-stone-800 mb-1">Cadastre suas unidades de retirada</h1>
-          <p className="text-sm text-stone-500">Onde seus clientes vão retirar os pedidos? Pode cadastrar mais de uma — você poderá editar depois.</p>
+          <p className="text-sm text-stone-500">Onde seus membros vão retirar os pedidos? Pode cadastrar mais de uma — você poderá editar depois.</p>
         </div>
       )}
 

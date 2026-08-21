@@ -47,7 +47,7 @@ function TelaPin({ onEntrou, erroInicial }) {
     setErro('')
     setEntrando(true)
     const ok = await onEntrou(pin.trim(), nome.trim())
-    if (!ok) setErro('PIN inválido — confira com a coordenadora')
+    if (!ok) setErro('PIN inválido — confira com a Dedicante')
     setEntrando(false)
   }
 
@@ -366,7 +366,7 @@ export default function EntregaApp() {
   if (!slug || !unidadeId) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center px-6 text-center">
-        <div className="text-stone-500 font-bold">Link inválido. Peça um novo link pra coordenadora.</div>
+        <div className="text-stone-500 font-bold">Link inválido. Peça um novo link pra Dedicante.</div>
       </div>
     )
   }
