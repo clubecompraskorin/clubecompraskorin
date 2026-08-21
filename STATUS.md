@@ -248,8 +248,9 @@ engano: entregaria pedido sem registrar como ele saiu de verdade, quebrando o Re
 **Removida** (função + as duas props + os dois parâmetros nas assinaturas dos componentes). Único
 caminho de entrega continua sendo o `ModoEntrega` completo. `npx vite build` validado sem erro.
 
-**Status no GitHub**: branch `chore/remove-entregarPedidoCombinado-morto`, commit `77149f6`,
-aguardando merge — atualizar este bloco com o SHA do merge assim que for mesclado.
+**Status no GitHub: mesclada na `main`.** Commit do chore: `77149f6`
+(branch `chore/remove-entregarPedidoCombinado-morto`). Merge commit na `main`: `37af194`
+(`67f4b76..37af194`).
 
 ---
 
