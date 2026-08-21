@@ -7,8 +7,9 @@
 > Última atualização: 21/08/2026 (gaps de integridade produto↔pedido registrados e corrigidos:
 > deleção de produto com pedido vinculado, código reaproveitado por produto diferente, produto
 > "fora da tabela" sinalizado na UI da coordenadora; cadastro leve de clientes criado; unidade de
-> retirada agora obrigatória nos 3 fluxos de pedido; código morto de entrega removido; e nome/
-> telefone/unidade agora visíveis nas 3 etapas do fluxo de entrega).
+> retirada agora obrigatória nos 3 fluxos de pedido; código morto de entrega removido; nome/
+> telefone/unidade visíveis nas 3 etapas do fluxo de entrega; e encerramento de pedidos por
+> unidade implementado — levantamento de fechamento por unidade/grupo de unidades registrado).
 
 ---
 
@@ -273,6 +274,61 @@ principal), telefone (quando existe) e `📍 unidade` sempre visíveis, do iníc
 
 ---
 
+## Fechamento de período — como funciona hoje (levantamento)
+
+Documentando pra não perder: **fechamento é por organização inteira, nunca por unidade
+religiosa.** `periodos` só tem `org_id`, sem relação com `org_unidades` — arquivar um período
+trava todos os pedidos/produtos daquele mês, de todas as unidades juntas. O botão "📦 Arquivar"
+só aparece na aba Fechamento quando ela **não** está olhando o período corrente — ou seja, não
+existe "encerrar o mês agora": o mês vira passado sozinho quando ela importa uma tabela nova de
+mês diferente (`criarPeriodoComCopia`), e só depois disso, navegando até aquele período antigo,
+é que aparece a opção de arquivar de verdade.
+
+## Prática real trazida pelo Junior: unidades não fecham todas juntas
+
+Coordenadora que cuida de várias unidades (até 15) não fecha todas ao mesmo tempo — tem casos de
+unidades próximas onde ela soma os pedidos de X, Y, Z e manda **um pedido consolidado** pra Korin.
+Depois de mandar, ninguém deveria mais conseguir criar pedido novo pra essas unidades específicas.
+Isso não existia no sistema (só existia abrir/fechar o período inteiro). Duas frentes de solução
+discutidas — a segunda (encerramento por unidade) foi implementada nesta rodada; a primeira
+(export consolidado somando unidades pra Korin) fica pendente:
+
+1. **Export consolidado por seleção livre de unidades** (Fechamento → XLSX) — ainda não
+   implementado. Hoje o export já deixa marcar quais unidades incluir, mas gera uma aba por
+   unidade; falta o modo "uma aba só, somando as unidades marcadas", pro caso de pedido único
+   consolidado.
+2. **Encerrar pedidos por unidade — implementado nesta rodada** (ver bloco abaixo).
+
+## Encerramento de pedidos por unidade — implementado
+
+**Correção aplicada**:
+- Migration no Supabase (`nbfvkmdcbfvgpqpvvspv`): `org_unidades` ganhou coluna `aberto` (boolean,
+  default `true`) — interruptor manual, não data de corte automática (ela decide na hora que
+  manda o pedido pra Korin, não precisa programar com antecedência).
+- `src/lib/unidades.js`: `getUnidades`/`addUnidade` retornam o campo; `setUnidadeAberto(id, aberto)`
+  novo.
+- `UnidadesManager.jsx`: botão "🔒 Encerrar pedidos desta unidade" / "🔓 Reabrir" em cada unidade,
+  com confirmação só pra fechar (reabrir é reversível). Unidade encerrada fica marcada
+  visualmente (borda âmbar + aviso) — inclusive vira o mecanismo de "exceção": se ela precisar
+  lançar algo manual depois de fechar, reabre, lança, fecha de novo — sem precisar de um caminho
+  separado de override.
+- **Bloqueia só pedido NOVO, nos 3 caminhos** (catálogo público, manual, colado do WhatsApp) —
+  nunca trava pedido que já existia antes de encerrar (continua editável e vai pra Entregas
+  normalmente, senão travaria a entrega de quem já comprou).
+- `ModalPedido`/`ModalColarPedido` (`App.jsx`): `<select>` desabilita unidade encerrada com aviso;
+  bloqueio antes de salvar; autocomplete de cliente não preenche sozinho uma unidade que foi
+  encerrada nesse meio-tempo.
+- `CatalogoApp.jsx`: unidade encerrada aparece **desabilitada com aviso**, não some — evita
+  confusão de cliente que não entende por que o local sumiu. Última unidade comprada não é
+  reaproveitada como pré-seleção se foi encerrada.
+- `api/pedido.js`: revalida no servidor, nunca confia no cliente — mesmo padrão já usado pra
+  período/prazo.
+- `npx vite build` validado sem erro.
+- **Status no GitHub**: branch `feat/encerrar-pedidos-por-unidade`, commit `1b331b9`, aguardando
+  merge — atualizar este bloco com o SHA do merge assim que for mesclado.
+
+---
+
 ## Pendente / próximos passos
 
 1. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
@@ -287,12 +343,19 @@ principal), telefone (quando existe) e `📍 unidade` sempre visíveis, do iníc
 4. **Gap de offline-first do Sistema 2** (identificado no comparativo): existe uma proposta
    técnica desenhada (fila de escrita por "intenção", documentada no artefato) mas **nada foi
    implementado**. Ainda não há decisão de seguir com isso.
-5. **Próximas partes do fluxo de campo ainda não levantadas**: como os outros coordenadores
-   captam pedido dos membros, como enviam o consolidado pra Korin (só cobrimos até
-   "divulgação/importação de catálogo").
+5. **Próximas partes do fluxo de campo ainda não totalmente levantadas**: como os outros
+   coordenadores captam pedido dos membros (coberto), como fecham/enviam o consolidado pra Korin
+   (levantamento feito, encerramento por unidade implementado — falta o export consolidado
+   somando unidades, item 7).
 6. **Aguardando o Junior trazer o requisito de uso futuro do cadastro de clientes** — a base
    (tabela + upsert automático + autocomplete) já está funcionando, mas nenhuma tela de gestão foi
    desenhada de propósito, até saber o que de fato vai ser construído em cima disso.
+7. **Export consolidado por seleção de unidades** (Fechamento → XLSX) — somar quantidades de
+   unidades marcadas numa aba só, em vez de uma aba por unidade, pro caso de pedido único
+   consolidado pra Korin (ver bloco "Prática real trazida pelo Junior" acima).
+8. **Testar de verdade o encerramento por unidade**: fechar uma unidade e confirmar que bloqueia
+   pedido novo nos 3 caminhos (catálogo, manual, colado) sem travar pedido/entrega já existente;
+   testar reabrir.
 
 ---
 

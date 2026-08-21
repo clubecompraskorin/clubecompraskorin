@@ -78,6 +78,18 @@ export default async function handler(req, res) {
       if (new Date() > limite) return res.status(403).json({ ok: false, error: 'Pedidos encerrados para este período' })
     }
 
+    // "Encerrar pedidos" da unidade bloqueia só pedido NOVO — editar um
+    // pedido que já existia antes de encerrar continua permitido (é o
+    // próprio cliente ajustando algo que a coordenadora ainda vai entregar).
+    if (!pedido.id && pedido.unidade) {
+      const { data: unidade, error: uniError } = await supabaseAdmin
+        .from('org_unidades').select('aberto').eq('org_id', org.id).eq('nome', pedido.unidade).maybeSingle()
+      if (uniError) throw uniError
+      if (unidade?.aberto === false) {
+        return res.status(403).json({ ok: false, error: 'Pedidos encerrados para essa unidade' })
+      }
+    }
+
     // korin_pedidos guarda itens por produtoId (igual pedido manual) — o
     // catálogo público trabalha por código, então converte aqui.
     const { data: produtosPeriodo, error: prodError } = await supabaseAdmin
