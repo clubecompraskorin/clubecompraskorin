@@ -12,6 +12,7 @@ import {
 } from './lib/periodos'
 import { ToastHost, ConfirmHost, toast, confirmar } from './lib/dialog'
 import { getUnidades } from './lib/unidades'
+import { listarClientes } from './lib/clientes'
 import UnidadesManager from './UnidadesManager'
 
 
@@ -326,10 +327,10 @@ export default function App({ org, onOrgRefresh }) {
       </footer>
 
       {/* MODALS */}
-      {modal === 'pedido'   && <ModalPedido   pedido={editPedido}   produtos={produtos} unidades={nomesUnidades} onSave={savePedidoForm}   onClose={closeModal} />}
+      {modal === 'pedido'   && <ModalPedido   pedido={editPedido}   produtos={produtos} unidades={nomesUnidades} orgId={orgId} onSave={savePedidoForm}   onClose={closeModal} />}
       {modal === 'detalhe'  && viewPedido && <ModalDetalhe  pedido={viewPedido}  produtos={produtos} periodo={periodoAtivo} onClose={closeModal} onPrint={() => printPedido(viewPedido, produtos, periodoAtivo)} />}
       {modal === 'produto'  && <ModalProduto  produto={editProduto}               onSave={saveProduto}  onClose={closeModal} />}
-      {modal === 'colar'    && <ModalColarPedido produtos={produtos} unidades={nomesUnidades} onSave={savePedidoForm} onClose={closeModal} />}
+      {modal === 'colar'    && <ModalColarPedido produtos={produtos} unidades={nomesUnidades} orgId={orgId} onSave={savePedidoForm} onClose={closeModal} />}
 
       {/* MODO ENTREGA — overlay global, acessível de qualquer tab */}
       {modoEntrega && (
@@ -1210,13 +1211,27 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MODAL: PEDIDO
 // ═══════════════════════════════════════════════════════════════════════════════
-function ModalPedido({ pedido, produtos, unidades = [], onSave, onClose }) {
+function ModalPedido({ pedido, produtos, unidades = [], orgId, onSave, onClose }) {
   const [nome,  setNome]  = useState(pedido?.clienteNome || '')
   const [tel,   setTel]   = useState(pedido?.clienteTel  || '')
   const [pagto, setPagto] = useState(pedido?.pagamento   || 'A Definir')
   const [unidade, setUnidade] = useState(pedido?.unidade || unidades[0] || '')
   const [itens, setItens] = useState(pedido?.itens       || [])
   const [busca, setBusca] = useState('')
+  const [clientesConhecidos, setClientesConhecidos] = useState([])
+  useEffect(() => { if (orgId) listarClientes(orgId).then(setClientesConhecidos) }, [orgId])
+
+  // Autocompletar (datalist nativo) — só pra pedido novo, e só preenche o que
+  // ainda está vazio, pra nunca sobrescrever o que a coordenadora já digitou.
+  const handleNome = v => {
+    setNome(v)
+    if (pedido) return
+    const match = clientesConhecidos.find(c => c.nome.trim().toLowerCase() === v.trim().toLowerCase())
+    if (match) {
+      if (!tel.trim()) setTel(match.telefone)
+      if (match.unidade) setUnidade(match.unidade)
+    }
+  }
 
   const getQty = (id) => itens.find(i => i.produtoId === id)?.qty || 0
   const setQty = (id, qty) => {
@@ -1253,8 +1268,11 @@ function ModalPedido({ pedido, produtos, unidades = [], onSave, onClose }) {
         <div className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-100 space-y-3">
             <div className="text-xs font-black text-stone-400 uppercase tracking-widest">Cliente</div>
-            <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome completo *"
+            <input value={nome} onChange={e => handleNome(e.target.value)} placeholder="Nome completo *" list="clientes-lista"
               className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base font-semibold focus:outline-none focus:border-green-500" />
+            <datalist id="clientes-lista">
+              {clientesConhecidos.map(c => <option key={c.telefone} value={c.nome} />)}
+            </datalist>
             <input value={tel} onChange={e => setTel(e.target.value)} placeholder="WhatsApp (opcional)"
               className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-green-500" />
             <select value={unidade} onChange={e => setUnidade(e.target.value)}
@@ -1502,7 +1520,7 @@ function SectionLabel({ icon, text, color }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // MODAL: COLAR PEDIDO DO WHATSAPP
 // ═══════════════════════════════════════════════════════════════════════════════
-function ModalColarPedido({ produtos, unidades = [], onSave, onClose }) {
+function ModalColarPedido({ produtos, unidades = [], orgId, onSave, onClose }) {
   const [etapa, setEtapa]     = useState(1)       // 1=colar, 2=confirmar
   const [texto, setTexto]     = useState('')
   const [unidade, setUnidade] = useState(unidades[0] || '')
@@ -1512,6 +1530,19 @@ function ModalColarPedido({ produtos, unidades = [], onSave, onClose }) {
   const [nome, setNome]       = useState('')
   const [tel, setTel]         = useState('')
   const [pagto, setPagto]     = useState('A Definir')
+  const [clientesConhecidos, setClientesConhecidos] = useState([])
+  useEffect(() => { if (orgId) listarClientes(orgId).then(setClientesConhecidos) }, [orgId])
+
+  // Autocompletar (datalist nativo) — preenche telefone/unidade quando o nome
+  // (digitado ou já vindo da interpretação por IA) bate com cliente conhecido.
+  const handleNome = v => {
+    setNome(v)
+    const match = clientesConhecidos.find(c => c.nome.trim().toLowerCase() === v.trim().toLowerCase())
+    if (match) {
+      if (!tel.trim()) setTel(match.telefone)
+      if (match.unidade) setUnidade(match.unidade)
+    }
+  }
 
   const interpretar = async () => {
     if (!texto.trim()) return
@@ -1537,7 +1568,7 @@ function ModalColarPedido({ produtos, unidades = [], onSave, onClose }) {
       if (!itensResolvidos.length) throw new Error('Nenhum item reconhecido. Verifique os códigos.')
 
       setParsed({ nome: obj.nome || '', itens: itensResolvidos })
-      setNome(obj.nome || '')
+      handleNome(obj.nome || '')
       setEtapa(2)
     } catch (e) {
       setErro(e.message || 'Erro ao interpretar. Tente novamente.')
@@ -1593,8 +1624,11 @@ function ModalColarPedido({ produtos, unidades = [], onSave, onClose }) {
           {etapa === 2 && parsed && <>
             <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm space-y-3">
               <div className="text-xs font-black text-stone-400 uppercase tracking-widest">Cliente</div>
-              <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome completo *"
+              <input value={nome} onChange={e => handleNome(e.target.value)} placeholder="Nome completo *" list="clientes-lista-colar"
                 className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base font-semibold focus:outline-none focus:border-green-500"/>
+              <datalist id="clientes-lista-colar">
+                {clientesConhecidos.map(c => <option key={c.telefone} value={c.nome} />)}
+              </datalist>
               <input value={tel} onChange={e => setTel(e.target.value)} placeholder="WhatsApp (opcional)"
                 className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-green-500"/>
               <select value={unidade} onChange={e => setUnidade(e.target.value)}
