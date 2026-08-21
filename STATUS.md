@@ -267,8 +267,9 @@ confusão entre pedidos.
 principal), telefone (quando existe) e `📍 unidade` sempre visíveis, do início ao fim da entrega.
 `npx vite build` validado sem erro.
 
-**Status no GitHub**: branch `feat/mostra-cliente-unidade-em-toda-entrega`, commit `c1fc23e`,
-aguardando merge — atualizar este bloco com o SHA do merge assim que for mesclado.
+**Status no GitHub: mesclada na `main`.** Commit da feature: `c1fc23e`
+(branch `feat/mostra-cliente-unidade-em-toda-entrega`). Merge commit na `main`: `20eca6f`
+(`51af97a..20eca6f`).
 
 ---
 
