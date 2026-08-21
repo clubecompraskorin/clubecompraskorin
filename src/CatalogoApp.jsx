@@ -620,8 +620,12 @@ export default function CatalogoApp() {
       const totais = per ? await getTotaisWeb(slug, per.id) : {}
       setTotaisPorProduto(totais)
 
+      // Cliente que já comprou antes vê a última unidade dele pré-selecionada
+      // (conveniência — normalmente é sempre o mesmo local). Cliente novo
+      // começa sem nada selecionado, pra forçar escolha consciente — não dá
+      // pra supor "primeira unidade da lista" com várias unidades cadastradas.
       const dadosSalvos = loadClienteDados()
-      setClienteDados(prev => ({ ...prev, ...dadosSalvos, unidade: dadosSalvos?.unidade || unis[0]?.nome || '' }))
+      setClienteDados(prev => ({ ...prev, ...dadosSalvos, unidade: dadosSalvos?.unidade || '' }))
       if (dadosSalvos?.telefone && per) {
         if (!isPeriodoFechado(per)) {
           const pedExistente = await consultarMeuPedido(slug, dadosSalvos.telefone, per.id)

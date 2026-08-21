@@ -1215,7 +1215,7 @@ function ModalPedido({ pedido, produtos, unidades = [], orgId, onSave, onClose }
   const [nome,  setNome]  = useState(pedido?.clienteNome || '')
   const [tel,   setTel]   = useState(pedido?.clienteTel  || '')
   const [pagto, setPagto] = useState(pedido?.pagamento   || 'A Definir')
-  const [unidade, setUnidade] = useState(pedido?.unidade || unidades[0] || '')
+  const [unidade, setUnidade] = useState(pedido?.unidade || '')
   const [itens, setItens] = useState(pedido?.itens       || [])
   const [busca, setBusca] = useState('')
   const [clientesConhecidos, setClientesConhecidos] = useState([])
@@ -1250,6 +1250,7 @@ function ModalPedido({ pedido, produtos, unidades = [], orgId, onSave, onClose }
 
   const handleSave = () => {
     if (!nome.trim())      { toast('Informe o nome do cliente'); return }
+    if (!unidade)          { toast('Selecione a unidade de retirada'); return }
     if (!itens.length)     { toast('Adicione pelo menos 1 item'); return }
     onSave({ ...pedido, clienteNome: nome.trim(), clienteTel: tel, pagamento: pagto, itens, unidade, origem: pedido?.origem || 'whatsapp' })
   }
@@ -1277,6 +1278,7 @@ function ModalPedido({ pedido, produtos, unidades = [], orgId, onSave, onClose }
               className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-green-500" />
             <select value={unidade} onChange={e => setUnidade(e.target.value)}
               className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:border-green-500 font-semibold">
+              <option value="" disabled>Selecione a unidade de retirada *</option>
               {(unidades).map(u => <option key={u}>{u}</option>)}
             </select>
             <select value={pagto} onChange={e => setPagto(e.target.value)}
@@ -1523,7 +1525,7 @@ function SectionLabel({ icon, text, color }) {
 function ModalColarPedido({ produtos, unidades = [], orgId, onSave, onClose }) {
   const [etapa, setEtapa]     = useState(1)       // 1=colar, 2=confirmar
   const [texto, setTexto]     = useState('')
-  const [unidade, setUnidade] = useState(unidades[0] || '')
+  const [unidade, setUnidade] = useState('')
   const [loading, setLoading] = useState(false)
   const [erro, setErro]       = useState('')
   const [parsed, setParsed]   = useState(null)    // { nome, itens }
@@ -1579,6 +1581,7 @@ function ModalColarPedido({ produtos, unidades = [], orgId, onSave, onClose }) {
 
   const confirmar = () => {
     if (!nome.trim()) { toast('Informe o nome do cliente'); return }
+    if (!unidade)     { toast('Selecione a unidade de retirada'); return }
     onSave({ clienteNome: nome.trim(), clienteTel: tel, pagamento: pagto, itens: parsed.itens, unidade, origem: 'whatsapp' })
   }
 
@@ -1633,6 +1636,7 @@ function ModalColarPedido({ produtos, unidades = [], orgId, onSave, onClose }) {
                 className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-green-500"/>
               <select value={unidade} onChange={e => setUnidade(e.target.value)}
                 className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:border-green-500 font-semibold">
+                <option value="" disabled>Selecione a unidade de retirada *</option>
                 {unidades.map(u => <option key={u}>{u}</option>)}
               </select>
               <select value={pagto} onChange={e => setPagto(e.target.value)}
