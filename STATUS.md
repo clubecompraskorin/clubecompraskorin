@@ -4,7 +4,8 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
-> Última atualização: 21/08/2026 (gap de integridade produto↔pedido registrado e corrigido).
+> Última atualização: 21/08/2026 (gaps de integridade produto↔pedido registrados e corrigidos:
+> deleção de produto com pedido vinculado e código reaproveitado por produto diferente).
 
 ---
 
@@ -89,12 +90,12 @@ catálogo e produtos existentes é feito só pelo `cod`, via `upsert(..., { onCo
    não encontrado como preço `0` — o total do pedido **cai sozinho**, sem log nem aviso. Depois,
    mesmo reimportando o código de volta, o pedido não se recupera: o `upsert` cria uma linha nova
    (id novo), a antiga já foi apagada.
-   - Cenário adjacente, **ainda não corrigido**: se um código é reaproveitado por um produto
-     *diferente* (ex: numeração sequencial deslocando, como já documentado pro fluxo manual da
-     Valéria), o `upsert` **atualiza a linha existente** em vez de criar uma nova — um pedido
-     pendente pode passar a exibir/cobrar como se fosse o produto errado. A planilha oficial da
-     Korin (SKU estável) não sofre isso; a numeração sequencial manual, sim. Fica registrado como
-     risco conhecido, não como algo corrigido nesta rodada.
+   - Cenário adjacente, **corrigido numa segunda rodada** (ver seção abaixo): se um código é
+     reaproveitado por um produto *diferente* (ex: numeração sequencial deslocando, como já
+     documentado pro fluxo manual da Valéria), o `upsert` **atualiza a linha existente** em vez de
+     criar uma nova — um pedido pendente podia passar a exibir/cobrar como se fosse o produto
+     errado. A planilha oficial da Korin (SKU estável) não sofre isso; a numeração sequencial
+     manual, sim.
 
 **Correção aplicada** (`src/lib/periodos.js`): nova função interna `produtosVinculadosAPedidos`
 consulta `korin_pedidos` do período com `status <> 'cancelado'` e monta o conjunto de `produtoId`
@@ -113,19 +114,40 @@ ainda em uso.
 
 ---
 
+## Aviso de código reaproveitado por produto diferente — corrigido
+
+Segunda parte do gap acima (item 3 do "Pendente" da rodada anterior). Como o casamento na
+importação é só por `cod`, se o mesmo código já pertencia a um produto de **nome diferente**, o
+sistema sobrescrevia a linha existente sem aviso — um pedido pendente que referenciava esse
+produto por trás dos panos passava a exibir/cobrar o produto novo, silenciosamente.
+
+**Correção aplicada** (`src/WebScreen.jsx`, `ModalImportarCatalogo`):
+- `mesclarComExistentes` agora compara o nome normalizado do produto existente (mesmo `cod`) com
+  o nome vindo da importação; marca `conflitoCod` + `nomeAnterior` quando diverge.
+- Pré-visualização ganhou um banner de aviso (mesmo padrão visual do aviso de mês diferente)
+  listando cada conflito — `código: era "X", agora é "Y"` — e destaca em âmbar o item conflitante
+  na lista.
+- Salvar exige um checkbox de confirmação explícita ("Revisei e confirmo...") quando há
+  conflito — **não bloqueia** a importação (pode ser uma mudança legítima, ex: Korin renomeou o
+  produto mantendo o código), só exige revisão consciente em vez de aceitar direto.
+- `npx vite build` validado sem erro.
+- **Status no GitHub**: branch `fix/avisa-reaproveitamento-codigo`, commit `e388ad7`, aguardando
+  merge — atualizar este bloco com o SHA do merge assim que for mesclado.
+
+---
+
 ## Pendente / próximos passos
 
 1. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
-   categorias, se o preview mostra tudo certo, se salva corretamente. Testar também o novo bloqueio
-   de remoção de produto com pedido vinculado.
-2. **Atualizar o artefato publicado** com a feature de importação por planilha e com o gap de
-   integridade produto↔pedido (documentado em markdown no repo, artefato visual ainda não reflete).
-3. **Risco de reaproveitamento de código por produto diferente** (ver acima) — ainda sem correção;
-   avaliar se vale detectar mudança de nome no mesmo `cod` e alertar em vez de sobrescrever direto.
-4. **Gap de offline-first do Sistema 2** (identificado no comparativo): existe uma proposta
+   categorias, se o preview mostra tudo certo, se salva corretamente. Testar também o bloqueio de
+   remoção de produto com pedido vinculado e o novo aviso de código reaproveitado.
+2. **Atualizar o artefato publicado** com a feature de importação por planilha e com os dois gaps
+   de integridade produto↔pedido (documentado em markdown no repo, artefato visual ainda não
+   reflete).
+3. **Gap de offline-first do Sistema 2** (identificado no comparativo): existe uma proposta
    técnica desenhada (fila de escrita por "intenção", documentada no artefato) mas **nada foi
    implementado**. Ainda não há decisão de seguir com isso.
-5. **Próximas partes do fluxo de campo ainda não levantadas**: como os outros coordenadores
+4. **Próximas partes do fluxo de campo ainda não levantadas**: como os outros coordenadores
    captam pedido dos membros, como enviam o consolidado pra Korin (só cobrimos até
    "divulgação/importação de catálogo").
 
