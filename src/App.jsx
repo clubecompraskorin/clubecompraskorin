@@ -9,6 +9,7 @@ import WebScreen from './WebScreen'
 import {
   getPeriodoCorrente, listarPeriodos, getProdutosDoPeriodo,
   salvarProdutoNoPeriodo, removerProdutoDoPeriodo, arquivarPeriodo, desarquivarPeriodo,
+  getComparativoPeriodoAnterior,
 } from './lib/periodos'
 import { ToastHost, ConfirmHost, toast, confirmar } from './lib/dialog'
 import { getUnidades } from './lib/unidades'
@@ -288,7 +289,7 @@ export default function App({ org, onOrgRefresh }) {
         {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} unidades={nomesUnidades} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} />}
         {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} unidades={nomesUnidades} />}
         {tab === 'produtos'   && <ProdutosScreen  produtos={produtos} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} />}
-        {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} periodoObj={periodoObjAtivo} isCorrente={!isHistorico} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} />}
+        {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} periodoObj={periodoObjAtivo} isCorrente={!isHistorico} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} orgId={orgId} periodoAtualId={periodoObjAtivo?.id} />}
         {tab === 'web'        && <WebScreen produtos={produtos} periodo={periodoCorrente} org={org} onUnidadesChange={setUnidades} onRecarregar={recarregarTudo} abrirEm={webAbrirEm} onAbrirEmConsumido={() => setWebAbrirEm(null)} onOrgRefresh={onOrgRefresh} />}
       </main>
 
@@ -833,34 +834,96 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
-function DashboardScreen({ pedidos, produtos, unidades = [] }) {
+// Barra proporcional simples (CSS puro, sem lib de gráfico) — usada nos
+// rankings e nos comparativos atual×anterior do Dashboard.
+function BarraProporcional({ valor, max, color = '#15803d' }) {
+  const pct = max > 0 ? Math.min(100, (Math.abs(valor) / max) * 100) : 0
+  return (
+    <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+    </div>
+  )
+}
+
+function DashboardScreen({ pedidos, produtos, unidades = [], orgId, periodoAtualId, periodo }) {
   const [filtroUnidade, setFiltroUnidade] = useState('Todas')
   const [filtroOrigem, setFiltroOrigem]   = useState('Todas')
+  const [comparativo, setComparativo]     = useState(undefined) // undefined = carregando, null = sem período anterior
 
-  const lista = pedidos
+  useEffect(() => {
+    if (!orgId) return
+    setComparativo(undefined)
+    getComparativoPeriodoAnterior(orgId, periodoAtualId).then(setComparativo)
+  }, [orgId, periodoAtualId])
+
+  const getVal = p => calcTotal(p, produtos)
+  const filtrar = (lista) => lista
     .filter(p => filtroUnidade === 'Todas' || (p.unidade || 'Não informada') === filtroUnidade)
     .filter(p => filtroOrigem === 'Todas' || p.origem === filtroOrigem)
 
-  const getVal = p => calcTotal(p, produtos)
+  const lista = filtrar(pedidos)
+  const listaEntregue = lista.filter(p => p.status === 'entregue')
+
   const clientesUnicos  = new Set(lista.map(p => p.clienteNome)).size
   const totalItens      = lista.reduce((s, p) => s + p.itens.reduce((a, i) => a + i.qty, 0), 0)
   const totalValor      = lista.reduce((s, p) => s + getVal(p), 0)
+
+  // Ticket médio, membros atendidos e comparativo com o período anterior são
+  // sempre em cima do que foi ENTREGUE — pedido pendente ainda pode mudar
+  // (cancelar, ajustar item), não é venda realizada ainda.
+  const membrosEntregues = new Set(listaEntregue.map(p => p.clienteNome)).size
+  const valorEntregue    = listaEntregue.reduce((s, p) => s + getVal(p), 0)
+  const ticketMedio      = listaEntregue.length > 0 ? valorEntregue / listaEntregue.length : 0
 
   const porOrigem = { whatsapp: lista.filter(p => p.origem !== 'catalogo'), catalogo: lista.filter(p => p.origem === 'catalogo') }
 
   const porPag = {}
   lista.forEach(p => { const k = p.pagamento || 'A Definir'; if (!porPag[k]) porPag[k] = { qtd:0, val:0 }; porPag[k].qtd++; porPag[k].val += getVal(p) })
 
-  const porProd = {}
-  lista.forEach(p => {
-    const itens = p.itens.map(it => { const pr = produtos.find(x => x.id === it.produtoId); return pr ? { cod: pr.cod, nome: pr.nome, preco: pr.preco, qty: it.qty } : null }).filter(Boolean)
-    itens.forEach(it => { if (!porProd[it.cod]) porProd[it.cod] = { cod: it.cod, nome: it.nome || it.nome, qty:0, val:0 }; porProd[it.cod].qty += it.qty; porProd[it.cod].val += (it.preco||0)*it.qty })
-  })
+  const montarPorProduto = (listaPedidos, produtosDoPeriodo) => {
+    const mp = {}
+    listaPedidos.forEach(p => {
+      p.itens.forEach(it => {
+        const pr = produtosDoPeriodo.find(x => x.id === it.produtoId)
+        if (!pr) return
+        if (!mp[pr.cod]) mp[pr.cod] = { cod: pr.cod, nome: pr.nome, preco: pr.preco, qty: 0, val: 0 }
+        mp[pr.cod].qty += it.qty
+        mp[pr.cod].val += pr.preco * it.qty
+      })
+    })
+    return mp
+  }
+  const porProd  = montarPorProduto(lista, produtos)
   const prodList = Object.values(porProd).sort((a,b) => b.qty - a.qty)
+  const maxProdQty = prodList[0]?.qty || 0
 
   const porUnidade = {}
   lista.forEach(p => { const u = p.unidade || 'Não informada'; if (!porUnidade[u]) porUnidade[u] = {qtd:0,val:0}; porUnidade[u].qtd++; porUnidade[u].val += getVal(p) })
   const unidList = Object.entries(porUnidade).sort(([,a],[,b]) => b.qtd - a.qtd)
+  const maxUnidQtd = unidList[0]?.[1]?.qtd || 0
+
+  // ── COMPARATIVO COM O PERÍODO ANTERIOR (sempre entregues, mesmo filtro) ──
+  let comparativoView = null
+  if (comparativo) {
+    const pedidosAntEntregues = filtrar(comparativo.pedidos).filter(p => p.status === 'entregue')
+    const membrosAnt  = new Set(pedidosAntEntregues.map(p => p.clienteNome)).size
+    const valorAnt     = pedidosAntEntregues.reduce((s, p) => s + calcTotal(p, comparativo.produtos), 0)
+    const ticketAnt     = pedidosAntEntregues.length > 0 ? valorAnt / pedidosAntEntregues.length : 0
+    const porProdAnt = montarPorProduto(pedidosAntEntregues, comparativo.produtos)
+    // Recalcula "atual" só com pedidos ENTREGUES (o ranking geral acima usa todos os status)
+    const porProdAtualEntregue = montarPorProduto(listaEntregue, produtos)
+    const cods = new Set([...Object.keys(porProdAnt), ...Object.keys(porProdAtualEntregue)])
+
+    const produtosComparativo = [...cods].map(cod => {
+      const atual = porProdAtualEntregue[cod]?.qty || 0
+      const ant   = porProdAnt[cod]?.qty || 0
+      const nome  = porProdAtualEntregue[cod]?.nome || porProdAnt[cod]?.nome || `Cód. ${cod}`
+      return { cod, nome, atual, ant, delta: atual - ant }
+    }).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+    const maxComparativoQty = Math.max(1, ...produtosComparativo.map(p => Math.max(p.atual, p.ant)))
+
+    comparativoView = { nomeAnterior: comparativo.periodo.nome, membrosAnt, membrosAtual: membrosEntregues, ticketAnt, produtosComparativo, maxComparativoQty }
+  }
 
   return (
     <div className="space-y-4">
@@ -888,6 +951,12 @@ function DashboardScreen({ pedidos, produtos, unidades = [] }) {
           <Stat label="Total" value={fmt(totalValor)} color="green" />
         </div>
 
+        <div className="grid grid-cols-2 gap-3">
+          <Stat label="Membros atendidos" value={membrosEntregues} color="teal" />
+          <Stat label="Ticket médio" value={fmt(ticketMedio)} color="green" />
+        </div>
+        <div className="text-xs text-stone-400 -mt-2 px-1">Membros atendidos e ticket médio contam só pedido já entregue.</div>
+
         <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm space-y-2">
           <div className="text-xs font-black text-stone-400 uppercase tracking-widest mb-1">Origem</div>
           {[['whatsapp','📋 WhatsApp'],['catalogo','🌐 Catálogo']].map(([orig, label]) => {
@@ -912,10 +981,13 @@ function DashboardScreen({ pedidos, produtos, unidades = [] }) {
           <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm">
             <div className="text-xs font-black text-stone-400 uppercase tracking-widest mb-2">Top produtos mais vendidos</div>
             {prodList.slice(0,5).map((p,i) => (
-              <div key={p.cod} className="flex items-center gap-2 py-2 border-b border-stone-50 last:border-0">
-                <span className="text-sm font-black text-stone-400 w-5">{i+1}</span>
-                <div className="flex-1 min-w-0"><div className="text-sm font-bold text-stone-800 truncate">{p.nome}</div><div className="text-xs text-stone-400">{p.qty} un.</div></div>
-                <span className="text-sm font-black text-green-700">{fmt(p.val)}</span>
+              <div key={p.cod} className="py-2 border-b border-stone-50 last:border-0 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-stone-400 w-5">{i+1}</span>
+                  <div className="flex-1 min-w-0"><div className="text-sm font-bold text-stone-800 truncate">{p.nome}</div><div className="text-xs text-stone-400">{p.qty} un.</div></div>
+                  <span className="text-sm font-black text-green-700">{fmt(p.val)}</span>
+                </div>
+                <div className="pl-7"><BarraProporcional valor={p.qty} max={maxProdQty} /></div>
               </div>
             ))}
             {prodList.length > 5 && <>
@@ -935,12 +1007,71 @@ function DashboardScreen({ pedidos, produtos, unidades = [] }) {
           <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm">
             <div className="text-xs font-black text-stone-400 uppercase tracking-widest mb-2">Ranking unidades</div>
             {unidList.map(([u,d],i) => (
-              <div key={u} className="flex items-center gap-2 py-2 border-b border-stone-50 last:border-0">
-                <span className={`text-sm font-black w-5 ${i===0?'text-green-600':'text-stone-400'}`}>{i+1}</span>
-                <div className="flex-1 min-w-0"><div className="text-sm font-bold text-stone-800 truncate">{u}</div><div className="text-xs text-stone-400">{d.qtd} pedido{d.qtd!==1?'s':''}</div></div>
-                <span className="text-sm font-black text-green-700">{fmt(d.val)}</span>
+              <div key={u} className="py-2 border-b border-stone-50 last:border-0 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-black w-5 ${i===0?'text-green-600':'text-stone-400'}`}>{i+1}</span>
+                  <div className="flex-1 min-w-0"><div className="text-sm font-bold text-stone-800 truncate">{u}</div><div className="text-xs text-stone-400">{d.qtd} pedido{d.qtd!==1?'s':''}</div></div>
+                  <span className="text-sm font-black text-green-700">{fmt(d.val)}</span>
+                </div>
+                <div className="pl-7"><BarraProporcional valor={d.qtd} max={maxUnidQtd} color="#0e7490" /></div>
               </div>
             ))}
+          </div>
+        )}
+
+        {comparativo === undefined && (
+          <div className="text-center text-sm text-stone-400 font-semibold py-2">Carregando comparativo…</div>
+        )}
+        {comparativoView && (
+          <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm space-y-4">
+            <div>
+              <div className="text-xs font-black text-stone-400 uppercase tracking-widest">Comparativo com o período anterior</div>
+              <div className="text-xs text-stone-400">{comparativoView.nomeAnterior} × {periodo}</div>
+            </div>
+
+            <div>
+              <div className="text-xs font-bold text-stone-500 mb-1.5">Membros atendidos (entregues)</div>
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <div className="flex justify-between text-xs text-stone-500 mb-0.5"><span>Atual</span><span className="font-black text-stone-700">{comparativoView.membrosAtual}</span></div>
+                  <BarraProporcional valor={comparativoView.membrosAtual} max={Math.max(1, comparativoView.membrosAtual, comparativoView.membrosAnt)} />
+                  <div className="flex justify-between text-xs text-stone-400 mt-2 mb-0.5"><span>{comparativoView.nomeAnterior}</span><span className="font-bold">{comparativoView.membrosAnt}</span></div>
+                  <BarraProporcional valor={comparativoView.membrosAnt} max={Math.max(1, comparativoView.membrosAtual, comparativoView.membrosAnt)} color="#a8a29e" />
+                </div>
+                <div className={`text-sm font-black px-2 py-1 rounded-full flex-shrink-0 ${comparativoView.membrosAtual >= comparativoView.membrosAnt ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                  {comparativoView.membrosAtual >= comparativoView.membrosAnt ? '+' : ''}{comparativoView.membrosAtual - comparativoView.membrosAnt}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center border-t border-stone-50 pt-3">
+              <span className="text-xs font-bold text-stone-500">Ticket médio (entregues)</span>
+              <span className="text-sm font-black text-stone-700">{fmt(ticketMedio)} <span className="text-stone-300 font-bold">vs</span> {fmt(comparativoView.ticketAnt)}</span>
+            </div>
+
+            {comparativoView.produtosComparativo.length > 0 && (
+              <div className="border-t border-stone-50 pt-3">
+                <div className="text-xs font-bold text-stone-500 mb-2">Produtos vendidos (entregues) — maiores variações</div>
+                {comparativoView.produtosComparativo.slice(0, 8).map(p => (
+                  <div key={p.cod} className="py-2 border-b border-stone-50 last:border-0">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-bold text-stone-800 truncate">{p.nome}</div>
+                      <span className={`text-xs font-black px-1.5 py-0.5 rounded-full flex-shrink-0 ml-2 ${p.delta > 0 ? 'bg-green-100 text-green-700' : p.delta < 0 ? 'bg-red-100 text-red-600' : 'bg-stone-100 text-stone-500'}`}>
+                        {p.delta > 0 ? '+' : ''}{p.delta}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-stone-400 w-16 flex-shrink-0">Atual {p.atual}</span>
+                      <BarraProporcional valor={p.atual} max={comparativoView.maxComparativoQty} />
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-stone-300 w-16 flex-shrink-0">Ant. {p.ant}</span>
+                      <BarraProporcional valor={p.ant} max={comparativoView.maxComparativoQty} color="#a8a29e" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </>)}
@@ -951,7 +1082,7 @@ function DashboardScreen({ pedidos, produtos, unidades = [] }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: FECHAMENTO
 // ═══════════════════════════════════════════════════════════════════════════════
-function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, periodoNav, periodoObj, isCorrente, onArquivar, onDesarquivar, filtroImpressao, setFiltroImpressao }) {
+function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, periodoNav, periodoObj, isCorrente, onArquivar, onDesarquivar, filtroImpressao, setFiltroImpressao, orgId, periodoAtualId }) {
   const [subTab, setSubTab]   = useState('resumo')
   const [filtroUnidadeResumo, setFiltroUnidadeResumo] = useState('Todas')
   const [unidadesExport, setUnidadesExport] = useState(new Set(unidades))
@@ -1091,7 +1222,7 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
           </button>
         ))}
       </div>
-      {subTab === 'dashboard' && <DashboardScreen pedidos={pedidos} produtos={produtos} unidades={unidades} />}
+      {subTab === 'dashboard' && <DashboardScreen pedidos={pedidos} produtos={produtos} unidades={unidades} orgId={orgId} periodoAtualId={periodoAtualId} periodo={periodo} />}
       {subTab === 'resumo' && <>
       <div className="text-center">
         <div className="text-2xl font-black text-green-800">{periodo}</div>

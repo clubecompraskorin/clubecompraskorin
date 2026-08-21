@@ -251,8 +251,33 @@ export async function registrarCompraConfirmada(periodoId, itens, unidadesAtendi
 }
 
 /**
- * Sobra por produto (em unidades) do período arquivado mais recente da
- * organização — puramente informativo, nunca usado pra travar nada. Prioriza
+ * Período arquivado imediatamente anterior a `periodoAtualId` (ou, se
+ * `periodoAtualId` não for informado, o arquivado mais recente da org).
+ * Compara por `created_at` — não só "o mais recente que não é o atual" —
+ * porque ao visualizar um período histórico antigo, "mais recente" pegaria
+ * o mês passado, não o mês anterior AO PERÍODO VISUALIZADO. Usado tanto
+ * pela sobra quanto pelo comparativo de membros/produtos do Dashboard.
+ */
+async function getPeriodoAnteriorArquivado(orgId, periodoAtualId) {
+  if (!supabase || !orgId) return null
+  try {
+    let createdAtRef = null
+    if (periodoAtualId) {
+      const { data: atual } = await supabase.from('periodos').select('created_at').eq('id', periodoAtualId).maybeSingle()
+      createdAtRef = atual?.created_at || null
+    }
+    let query = supabase.from('periodos').select('id, nome').eq('org_id', orgId).eq('status', 'arquivado')
+    if (periodoAtualId) query = query.neq('id', periodoAtualId)
+    if (createdAtRef) query = query.lt('created_at', createdAtRef)
+    const { data, error } = await query.order('created_at', { ascending: false }).limit(1).maybeSingle()
+    if (error) throw error
+    return data
+  } catch (e) { console.error(e); return null }
+}
+
+/**
+ * Sobra por produto (em unidades) do período arquivado imediatamente
+ * anterior — puramente informativo, nunca usado pra travar nada. Prioriza
  * compra_confirmada_und (planilha real enviada) quando existe; senão usa a
  * mesma estimativa da tela "O que comprar" (pedidos arredondados pra caixa
  * fechada). Retorna { [cod]: sobraEmUnidades }, só com sobra > 0.
@@ -260,17 +285,12 @@ export async function registrarCompraConfirmada(periodoId, itens, unidadesAtendi
 export async function getSobraPeriodoAnterior(orgId, periodoAtualId) {
   if (!supabase || !orgId) return {}
   try {
-    const { data: anteriores, error } = await supabase
-      .from('periodos').select('id').eq('org_id', orgId).eq('status', 'arquivado')
-      .neq('id', periodoAtualId || '00000000-0000-0000-0000-000000000000')
-      .order('created_at', { ascending: false }).limit(1)
-    if (error) throw error
-    if (!anteriores?.length) return {}
+    const anterior = await getPeriodoAnteriorArquivado(orgId, periodoAtualId)
+    if (!anterior) return {}
 
-    const periodoAnteriorId = anteriores[0].id
     const [produtosAnt, pedidosAnt] = await Promise.all([
-      getProdutosDoPeriodo(periodoAnteriorId),
-      getPedidos(periodoAnteriorId),
+      getProdutosDoPeriodo(anterior.id),
+      getPedidos(anterior.id),
     ])
     const totais = getTotaisPorProduto(pedidosAnt)
 
@@ -284,4 +304,25 @@ export async function getSobraPeriodoAnterior(orgId, periodoAtualId) {
     })
     return porCod
   } catch (e) { console.error(e); return {} }
+}
+
+/**
+ * Dados crus (produtos + pedidos) do período arquivado imediatamente
+ * anterior — pra tela de Fechamento montar o comparativo de membros/
+ * ticket médio/produtos vendidos "mês atual × mês anterior". Devolve tudo
+ * sem filtrar por unidade/origem/status: quem chama aplica o mesmo filtro
+ * que já está usando no período atual, pra manter os dois lados
+ * comparáveis com o que a coordenadora escolheu ver na tela.
+ */
+export async function getComparativoPeriodoAnterior(orgId, periodoAtualId) {
+  if (!supabase || !orgId) return null
+  try {
+    const anterior = await getPeriodoAnteriorArquivado(orgId, periodoAtualId)
+    if (!anterior) return null
+    const [produtos, pedidos] = await Promise.all([
+      getProdutosDoPeriodo(anterior.id),
+      getPedidos(anterior.id),
+    ])
+    return { periodo: anterior, produtos, pedidos }
+  } catch (e) { console.error(e); return null }
 }
