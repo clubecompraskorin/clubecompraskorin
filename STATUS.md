@@ -131,8 +131,9 @@ produto por trás dos panos passava a exibir/cobrar o produto novo, silenciosame
   conflito — **não bloqueia** a importação (pode ser uma mudança legítima, ex: Korin renomeou o
   produto mantendo o código), só exige revisão consciente em vez de aceitar direto.
 - `npx vite build` validado sem erro.
-- **Status no GitHub**: branch `fix/avisa-reaproveitamento-codigo`, commit `e388ad7`, aguardando
-  merge — atualizar este bloco com o SHA do merge assim que for mesclado.
+- **Status no GitHub: mesclada na `main`.** Commit do fix: `e388ad7`
+  (branch `fix/avisa-reaproveitamento-codigo`). Merge commit na `main`: `43d2768`
+  (`71d9a8e..43d2768`).
 
 ---
 
