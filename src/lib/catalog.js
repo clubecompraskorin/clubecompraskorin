@@ -32,7 +32,8 @@ export const CAT_COR = {
   'Diferenciados': '#D4730A',
   'Mercearia':     '#1E6091',
   'Ovos':          '#9B6D00',
+  'Peixes':        '#0891B2',
 }
 
-export const CATS_ORDEM = ['Frangos 1kg', 'Frangos 600g', 'Diferenciados', 'Mercearia', 'Ovos']
+export const CATS_ORDEM = ['Frangos 1kg', 'Frangos 600g', 'Diferenciados', 'Mercearia', 'Ovos', 'Peixes']
 export const PAGAMENTOS  = ['PIX', 'Dinheiro', 'Cartão Crédito', 'Cartão Débito', 'A Definir']
