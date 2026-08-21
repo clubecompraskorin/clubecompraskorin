@@ -230,8 +230,9 @@ criado sem atenção ia parar silenciosamente na unidade #1 de até 15.
   sempre o mesmo local). Cliente novo agora começa sem nada selecionado, e a validação que já
   existia passa a funcionar de verdade.
 - `npx vite build` validado sem erro.
-- **Status no GitHub**: branch `fix/unidade-obrigatoria-nos-pedidos`, commit `4f098f7`, aguardando
-  merge — atualizar este bloco com o SHA do merge assim que for mesclado.
+- **Status no GitHub: mesclada na `main`.** Commit do fix: `4f098f7`
+  (branch `fix/unidade-obrigatoria-nos-pedidos`). Merge commit na `main`: `4d3b0ac`
+  (`bd42db1..4d3b0ac`).
 
 ---
 
