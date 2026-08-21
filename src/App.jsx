@@ -134,13 +134,6 @@ export default function App({ org, onOrgRefresh }) {
     setPedidos(prev => prev.filter(x => x.id !== pedido.id))
   }
 
-  const entregarPedidoCombinado = async (pedido) => {
-    const atualizado = { ...pedido, status: 'entregue', dataEntrega: new Date().toISOString() }
-    const r = await salvarPedido(orgId, periodoCorrente.id, atualizado)
-    if (r.ok) setPedidos(prev => prev.map(x => x.id === pedido.id ? r.pedido : x))
-    else toast('Erro ao atualizar: ' + r.error)
-  }
-
   // Finaliza entrega com itens ajustados + pagamento. Pedido manual e pedido
   // do catálogo usam a mesma tela de ajuste e a mesma tabela — sem distinção
   // de formato pra fazer aqui.
@@ -292,8 +285,8 @@ export default function App({ org, onOrgRefresh }) {
             </button>
           </div>
         )}
-        {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onEntregar={p => entregarPedidoCombinado(p)} onIniciarEntrega={handleIniciarEntrega} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} unidades={nomesUnidades} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} />}
-        {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onEntregar={entregarPedidoCombinado} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} unidades={nomesUnidades} />}
+        {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} unidades={nomesUnidades} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} />}
+        {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} unidades={nomesUnidades} />}
         {tab === 'produtos'   && <ProdutosScreen  produtos={produtos} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} />}
         {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} periodoObj={periodoObjAtivo} isCorrente={!isHistorico} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} />}
         {tab === 'web'        && <WebScreen produtos={produtos} periodo={periodoCorrente} org={org} onUnidadesChange={setUnidades} onRecarregar={recarregarTudo} abrirEm={webAbrirEm} onAbrirEmConsumido={() => setWebAbrirEm(null)} onOrgRefresh={onOrgRefresh} />}
@@ -374,7 +367,7 @@ function PeriodoNav({ periodoCorrente, periodoViz, periodosLista, onChange, load
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: PEDIDOS
 // ═══════════════════════════════════════════════════════════════════════════════
-function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, onView, onEntregar, onIniciarEntrega, onPrintTodos, isHistorico, periodoNav, unidades = [], filtroImpressao, setFiltroImpressao }) {
+function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, onView, onIniciarEntrega, onPrintTodos, isHistorico, periodoNav, unidades = [], filtroImpressao, setFiltroImpressao }) {
   const [busca, setBusca]   = useState('')
   const [filtro, setFiltro] = useState('todos')
 
@@ -487,7 +480,7 @@ function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, on
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: ENTREGAS
 // ═══════════════════════════════════════════════════════════════════════════════
-function EntregasScreen({ pedidos, produtos, onEntregar, onFinalizar, onView, onIniciarEntrega, isHistorico, periodoNav, unidades = [] }) {
+function EntregasScreen({ pedidos, produtos, onFinalizar, onView, onIniciarEntrega, isHistorico, periodoNav, unidades = [] }) {
   const [filtroUnidade, setFiltroUnidade] = useState('Todas')
 
   const base      = pedidos.filter(p => filtroUnidade === 'Todas' || (p.unidade || 'Não informada') === filtroUnidade)
