@@ -16,7 +16,10 @@ import * as XLSX from 'xlsx'
 
 // "PESO (KG)" (H) é fórmula que depende da QTDE pedida (0 numa planilha em
 // branco) — quem carrega o peso real e fixo da caixa é "PESO CX" (I).
-const COLS = { cod: 'B', nome: 'C', custoCaixa: 'E', vendaUnidade: 'F', pesoCaixa: 'I', qtdPorCaixa: 'J' }
+// "QTDE (CX)" (D) é a coluna que a Korin deixa em branco pra coordenadora
+// preencher e devolver — é o que lemos quando a planilha é a que ELA enviou
+// (com quantidade), não a tabela em branco (ver parseQtdeEnviada abaixo).
+const COLS = { cod: 'B', nome: 'C', qtdeCaixa: 'D', custoCaixa: 'E', vendaUnidade: 'F', pesoCaixa: 'I', qtdPorCaixa: 'J' }
 
 export const ehPlanilha = (file) =>
   /\.(xlsx|xls)$/i.test(file.name || '') ||
@@ -58,6 +61,7 @@ export async function parseTabelaKorin(file) {
     const custoCaixa  = Number(ws[`${COLS.custoCaixa}${linha}`]?.v) || 0
     const pesoCaixa   = Number(ws[`${COLS.pesoCaixa}${linha}`]?.v) || 0
     const qtdPorCaixa = Number(ws[`${COLS.qtdPorCaixa}${linha}`]?.v) || 0
+    const qtdeCaixa   = Number(ws[`${COLS.qtdeCaixa}${linha}`]?.v) || 0
 
     produtos.push({
       cod,
@@ -66,6 +70,10 @@ export async function parseTabelaKorin(file) {
       precoCusto: qtdPorCaixa > 0 ? Number((custoCaixa / qtdPorCaixa).toFixed(4)) : null,
       qtdCaixa:   qtdPorCaixa || 0,
       unidade:    derivarUnidade(pesoCaixa, qtdPorCaixa, nome),
+      // Só tem valor quando a planilha lida é a que a coordenadora preencheu
+      // e enviou pra Korin (QTDE (CX)) — 0 na tabela em branco, ignorado
+      // pela importação normal de catálogo.
+      qtdeEnviada: qtdeCaixa,
     })
   }
 

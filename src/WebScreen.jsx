@@ -5,6 +5,7 @@ import { atualizarDadosOrganizacao } from './lib/auth'
 import {
   listarPeriodos, atualizarPeriodo, criarPeriodoComCopia,
   getProdutosDoPeriodo, salvarProdutoNoPeriodo, substituirProdutosDoPeriodo,
+  registrarCompraConfirmada, getSobraPeriodoAnterior,
 } from './lib/periodos'
 import { getPwaInstallCount } from './lib/pwa'
 import { pushSuportado, pushJaInscrito, ativarPush, desativarPush } from './lib/push'
@@ -166,7 +167,7 @@ function TabControles({ periodo, dataLimite, onChangeDataLimite, onToggleAberto,
 // ── SUB-ABA: PRODUTOS / EMBALAGENS ───────────────────────────────────────────
 // qtdCaixa/caixasAbertas agora são colunas do próprio produto no período —
 // não mais um mapa solto. Edição é local (lista em memória) até "Salvar".
-function TabProdutos({ produtos, pedidosWeb, onChange, onSave, salvando, somenteLeitura }) {
+function TabProdutos({ produtos, pedidosWeb, onChange, onSave, salvando, somenteLeitura, sobraAnterior = {} }) {
   const totais = getTotaisPorProduto(pedidosWeb)
 
   const setProdCfg = (cod, campo, val) => {
@@ -261,6 +262,11 @@ function TabProdutos({ produtos, pedidosWeb, onChange, onSave, salvando, somente
                     {qtdCaixa > 0 && (
                       <div className="text-xs text-stone-400 font-semibold">
                         Disponível: {disponivel} un. · Pedidos: {totalPedido} · Restante: {Math.max(0, disponivel - totalPedido)}
+                      </div>
+                    )}
+                    {sobraAnterior[prod.cod] > 0 && (
+                      <div className="text-xs text-amber-700 font-semibold mt-1">
+                        📦 Sobrou {sobraAnterior[prod.cod]} un. do período anterior — considere antes de marcar caixas abertas
                       </div>
                     )}
                   </div>
@@ -369,7 +375,7 @@ function TabPedidos({ pedidosWeb, produtos, onCancelar, loading, filtroUnidade, 
 }
 
 // ── SUB-ABA: RESUMO ───────────────────────────────────────────────────────────
-function TabResumo({ produtos, pedidosWeb, filtroUnidade }) {
+function TabResumo({ produtos, pedidosWeb, filtroUnidade, onConfirmarCompra, somenteLeitura }) {
   const base = filtroUnidade && filtroUnidade !== 'Todas'
     ? pedidosWeb.filter(p => p.unidade === filtroUnidade)
     : pedidosWeb
@@ -387,9 +393,15 @@ function TabResumo({ produtos, pedidosWeb, filtroUnidade }) {
 
   return (
     <div className="space-y-2">
-      <div className="text-xs font-black text-stone-400 uppercase tracking-widest mb-3 text-center">
+      <div className="text-xs font-black text-stone-400 uppercase tracking-widest mb-1 text-center">
         O que comprar na Korin
       </div>
+      {onConfirmarCompra && !somenteLeitura && (
+        <button onClick={onConfirmarCompra}
+          className="w-full py-3 mb-2 bg-stone-100 text-stone-700 rounded-2xl font-bold text-sm active:bg-stone-200">
+          📥 Confirmar o que foi realmente comprado (planilha enviada pra Korin)
+        </button>
+      )}
       {produtosComPedido.map(prod => {
         const qtdCaixa = prod.qtdCaixa || 0
         const caixasAbertas = prod.caixasAbertas || 0
@@ -410,6 +422,11 @@ function TabResumo({ produtos, pedidosWeb, filtroUnidade }) {
                   {totalPedido} unidades pedidas
                   {caixasNecessarias !== null && ` = ${caixasNecessarias} caixa${caixasNecessarias !== 1 ? 's' : ''}`}
                 </div>
+                {prod.compraConfirmadaUnd != null && (
+                  <div className="text-xs text-green-700 font-bold mt-0.5">
+                    ✅ Compra confirmada: {prod.compraConfirmadaUnd} un.
+                  </div>
+                )}
               </div>
               {caixasNecessarias !== null ? (
                 <div className={`text-xs font-black px-2 py-1 rounded-full flex-shrink-0 ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
@@ -771,6 +788,164 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
   )
 }
 
+// ── MODAL: CONFIRMAR COMPRA REALMENTE ENVIADA PRA KORIN ──────────────────────
+// Reimporta a MESMA planilha da Korin, só que agora preenchida com a
+// quantidade (QTDE (CX)) que a coordenadora de fato mandou — mais confiável
+// que o cálculo estimado dos pedidos (ela pode ter arredondado diferente,
+// comprado a mais de propósito, etc.). Sempre substitui o que já estava
+// registrado nesse período (não soma).
+function ModalConfirmarCompra({ periodo, produtosAtuais, unidades, onConcluido, onClose }) {
+  const [etapa, setEtapa]         = useState('upload') // upload | preview
+  const [arquivo, setArquivo]     = useState(null)
+  const [itens, setItens]         = useState([])
+  const [unidadesSel, setUnidadesSel] = useState(() => unidades.map(u => u.nome))
+  const [carregando, setCarregando] = useState(false)
+  const [salvando, setSalvando]   = useState(false)
+  const [erro, setErro]           = useState('')
+
+  const handleFile = e => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setErro('')
+    setArquivo(file)
+  }
+
+  const processar = async () => {
+    if (!arquivo) return
+    setCarregando(true); setErro('')
+    try {
+      const { produtos } = await parseTabelaKorin(arquivo)
+      const comQtde = produtos
+        .filter(p => p.qtdeEnviada > 0)
+        .map(p => {
+          const atual = produtosAtuais.find(x => x.cod === p.cod)
+          return { cod: p.cod, nome: atual?.nome || p.nome, qtdeCaixas: p.qtdeEnviada, qtdCaixa: atual?.qtdCaixa || p.qtdCaixa || 0, achouNoCatalogo: !!atual }
+        })
+      if (!comQtde.length) {
+        setErro('Nenhuma quantidade encontrada nessa planilha. Confira se é a planilha com a coluna "QTDE (CX)" preenchida.')
+        return
+      }
+      setItens(comQtde)
+      setEtapa('preview')
+    } catch {
+      setErro('Erro ao ler a planilha. Confira se é um arquivo .xlsx válido.')
+    } finally { setCarregando(false) }
+  }
+
+  const alternarUnidade = (nome) => {
+    setUnidadesSel(prev => prev.includes(nome) ? prev.filter(n => n !== nome) : [...prev, nome])
+  }
+
+  const confirmarSalvar = async () => {
+    setSalvando(true)
+    const payload = itens.map(it => ({ cod: it.cod, qtdeCaixas: it.qtdeCaixas }))
+    const r = await registrarCompraConfirmada(periodo.id, payload, unidadesSel)
+    setSalvando(false)
+    if (!r.ok) { toast('Erro ao registrar: ' + r.error); return }
+    toast(`Compra confirmada pra ${r.atualizados} produto${r.atualizados > 1 ? 's' : ''}`)
+    onConcluido()
+  }
+
+  const naoAchados = itens.filter(i => !i.achouNoCatalogo)
+
+  if (etapa === 'upload') return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
+      <div className="bg-white w-full rounded-t-3xl p-5 space-y-4">
+        <div className="flex justify-between items-center">
+          <div className="text-xl font-black">Confirmar compra enviada</div>
+          <button onClick={onClose} className="p-2 rounded-full bg-stone-100 text-xl">✕</button>
+        </div>
+        <div className="bg-stone-50 border border-stone-100 rounded-2xl px-4 py-3 text-sm text-stone-500 font-semibold">
+          Suba a mesma planilha da Korin, mas a que você já preencheu com as quantidades e enviou de
+          verdade — não a tabela em branco. Isso corrige o "quanto sobrou" pro próximo período com o
+          que você realmente comprou, em vez de só uma estimativa.
+        </div>
+        {!arquivo ? (
+          <label>
+            <div className="border-2 border-dashed border-green-300 rounded-2xl p-10 text-center cursor-pointer active:bg-green-50">
+              <div className="text-5xl mb-3">📊</div>
+              <div className="text-base font-black text-green-700">Escolher a planilha enviada</div>
+              <div className="text-sm text-stone-400 mt-1">Arquivo .xlsx com "QTDE (CX)" preenchida</div>
+            </div>
+            <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
+          </label>
+        ) : (
+          <div className="flex items-center gap-3 bg-stone-50 rounded-2xl p-4 border border-stone-100">
+            <div className="text-3xl flex-shrink-0">📊</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-bold text-stone-800 truncate">{arquivo.name}</div>
+              <button onClick={() => setArquivo(null)} className="text-xs text-stone-400 underline mt-0.5">Trocar arquivo</button>
+            </div>
+          </div>
+        )}
+        {erro && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 font-semibold">{erro}</div>}
+        <button onClick={processar} disabled={!arquivo || carregando}
+          className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-lg active:bg-green-800 disabled:opacity-50 flex items-center justify-center gap-2">
+          {carregando ? <><span className="animate-spin inline-block">⟳</span> Lendo planilha…</> : '📊 Ler planilha'}
+        </button>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
+      <div className="bg-white w-full rounded-t-3xl flex flex-col" style={{ maxHeight: '90vh' }}>
+        <div className="p-4 border-b border-stone-100 flex-shrink-0">
+          <div className="flex justify-between items-center">
+            <div>
+              <div className="text-xl font-black">Conferir compra</div>
+              <div className="text-sm text-stone-400">{itens.length} produtos com quantidade</div>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-full bg-stone-100 text-xl">✕</button>
+          </div>
+        </div>
+
+        {naoAchados.length > 0 && (
+          <div className="px-4 pt-3 flex-shrink-0">
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-sm text-amber-800">
+              ⚠️ {naoAchados.length} produto{naoAchados.length > 1 ? 's' : ''} da planilha não {naoAchados.length > 1 ? 'batem' : 'bate'} com o catálogo deste período (código não encontrado) — {naoAchados.length > 1 ? 'serão' : 'será'} ignorado{naoAchados.length > 1 ? 's' : ''}.
+            </div>
+          </div>
+        )}
+
+        <div className="px-4 pt-3 flex-shrink-0">
+          <div className="text-xs font-black text-stone-500 uppercase tracking-widest mb-2">Essa compra atende quais unidades?</div>
+          <div className="flex flex-wrap gap-2">
+            {unidades.map(u => (
+              <button key={u.id} onClick={() => alternarUnidade(u.nome)}
+                className={`px-3 py-1.5 rounded-full text-sm font-bold border ${unidadesSel.includes(u.nome) ? 'bg-green-700 text-white border-green-700' : 'bg-white text-stone-500 border-stone-200'}`}>
+                {unidadesSel.includes(u.nome) ? '✓ ' : ''}{u.nome}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2 mt-2">
+          {itens.filter(i => i.achouNoCatalogo).map(it => (
+            <div key={it.cod} className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-stone-50">
+              <div className="w-8 h-8 rounded-lg bg-green-700 text-white flex items-center justify-center text-xs font-black flex-shrink-0">{it.cod}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-bold text-stone-800 truncate">{it.nome}</div>
+                <div className="text-xs text-stone-400">
+                  {it.qtdeCaixas} caixa{it.qtdeCaixas !== 1 ? 's' : ''}{it.qtdCaixa > 0 ? ` × ${it.qtdCaixa} = ${it.qtdeCaixas * it.qtdCaixa} un.` : ' (sem un./embalagem configurada)'}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="p-4 border-t border-stone-100 flex gap-3 flex-shrink-0">
+          <button onClick={() => setEtapa('upload')}
+            className="px-5 py-3.5 bg-stone-100 text-stone-600 rounded-2xl font-black active:bg-stone-200">← Voltar</button>
+          <button onClick={confirmarSalvar} disabled={salvando || unidadesSel.length === 0}
+            className="flex-1 py-3.5 bg-green-700 text-white rounded-2xl font-black text-base active:bg-green-800 disabled:opacity-50">
+            {salvando ? '⟳ Salvando…' : '✅ Confirmar compra'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
 export default function WebScreen({ produtos: produtosCorrente, periodo: periodoCorrente, org, onUnidadesChange, onRecarregar, abrirEm, onAbrirEmConsumido, onOrgRefresh }) {
   const orgId = org?.orgId
@@ -807,6 +982,16 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
   const recarregarUnidades = useCallback(() => { if (orgId) getUnidades(orgId).then(setUnidades) }, [orgId])
   useEffect(() => { recarregarUnidades() }, [recarregarUnidades])
   const nomesUnidades = unidades.map(u => u.nome)
+
+  // Sobra do período arquivado anterior — só faz sentido pro período CORRENTE
+  // (é o que ainda vai receber compra nova; período arquivado é histórico
+  // fechado, não tem sentido mostrar "considere isso" nele).
+  const [sobraAnterior, setSobraAnterior] = useState({})
+  useEffect(() => {
+    if (!orgId || !periodoCorrente?.id) return
+    getSobraPeriodoAnterior(orgId, periodoCorrente.id).then(setSobraAnterior)
+  }, [orgId, periodoCorrente?.id])
+  const [modalConfirmarCompra, setModalConfirmarCompra] = useState(false)
 
   // Só ressincroniza quando o PERÍODO muda (id diferente) — nunca durante um
   // refresh automático do mesmo período, senão apaga edição em andamento.
@@ -963,7 +1148,8 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
         </div>
       )}
       {subTab === 'produtos' && (
-        <TabProdutos produtos={produtosWeb} pedidosWeb={pedidos} onChange={setProdutosWeb} onSave={handleSaveProdutos} salvando={salvando} somenteLeitura={somenteLeitura} />
+        <TabProdutos produtos={produtosWeb} pedidosWeb={pedidos} onChange={setProdutosWeb} onSave={handleSaveProdutos} salvando={salvando} somenteLeitura={somenteLeitura}
+          sobraAnterior={visualizandoCorrente ? sobraAnterior : {}} />
       )}
       {subTab === 'pedidos' && (
         <>
@@ -974,8 +1160,23 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
       {subTab === 'resumo' && (
         <>
           <FiltroUnidade value={filtroUnidade} onChange={setFiltroUnidade} unidades={nomesUnidades} />
-          <TabResumo produtos={produtosWeb} pedidosWeb={pedidos} filtroUnidade={filtroUnidade} />
+          <TabResumo produtos={produtosWeb} pedidosWeb={pedidos} filtroUnidade={filtroUnidade}
+            somenteLeitura={somenteLeitura}
+            onConfirmarCompra={visualizandoCorrente ? () => setModalConfirmarCompra(true) : null} />
         </>
+      )}
+      {modalConfirmarCompra && (
+        <ModalConfirmarCompra
+          periodo={periodoCorrente}
+          produtosAtuais={produtosWeb}
+          unidades={unidades}
+          onConcluido={() => {
+            setModalConfirmarCompra(false)
+            getProdutosDoPeriodo(periodoCorrente.id).then(setProdutosWeb)
+            onRecarregar?.()
+          }}
+          onClose={() => setModalConfirmarCompra(false)}
+        />
       )}
       {subTab === 'unidades' && (
         <UnidadesManager orgId={orgId} orgSlug={orgSlug} modo="settings" onChange={lista => { setUnidades(lista); onUnidadesChange?.(lista) }} />
