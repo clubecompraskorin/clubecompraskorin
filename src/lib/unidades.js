@@ -1,11 +1,25 @@
 import { supabase } from './supabase'
 
-// Leitura é pública (RLS: public_read_unidades) — usado tanto pelo admin
-// quanto pelo catálogo do cliente final (sem login).
+// Leitura autenticada (RLS: admin_read_unidades, exige is_org_member) — usada
+// pelo painel da coordenadora. Inclui pin_entrega, que nunca deve vazar pra
+// leitura pública (por isso a view org_unidades_publicas existe separada).
 export async function getUnidades(orgId) {
   if (!supabase || !orgId) return []
   const { data, error } = await supabase
     .from('org_unidades')
+    .select('id, nome, endereco, ordem, aberto, pin_entrega')
+    .eq('org_id', orgId)
+    .order('ordem', { ascending: true })
+  if (error) { console.error(error); return [] }
+  return data || []
+}
+
+// Leitura pública (view org_unidades_publicas, sem pin_entrega) — usada pelo
+// catálogo do cliente final (sem login).
+export async function getUnidadesPublicas(orgId) {
+  if (!supabase || !orgId) return []
+  const { data, error } = await supabase
+    .from('org_unidades_publicas')
     .select('id, nome, endereco, ordem, aberto')
     .eq('org_id', orgId)
     .order('ordem', { ascending: true })
@@ -64,6 +78,18 @@ export async function unidadeTemHistorico(orgId, nome) {
 // os modais de pedido manual/WhatsApp); nunca trava pedido já existente.
 export async function setUnidadeAberto(id, aberto) {
   const { error } = await supabase.from('org_unidades').update({ aberto }).eq('id', id)
+  if (error) throw error
+}
+
+// PIN de 4 dígitos pro representante da unidade acessar o link de entrega sem
+// login completo. Variável por unidade (cada uma tem o seu, pode ser trocado
+// a qualquer momento pela coordenadora se o representante mudar).
+export function gerarPin() {
+  return String(Math.floor(1000 + Math.random() * 9000))
+}
+
+export async function setUnidadePin(id, pin) {
+  const { error } = await supabase.from('org_unidades').update({ pin_entrega: pin }).eq('id', id)
   if (error) throw error
 }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getUnidades, addUnidade, updateUnidade, deleteUnidade, setUnidadeAberto } from './lib/unidades'
+import { getUnidades, addUnidade, updateUnidade, deleteUnidade, setUnidadeAberto, setUnidadePin, gerarPin } from './lib/unidades'
 import { toast, confirmar, ToastHost, ConfirmHost } from './lib/dialog'
 
 function Field({ label, children }) {
@@ -56,8 +56,53 @@ function FormUnidade({ orgId, editando, ordemProxima, onSalvou, onCancelar }) {
   )
 }
 
+function LinkEntrega({ orgId, orgSlug, unidade, onAtualizou }) {
+  const [gerando, setGerando] = useState(false)
+
+  const link = orgSlug ? `${window.location.origin}/${orgSlug}/entrega?u=${unidade.id}` : ''
+
+  const gerarOuTrocar = async () => {
+    setGerando(true)
+    try {
+      await setUnidadePin(unidade.id, gerarPin())
+      onAtualizou()
+    } catch { toast('Erro ao gerar PIN') }
+    setGerando(false)
+  }
+
+  const copiarLink = async () => {
+    try { await navigator.clipboard.writeText(link); toast('Link copiado!') }
+    catch { toast(link) }
+  }
+
+  if (!orgSlug) return null
+
+  if (!unidade.pin_entrega) {
+    return (
+      <button onClick={gerarOuTrocar} disabled={gerando}
+        className="w-full py-2.5 rounded-xl font-bold text-sm bg-stone-100 text-stone-600 active:bg-stone-200 disabled:opacity-50">
+        {gerando ? 'Gerando…' : '🔗 Gerar link de entrega pro representante'}
+      </button>
+    )
+  }
+
+  return (
+    <div className="bg-stone-50 rounded-xl p-3 space-y-2 border border-stone-200">
+      <div className="text-xs font-black text-stone-500 uppercase tracking-widest">Link de entrega (representante)</div>
+      <div className="text-sm font-semibold text-stone-700 break-all">{link}</div>
+      <div className="text-sm text-stone-600">PIN de acesso: <span className="font-black text-stone-800 text-base tracking-widest">{unidade.pin_entrega}</span></div>
+      <div className="flex gap-2 pt-1">
+        <button onClick={copiarLink} className="flex-1 py-2 rounded-lg font-bold text-xs bg-green-50 text-green-700 active:bg-green-100">📋 Copiar link</button>
+        <button onClick={gerarOuTrocar} disabled={gerando} className="flex-1 py-2 rounded-lg font-bold text-xs bg-stone-100 text-stone-600 active:bg-stone-200 disabled:opacity-50">
+          {gerando ? '…' : '🔄 Trocar PIN'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // modo: 'onboarding' (obrigatório, sem skip, mostra CTA Continuar) | 'settings' (gerenciamento livre dentro do app)
-export default function UnidadesManager({ orgId, modo = 'settings', onConcluir, onChange, montarHosts = false }) {
+export default function UnidadesManager({ orgId, orgSlug, modo = 'settings', onConcluir, onChange, montarHosts = false }) {
   const [unidades, setUnidades] = useState(null) // null = carregando
   const [editandoId, setEditandoId] = useState(null) // 'novo' | id | null
   const recarregar = () => getUnidades(orgId).then(lista => { setUnidades(lista); onChange?.(lista) })
@@ -117,6 +162,9 @@ export default function UnidadesManager({ orgId, modo = 'settings', onConcluir, 
                 className={`w-full py-2.5 rounded-xl font-bold text-sm active:opacity-80 ${u.aberto === false ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
                 {u.aberto === false ? '🔓 Reabrir pedidos desta unidade' : '🔒 Encerrar pedidos desta unidade'}
               </button>
+            )}
+            {modo !== 'onboarding' && (
+              <LinkEntrega orgId={orgId} orgSlug={orgSlug} unidade={u} onAtualizou={recarregar} />
             )}
           </div>
         ))}

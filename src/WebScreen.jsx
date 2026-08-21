@@ -978,7 +978,7 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
         </>
       )}
       {subTab === 'unidades' && (
-        <UnidadesManager orgId={orgId} modo="settings" onChange={lista => { setUnidades(lista); onUnidadesChange?.(lista) }} />
+        <UnidadesManager orgId={orgId} orgSlug={orgSlug} modo="settings" onChange={lista => { setUnidades(lista); onUnidadesChange?.(lista) }} />
       )}
       {subTab === 'dados' && (
         <TabDados org={org} onSalvo={() => onOrgRefresh?.()} />

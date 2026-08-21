@@ -6,11 +6,12 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        home:   'index.html',
-        painel: 'painel.html',
-        pedido: 'pedido.html',
-        ajuda:  'ajuda.html',
-        gestor: 'gestor.html',
+        home:    'index.html',
+        painel:  'painel.html',
+        pedido:  'pedido.html',
+        ajuda:   'ajuda.html',
+        gestor:  'gestor.html',
+        entrega: 'entrega.html',
       }
     }
   }

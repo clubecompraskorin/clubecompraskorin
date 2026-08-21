@@ -9,8 +9,9 @@
 > "fora da tabela" sinalizado na UI da coordenadora; cadastro leve de clientes criado; unidade de
 > retirada agora obrigatória nos 3 fluxos de pedido; código morto de entrega removido; nome/
 > telefone/unidade visíveis nas 3 etapas do fluxo de entrega; encerramento de pedidos por unidade
-> e export consolidado implementados; matemática das planilhas validada; e renomear/excluir
-> unidade corrigidos — renomear propaga, excluir bloqueia com histórico).
+> e export consolidado implementados; matemática das planilhas validada; renomear/excluir
+> unidade corrigidos — renomear propaga, excluir bloqueia com histórico; e link de entrega por
+> PIN pro representante da unidade implementado — separação/entrega sem login completo).
 
 ---
 
@@ -398,33 +399,83 @@ filtro/export silenciosamente (achado documentado acima).
 
 ---
 
+## Link de entrega por PIN pro representante da unidade — implementado
+
+**Contexto trazido pelo Junior**: nem toda coordenadora entrega pessoalmente. Em algumas
+unidades, um representante local pega o lote de pedidos daquela unidade num dia combinado e
+entrega pros clientes de lá — a coordenadora não está presente pra separar/dar baixa.
+
+**Opção escolhida (dentre 3 propostas)**: link público por unidade, protegido por PIN, sem
+login completo, reaproveitando a mesma lógica de negócio do `ModoEntrega` do painel — a lista
+de pedidos pendentes da unidade serve tanto de lista de separação quanto de tela de confirmação
+de entrega, escrevendo na mesma tabela `korin_pedidos` que a coordenadora já vê em tempo real.
+
+**Decisões confirmadas pelo Junior**: PIN variável por unidade (não fixo pro grupo todo);
+registra quem confirmou cada entrega (`entregue_por`); link deve ser instalável como PWA igual
+ao catálogo.
+
+**O que foi construído**:
+- **Banco** (migração `add_pin_entrega_e_entregue_por`, já aplicada em produção):
+  `org_unidades.pin_entrega` (texto, nulo = link ainda não habilitado nessa unidade) e
+  `korin_pedidos.entregue_por` (texto). A política pública de `org_unidades` foi trocada por uma
+  view `org_unidades_publicas` (sem `pin_entrega`) com `GRANT SELECT` pra `anon` — mesmo padrão
+  já usado em `organizacoes_publicas`, garantindo que o PIN nunca vaza pra leitura anônima.
+  `CatalogoApp.jsx` foi migrado pra ler dessa view (`getUnidadesPublicas`) em vez da tabela
+  direta, que passou a exigir login.
+- **`UnidadesManager.jsx`**: cada unidade agora tem um bloco "Link de entrega (representante)" —
+  botão pra gerar (PIN de 4 dígitos aleatório), link copiável (`/{slug}/entrega?u={unidadeId}`),
+  e botão pra trocar o PIN a qualquer momento (ex: trocou o representante).
+- **`api/entrega-lista.js`** e **`api/entrega-confirmar.js`**: endpoints públicos (service_role,
+  mesmo padrão de `api/pedido.js`) que revalidam PIN + unidade + organização + período corrente
+  no servidor antes de listar ou alterar qualquer pedido — nunca confiam no que o cliente manda.
+- **`entrega.html` / `src/entrega.jsx` / `src/EntregaApp.jsx`**: nova página pública. Tela de
+  entrada pede nome do representante + PIN (ambos salvos no `localStorage` do aparelho pra não
+  pedir de novo); depois mostra a lista de pendentes/entregues da unidade (mesmo formato da tela
+  "Entregas" do painel) e reaproveita o fluxo de 3 etapas (ajustar itens → pagamento →
+  confirmação) — só que gravando via API pública em vez do cliente Supabase autenticado.
+  Instalável como PWA (`api/manifest-entrega.js` + `public/sw-entrega.js`, `start_url` já carrega
+  o id da unidade pra abrir direto nela).
+- **Painel da coordenadora**: `finalizarEntrega` (`App.jsx`) agora grava `entregue_por` com o
+  nome da coordenadora (`org.responsavelNome`) quando ela mesma confirma a entrega; a lista
+  "Entregues" mostra "Por {nome}" quando preenchido.
+- `npx vite build` validado sem erro.
+- **Status no GitHub**: branch `feat/entrega-representante-por-unidade`, ainda não mesclada —
+  aguardando teste real e confirmação do Junior antes do merge.
+
+---
+
 ## Pendente / próximos passos
 
-1. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
+1. **Testar de verdade o link de entrega por PIN**: gerar um link numa unidade, abrir como
+   representante (nome + PIN), separar/entregar um pedido de teste e conferir que aparece em
+   tempo real na tela "Entregas" do painel com `entregue_por` preenchido; testar PIN errado,
+   trocar PIN e confirmar que o antigo para de funcionar, e a instalação como PWA a partir do
+   link (deve abrir direto na unidade certa).
+2. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
    categorias, se o preview mostra tudo certo, se salva corretamente. Testar também o bloqueio de
    remoção de produto com pedido vinculado, o aviso de código reaproveitado, e o novo selo de
    "fora da tabela" (Produtos e Embalagens).
-2. **Decidir se o catálogo público também deve sinalizar/esconder produto "fora da tabela"** —
+3. **Decidir se o catálogo público também deve sinalizar/esconder produto "fora da tabela"** —
    hoje ele continua comprável por qualquer cliente novo mesmo sem estar na última importação.
-3. **Atualizar o artefato publicado** com a feature de importação por planilha e com os gaps de
-   integridade produto↔pedido (documentado em markdown no repo, artefato visual ainda não
-   reflete).
-4. **Gap de offline-first do Sistema 2** (identificado no comparativo): existe uma proposta
+4. **Atualizar o artefato publicado** com a feature de importação por planilha, com os gaps de
+   integridade produto↔pedido e com o link de entrega por PIN (documentado em markdown no repo,
+   artefato visual ainda não reflete).
+5. **Gap de offline-first do Sistema 2** (identificado no comparativo): existe uma proposta
    técnica desenhada (fila de escrita por "intenção", documentada no artefato) mas **nada foi
    implementado**. Ainda não há decisão de seguir com isso.
-5. **Próximas partes do fluxo de campo ainda não totalmente levantadas**: como os outros
+6. **Próximas partes do fluxo de campo ainda não totalmente levantadas**: como os outros
    coordenadores captam pedido dos membros (coberto), como fecham/enviam o consolidado pra Korin
    (levantamento feito, encerramento por unidade e export consolidado implementados).
-6. **Aguardando o Junior trazer o requisito de uso futuro do cadastro de clientes** — a base
+7. **Aguardando o Junior trazer o requisito de uso futuro do cadastro de clientes** — a base
    (tabela + upsert automático + autocomplete) já está funcionando, mas nenhuma tela de gestão foi
    desenhada de propósito, até saber o que de fato vai ser construído em cima disso.
-7. **Testar de verdade o encerramento por unidade**: fechar uma unidade e confirmar que bloqueia
+8. **Testar de verdade o encerramento por unidade**: fechar uma unidade e confirmar que bloqueia
    pedido novo nos 3 caminhos (catálogo, manual, colado) sem travar pedido/entrega já existente;
    testar reabrir.
-8. **Testar de verdade o export consolidado**: gerar planilha "Pedido único" com 2+ unidades
+9. **Testar de verdade o export consolidado**: gerar planilha "Pedido único" com 2+ unidades
    marcadas e conferir que soma certo (quantidade e embalagens fechadas), e que "Separado por
    unidade" continua idêntico ao de antes.
-9. **Testar de verdade renomear/excluir unidade**: renomear uma unidade com pedido vinculado e
+10. **Testar de verdade renomear/excluir unidade**: renomear uma unidade com pedido vinculado e
    conferir que o pedido acompanha o nome novo (e que período arquivado não muda); tentar excluir
    unidade com histórico e conferir que bloqueia com a mensagem certa; excluir unidade sem
    histórico e conferir que continua funcionando normal.
