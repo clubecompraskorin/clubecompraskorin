@@ -14,7 +14,8 @@
 > PIN pro representante da unidade implementado — separação/entrega sem login completo; e gap de
 > estoque/sobra entre caixa fechada e pedido real endereçado — sobra do período anterior visível
 > (informativo, não trava nada) e opção de confirmar a compra real enviada pra Korin,
-> substituindo a estimativa).
+> substituindo a estimativa; e logo oficial nova aplicada em todo o sistema — headers, ícones
+> PWA, favicon (novo) e imagem de compartilhamento no WhatsApp).
 
 ---
 
@@ -486,13 +487,8 @@ continua sendo a coordenadora.
   em branco pra coordenadora preencher e devolver). Mostra pré-visualização antes de salvar
   (código, quantidade, produtos não encontrados no catálogo) e pede pra marcar quais unidades
   aquele envio atende, antes de confirmar.
-- **⚠️ Ponto de atenção não testado com arquivo real**: a coluna D como `QTDE (CX)` foi inferida
-  pela estrutura já validada do parser (`B`=cód, `C`=descrição, `E`=custo, `F`=venda — `D` é a
-  única coluna "pulada" nesse trecho, e bate com a contagem de 9 colunas da seção "Ação Social"
-  documentada em `docs/PLANEJAMENTO-IMPORTACAO-PLANILHA-KORIN.md`), **não confirmada contra uma
-  planilha real preenchida e enviada pela coordenadora**. A pré-visualização antes de salvar é a
-  proteção contra isso (nada é gravado sem ela ver os números primeiro), mas o ideal é testar
-  com uma planilha real assim que possível e ajustar a coluna se necessário.
+- **Coluna `QTDE (CX)` = coluna D confirmada pelo Junior** — a inferência (feita a partir da
+  estrutura já validada do parser, sem testar contra arquivo real) estava certa.
 - `npx vite build` validado sem erro.
 - **Status no GitHub: mesclada na `main`.** Commit da feature: `21f9aa8`
   (branch `feat/sobra-e-compra-confirmada`). Merge commit na `main`: `2741a2e`
@@ -500,50 +496,81 @@ continua sendo a coordenadora.
 
 ---
 
+## Logo oficial nova aplicada em todo o sistema — implementado
+
+O Junior forneceu a logo oficial (`public/logo_clube_compras_korin.png`, 295×195, fundo branco),
+substituindo a marca antiga (o "pote/lata Korin" que era usada até então). Aplicada em:
+
+- **Headers do app**: painel (`App.jsx`), catálogo público (`CatalogoApp.jsx`), tela de entrega
+  por PIN (`EntregaApp.jsx`), home (`Home.jsx`) e ajuda (`Ajuda.jsx`) — logo em tamanho natural
+  nos espaços largos (`h-X w-auto`).
+- **Ícones PWA e favicon**: como a logo nova é retangular (a antiga era praticamente quadrada),
+  gerada uma versão quadrada derivada com margem de segurança (fundo branco, logo ocupando ~60%
+  do canvas, centralizada) — usada em `icon-192.png`, `icon-512.png` (mantém `purpose: maskable`
+  sem cortar o desenho) e no novo `apple-touch-icon.png` (180×180). **Favicon não existia antes**
+  — criado `favicon.ico` (16/32px) + fallback PNG, linkado em todas as páginas.
+- **Espaços quadrados inline** (ícone de instalação no banner PWA, badge de navbar em
+  Home/Ajuda) trocados de `/logo-korin.png` pra `/icon-192.png` — usar a logo retangular ali
+  esticaria/cortaria o desenho.
+- **Compartilhamento de link no WhatsApp** (`og-image.png`, 1200×630): banner de marketing já
+  existente mantido, só o badge pequeno da logo (canto superior esquerdo) foi recortado e
+  substituído pela logo nova — não foi redesenhado do zero.
+- **Cache dos service workers versionado** (`sw-catalogo.js` v1→v2, `sw-entrega.js` v1→v2,
+  `sw.js` v7→v8) — sem isso, quem já tem o PWA instalado continuaria vendo os ícones antigos até
+  o cache expirar sozinho.
+- `npx vite build` validado sem erro; preview de `og-image.png`, `icon-192.png` e
+  `apple-touch-icon.png` enviado pro Junior antes do merge.
+- **Status no GitHub: mesclada na `main`.** Commit: `9a599e3`
+  (branch `chore/atualiza-logo-clube-compras-korin`). Merge commit na `main`: `f33f18e`
+  (`25c965f..f33f18e`).
+
+---
+
 ## Pendente / próximos passos
 
-1. **Testar de verdade a coluna QTDE (CX)**: confirmar com uma planilha real, já enviada pra
-   Korin por alguma coordenadora, que a coluna D é mesmo onde a quantidade comprada fica —
-   ajustar `COLS.qtdeCaixa` em `src/lib/importarPlanilha.js` se não for.
-2. **Testar de verdade o link de entrega por PIN**: gerar um link numa unidade, abrir como
+1. **Testar de verdade o link de entrega por PIN**: gerar um link numa unidade, abrir como
    representante (nome + PIN), separar/entregar um pedido de teste e conferir que aparece em
    tempo real na tela "Entregas" do painel com `entregue_por` preenchido; testar PIN errado,
    trocar PIN e confirmar que o antigo para de funcionar, e a instalação como PWA a partir do
    link (deve abrir direto na unidade certa).
-3. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
+2. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
    categorias, se o preview mostra tudo certo, se salva corretamente. Testar também o bloqueio de
    remoção de produto com pedido vinculado, o aviso de código reaproveitado, e o novo selo de
    "fora da tabela" (Produtos e Embalagens).
-4. **Decidir se o catálogo público também deve sinalizar/esconder produto "fora da tabela"** —
+3. **Decidir se o catálogo público também deve sinalizar/esconder produto "fora da tabela"** —
    hoje ele continua comprável por qualquer cliente novo mesmo sem estar na última importação.
-5. **Atualizar o artefato publicado** com a feature de importação por planilha, com os gaps de
+4. **Atualizar o artefato publicado** com a feature de importação por planilha, com os gaps de
    integridade produto↔pedido, com o link de entrega por PIN e com o gap de estoque/compra
    confirmada (documentado em markdown no repo, artefato visual ainda não reflete).
-6. **Gap de offline-first do Sistema 2** (identificado no comparativo): existe uma proposta
+5. **Gap de offline-first do Sistema 2** (identificado no comparativo): existe uma proposta
    técnica desenhada (fila de escrita por "intenção", documentada no artefato) mas **nada foi
    implementado**. Ainda não há decisão de seguir com isso.
-7. **Próximas partes do fluxo de campo ainda não totalmente levantadas**: como os outros
+6. **Próximas partes do fluxo de campo ainda não totalmente levantadas**: como os outros
    coordenadores captam pedido dos membros (coberto), como fecham/enviam o consolidado pra Korin
    (levantamento feito, encerramento por unidade e export consolidado implementados).
-8. **Aguardando o Junior trazer o requisito de uso futuro do cadastro de clientes** — a base
+7. **Aguardando o Junior trazer o requisito de uso futuro do cadastro de clientes** — a base
    (tabela + upsert automático + autocomplete) já está funcionando, mas nenhuma tela de gestão foi
    desenhada de propósito, até saber o que de fato vai ser construído em cima disso.
-9. **Testar de verdade o encerramento por unidade**: fechar uma unidade e confirmar que bloqueia
+8. **Testar de verdade o encerramento por unidade**: fechar uma unidade e confirmar que bloqueia
    pedido novo nos 3 caminhos (catálogo, manual, colado) sem travar pedido/entrega já existente;
    testar reabrir.
-10. **Testar de verdade o export consolidado**: gerar planilha "Pedido único" com 2+ unidades
+9. **Testar de verdade o export consolidado**: gerar planilha "Pedido único" com 2+ unidades
    marcadas e conferir que soma certo (quantidade e embalagens fechadas), e que "Separado por
    unidade" continua idêntico ao de antes.
-11. **Testar de verdade renomear/excluir unidade**: renomear uma unidade com pedido vinculado e
+10. **Testar de verdade renomear/excluir unidade**: renomear uma unidade com pedido vinculado e
    conferir que o pedido acompanha o nome novo (e que período arquivado não muda); tentar excluir
    unidade com histórico e conferir que bloqueia com a mensagem certa; excluir unidade sem
    histórico e conferir que continua funcionando normal.
-12. **PDV / estoque persistente por unidade (modo "feira")** — deliberadamente deixado de fora
+11. **PDV / estoque persistente por unidade (modo "feira")** — deliberadamente deixado de fora
    desta rodada. Só faz sentido desenhar quando houver mais clareza de quantas coordenadoras
    realmente operam em venda contínua (não pedido único/data única). Ver conversa no histórico
    da sessão pra contexto completo do desenho pensado (PDV como atalho de lançamento rápido,
    ainda gravando em `korin_pedidos`, com estoque persistente isolado só pra unidade que ligar
    esse modo — sem afetar o fluxo padrão).
+12. **Conferir visualmente a logo nova em produção**: preview de compartilhamento no WhatsApp de
+   verdade (link do `/painel` ou `/pedido`), favicon na aba do navegador, ícone do PWA instalado
+   na tela inicial (Android/iOS) — só validei os arquivos estáticos, não o comportamento real de
+   cache/preview de cada plataforma.
 
 ---
 
