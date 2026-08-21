@@ -399,13 +399,13 @@ function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, on
           className="w-full pl-9 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-green-500 shadow-sm" />
       </div>
 
-      <div className="flex gap-2 items-center">
+      <div className="flex flex-wrap gap-2 items-center">
         {[['todos', 'Todos'], ['pendente', 'Pendentes'], ['entregue', 'Entregues']].map(([v, l]) => (
           <button key={v} onClick={() => setFiltro(v)}
             className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${filtro === v ? 'bg-green-700 text-white' : 'bg-white text-stone-500 border border-stone-200'}`}>{l}</button>
         ))}
         {pedidos.some(p => p.status === 'pendente') && (
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2 flex-wrap">
             <select value={filtroImpressao} onChange={e => setFiltroImpressao(e.target.value)}
               className="border border-stone-200 rounded-full px-2.5 py-1.5 text-xs font-bold bg-white focus:outline-none focus:border-green-500">
               <option value="Todas">Todas unidades</option>
