@@ -10,8 +10,11 @@
 > retirada agora obrigatória nos 3 fluxos de pedido; código morto de entrega removido; nome/
 > telefone/unidade visíveis nas 3 etapas do fluxo de entrega; encerramento de pedidos por unidade
 > e export consolidado implementados; matemática das planilhas validada; renomear/excluir
-> unidade corrigidos — renomear propaga, excluir bloqueia com histórico; e link de entrega por
-> PIN pro representante da unidade implementado — separação/entrega sem login completo).
+> unidade corrigidos — renomear propaga, excluir bloqueia com histórico; link de entrega por
+> PIN pro representante da unidade implementado — separação/entrega sem login completo; e gap de
+> estoque/sobra entre caixa fechada e pedido real endereçado — sobra do período anterior visível
+> (informativo, não trava nada) e opção de confirmar a compra real enviada pra Korin,
+> substituindo a estimativa).
 
 ---
 
@@ -445,41 +448,100 @@ ao catálogo.
 
 ---
 
+## Sobra entre caixa fechada e pedido real + compra confirmada — implementado
+
+**Contexto trazido pelo Junior**: a Korin só vende caixa fechada. Se venderam 15 unidades de um
+produto e a caixa vem 10, ela compra 2 caixas (20 un.) e sobra 5, que hoje ela controla de
+cabeça/no papel — o sistema não guardava esse número em lugar nenhum, e ele se perdia a cada
+período novo (pior ainda: `criar_periodo_com_copia` copiava `caixas_abertas` cru do período
+anterior pro novo, sem descontar o que já tinha sido vendido — um número enganoso, não a sobra
+real). Separado disso, também identificamos que o sistema nunca registrava o que foi de fato
+**comprado/recebido** da Korin — só a estimativa calculada a partir dos pedidos.
+
+**Decisão de escopo** (confirmada pelo Junior): implementar só isso agora — carry-forward de
+sobra + confirmação de compra real — **sem tocar no PDV/estoque persistente por unidade**
+(ficou registrado como ideia pra quando houver mais clareza de quantas coordenadoras operam em
+modo "feira" contínua, ver Pendente). E confirmado explicitamente: **isso é só controle,
+não trava nada** — a sobra é só informativa; quem decide quantas caixas marcar como abertas
+continua sendo a coordenadora.
+
+**O que foi construído**:
+- **Banco**: `periodo_produtos.compra_confirmada_und` (unidades, nulo = usa estimativa) e
+  `compra_confirmada_unidades` (texto[], nomes das unidades que aquela compra atende —
+  informativo). Deliberadamente fora do upsert genérico de produto (`produtoToDb`) — só
+  `registrarCompraConfirmada()` escreve nessas colunas, pra edição comum de embalagem ou
+  reimportação de catálogo nunca apagar sem querer.
+- **`getSobraPeriodoAnterior(orgId, periodoAtualId)`** (`src/lib/periodos.js`): busca o período
+  arquivado mais recente da org, calcula sobra por produto = `compra_confirmada_und` (se
+  existir) ou estimativa (pedidos arredondados pra caixa fechada) **menos** o total pedido
+  naquele período. Mostrado como badge informativo na aba Web → Produtos/Embalagens: "📦
+  Sobrou N un. do período anterior — considere antes de marcar caixas abertas". Não altera
+  `caixasAbertas` sozinho, não bloqueia nada.
+- **`registrarCompraConfirmada(periodoId, itens, unidadesAtendidas)`**: registra a quantidade
+  real comprada, casada por código de produto. **Sempre substitui** o que já estava gravado
+  pro período (não soma) — decisão explícita do Junior.
+- **Reimportação da planilha realmente enviada pra Korin** (aba Web → Resumo → "📥 Confirmar o
+  que foi realmente comprado"): reaproveita o mesmo parser da importação de catálogo
+  (`parseTabelaKorin`), agora também lendo a coluna `QTDE (CX)` (coluna D — a que a Korin deixa
+  em branco pra coordenadora preencher e devolver). Mostra pré-visualização antes de salvar
+  (código, quantidade, produtos não encontrados no catálogo) e pede pra marcar quais unidades
+  aquele envio atende, antes de confirmar.
+- **⚠️ Ponto de atenção não testado com arquivo real**: a coluna D como `QTDE (CX)` foi inferida
+  pela estrutura já validada do parser (`B`=cód, `C`=descrição, `E`=custo, `F`=venda — `D` é a
+  única coluna "pulada" nesse trecho, e bate com a contagem de 9 colunas da seção "Ação Social"
+  documentada em `docs/PLANEJAMENTO-IMPORTACAO-PLANILHA-KORIN.md`), **não confirmada contra uma
+  planilha real preenchida e enviada pela coordenadora**. A pré-visualização antes de salvar é a
+  proteção contra isso (nada é gravado sem ela ver os números primeiro), mas o ideal é testar
+  com uma planilha real assim que possível e ajustar a coluna se necessário.
+- `npx vite build` validado sem erro.
+- **Status no GitHub**: branch `feat/sobra-e-compra-confirmada`, ainda não mesclada.
+
+---
+
 ## Pendente / próximos passos
 
-1. **Testar de verdade o link de entrega por PIN**: gerar um link numa unidade, abrir como
+1. **Testar de verdade a coluna QTDE (CX)**: confirmar com uma planilha real, já enviada pra
+   Korin por alguma coordenadora, que a coluna D é mesmo onde a quantidade comprada fica —
+   ajustar `COLS.qtdeCaixa` em `src/lib/importarPlanilha.js` se não for.
+2. **Testar de verdade o link de entrega por PIN**: gerar um link numa unidade, abrir como
    representante (nome + PIN), separar/entregar um pedido de teste e conferir que aparece em
    tempo real na tela "Entregas" do painel com `entregue_por` preenchido; testar PIN errado,
    trocar PIN e confirmar que o antigo para de funcionar, e a instalação como PWA a partir do
    link (deve abrir direto na unidade certa).
-2. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
+3. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
    categorias, se o preview mostra tudo certo, se salva corretamente. Testar também o bloqueio de
    remoção de produto com pedido vinculado, o aviso de código reaproveitado, e o novo selo de
    "fora da tabela" (Produtos e Embalagens).
-3. **Decidir se o catálogo público também deve sinalizar/esconder produto "fora da tabela"** —
+4. **Decidir se o catálogo público também deve sinalizar/esconder produto "fora da tabela"** —
    hoje ele continua comprável por qualquer cliente novo mesmo sem estar na última importação.
-4. **Atualizar o artefato publicado** com a feature de importação por planilha, com os gaps de
-   integridade produto↔pedido e com o link de entrega por PIN (documentado em markdown no repo,
-   artefato visual ainda não reflete).
-5. **Gap de offline-first do Sistema 2** (identificado no comparativo): existe uma proposta
+5. **Atualizar o artefato publicado** com a feature de importação por planilha, com os gaps de
+   integridade produto↔pedido, com o link de entrega por PIN e com o gap de estoque/compra
+   confirmada (documentado em markdown no repo, artefato visual ainda não reflete).
+6. **Gap de offline-first do Sistema 2** (identificado no comparativo): existe uma proposta
    técnica desenhada (fila de escrita por "intenção", documentada no artefato) mas **nada foi
    implementado**. Ainda não há decisão de seguir com isso.
-6. **Próximas partes do fluxo de campo ainda não totalmente levantadas**: como os outros
+7. **Próximas partes do fluxo de campo ainda não totalmente levantadas**: como os outros
    coordenadores captam pedido dos membros (coberto), como fecham/enviam o consolidado pra Korin
    (levantamento feito, encerramento por unidade e export consolidado implementados).
-7. **Aguardando o Junior trazer o requisito de uso futuro do cadastro de clientes** — a base
+8. **Aguardando o Junior trazer o requisito de uso futuro do cadastro de clientes** — a base
    (tabela + upsert automático + autocomplete) já está funcionando, mas nenhuma tela de gestão foi
    desenhada de propósito, até saber o que de fato vai ser construído em cima disso.
-8. **Testar de verdade o encerramento por unidade**: fechar uma unidade e confirmar que bloqueia
+9. **Testar de verdade o encerramento por unidade**: fechar uma unidade e confirmar que bloqueia
    pedido novo nos 3 caminhos (catálogo, manual, colado) sem travar pedido/entrega já existente;
    testar reabrir.
-9. **Testar de verdade o export consolidado**: gerar planilha "Pedido único" com 2+ unidades
+10. **Testar de verdade o export consolidado**: gerar planilha "Pedido único" com 2+ unidades
    marcadas e conferir que soma certo (quantidade e embalagens fechadas), e que "Separado por
    unidade" continua idêntico ao de antes.
-10. **Testar de verdade renomear/excluir unidade**: renomear uma unidade com pedido vinculado e
+11. **Testar de verdade renomear/excluir unidade**: renomear uma unidade com pedido vinculado e
    conferir que o pedido acompanha o nome novo (e que período arquivado não muda); tentar excluir
    unidade com histórico e conferir que bloqueia com a mensagem certa; excluir unidade sem
    histórico e conferir que continua funcionando normal.
+12. **PDV / estoque persistente por unidade (modo "feira")** — deliberadamente deixado de fora
+   desta rodada. Só faz sentido desenhar quando houver mais clareza de quantas coordenadoras
+   realmente operam em venda contínua (não pedido único/data única). Ver conversa no histórico
+   da sessão pra contexto completo do desenho pensado (PDV como atalho de lançamento rápido,
+   ainda gravando em `korin_pedidos`, com estoque persistente isolado só pra unidade que ligar
+   esse modo — sem afetar o fluxo padrão).
 
 ---
 

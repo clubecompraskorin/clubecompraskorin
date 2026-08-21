@@ -9,6 +9,7 @@
  *  - Período arquivado só aceita escrita depois de desarquivado.
  */
 import { supabase } from './supabase'
+import { getPedidos, getTotaisPorProduto } from './store'
 
 // ── MAPEAMENTO DB (snake_case) ↔ APP (camelCase) ─────────────────────────────
 const produtoFromDb = (row) => ({
@@ -22,8 +23,14 @@ const produtoFromDb = (row) => ({
   qtdCaixa: row.qtd_caixa || 0,
   caixasAbertas: row.caixas_abertas || 0,
   foraDaTabela: row.fora_da_tabela || false,
+  compraConfirmadaUnd: row.compra_confirmada_und ?? null,
+  compraConfirmadaUnidades: row.compra_confirmada_unidades || null,
 })
 
+// compra_confirmada_und/unidades deliberadamente FORA daqui — esse upsert é
+// usado por qualquer edição comum de produto (config de embalagem, reimportar
+// catálogo), e omitir a coluna faz o upsert preservar o valor já gravado em
+// vez de sobrescrever com null. Só registrarCompraConfirmada() escreve nela.
 const produtoToDb = (periodoId, p) => ({
   periodo_id: periodoId,
   cod: p.cod,
@@ -199,4 +206,82 @@ export async function substituirProdutosDoPeriodo(periodoId, produtosApp) {
 
     return { ok: true, produtos: (data || []).map(produtoFromDb), mantidosPorPedido }
   } catch (e) { return { ok: false, error: e.message } }
+}
+
+// ── COMPRA CONFIRMADA (planilha realmente enviada pra Korin) ────────────────
+/**
+ * Registra a quantidade de fato comprada da Korin (planilha enviada, não a
+ * estimativa dos pedidos) — por produto, casando por `cod`. Sempre SUBSTITUI
+ * o que já estava gravado pro produto naquele período (não soma): a
+ * coordenadora deve reimportar uma única planilha representando a compra
+ * completa do período; reimportar de novo sobrescreve a anterior.
+ * `itens`: [{ cod, qtdeCaixas }]. `unidadesAtendidas`: nomes das unidades
+ * (informativo, pra rastreabilidade de quando o envio cobre só parte delas).
+ */
+export async function registrarCompraConfirmada(periodoId, itens, unidadesAtendidas) {
+  if (!supabase || !periodoId) return { ok: false, error: 'Sem conexão com internet' }
+  try {
+    const { data: existentes, error: e1 } = await supabase
+      .from('periodo_produtos').select('id, cod, qtd_caixa').eq('periodo_id', periodoId)
+    if (e1) throw e1
+
+    const porCod = {}
+    ;(existentes || []).forEach(p => { porCod[p.cod] = p })
+
+    const atualizacoes = itens
+      .map(it => {
+        const prod = porCod[it.cod]
+        if (!prod || !prod.qtd_caixa) return null
+        return { id: prod.id, compra_confirmada_und: Math.round(it.qtdeCaixas * prod.qtd_caixa) }
+      })
+      .filter(Boolean)
+
+    if (!atualizacoes.length) return { ok: false, error: 'Nenhum produto da planilha bate com o catálogo deste período' }
+
+    const resultados = await Promise.all(atualizacoes.map(u =>
+      supabase.from('periodo_produtos')
+        .update({ compra_confirmada_und: u.compra_confirmada_und, compra_confirmada_unidades: unidadesAtendidas || null })
+        .eq('id', u.id)
+    ))
+    const falhou = resultados.find(r => r.error)
+    if (falhou) throw falhou.error
+
+    return { ok: true, atualizados: atualizacoes.length }
+  } catch (e) { return { ok: false, error: e.message } }
+}
+
+/**
+ * Sobra por produto (em unidades) do período arquivado mais recente da
+ * organização — puramente informativo, nunca usado pra travar nada. Prioriza
+ * compra_confirmada_und (planilha real enviada) quando existe; senão usa a
+ * mesma estimativa da tela "O que comprar" (pedidos arredondados pra caixa
+ * fechada). Retorna { [cod]: sobraEmUnidades }, só com sobra > 0.
+ */
+export async function getSobraPeriodoAnterior(orgId, periodoAtualId) {
+  if (!supabase || !orgId) return {}
+  try {
+    const { data: anteriores, error } = await supabase
+      .from('periodos').select('id').eq('org_id', orgId).eq('status', 'arquivado')
+      .neq('id', periodoAtualId || '00000000-0000-0000-0000-000000000000')
+      .order('created_at', { ascending: false }).limit(1)
+    if (error) throw error
+    if (!anteriores?.length) return {}
+
+    const periodoAnteriorId = anteriores[0].id
+    const [produtosAnt, pedidosAnt] = await Promise.all([
+      getProdutosDoPeriodo(periodoAnteriorId),
+      getPedidos(periodoAnteriorId),
+    ])
+    const totais = getTotaisPorProduto(pedidosAnt)
+
+    const porCod = {}
+    produtosAnt.forEach(p => {
+      if (!p.qtdCaixa) return
+      const totalPedido = totais[p.id] || 0
+      const compra = p.compraConfirmadaUnd ?? (p.qtdCaixa * Math.ceil(totalPedido / p.qtdCaixa))
+      const sobra = Math.max(0, compra - totalPedido)
+      if (sobra > 0) porCod[p.cod] = sobra
+    })
+    return porCod
+  } catch (e) { console.error(e); return {} }
 }
