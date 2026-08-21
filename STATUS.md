@@ -439,8 +439,9 @@ ao catálogo.
   nome da coordenadora (`org.responsavelNome`) quando ela mesma confirma a entrega; a lista
   "Entregues" mostra "Por {nome}" quando preenchido.
 - `npx vite build` validado sem erro.
-- **Status no GitHub**: branch `feat/entrega-representante-por-unidade`, ainda não mesclada —
-  aguardando teste real e confirmação do Junior antes do merge.
+- **Status no GitHub: mesclada na `main`.** Commit do fix/feature: `03aee7d`
+  (branch `feat/entrega-representante-por-unidade`). Merge commit na `main`: `b700503`
+  (`4e3e46f..b700503`).
 
 ---
 
