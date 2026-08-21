@@ -7,7 +7,8 @@
 > Última atualização: 21/08/2026 (gaps de integridade produto↔pedido registrados e corrigidos:
 > deleção de produto com pedido vinculado, código reaproveitado por produto diferente, produto
 > "fora da tabela" sinalizado na UI da coordenadora; cadastro leve de clientes criado; unidade de
-> retirada agora obrigatória nos 3 fluxos de pedido; e código morto de entrega removido).
+> retirada agora obrigatória nos 3 fluxos de pedido; código morto de entrega removido; e nome/
+> telefone/unidade agora visíveis nas 3 etapas do fluxo de entrega).
 
 ---
 
@@ -251,6 +252,23 @@ caminho de entrega continua sendo o `ModoEntrega` completo. `npx vite build` val
 **Status no GitHub: mesclada na `main`.** Commit do chore: `77149f6`
 (branch `chore/remove-entregarPedidoCombinado-morto`). Merge commit na `main`: `37af194`
 (`67f4b76..37af194`).
+
+---
+
+## Nome/telefone/unidade visíveis nas 3 etapas do fluxo de entrega
+
+Ao verificar o `ModoEntrega` (achado documentado no bloco anterior), ficou claro que nome do
+cliente aparecia nas 3 etapas, telefone só na etapa 1, e **unidade de retirada em nenhuma delas**
+— inclusive na etapa 3 (confirmação final, o clique que fecha o pedido de verdade). Com
+coordenadora gerenciando até 15 unidades, perder essa referência no meio do fluxo é risco real de
+confusão entre pedidos.
+
+**Correção aplicada** (`ModoEntrega`, `App.jsx`): header padronizado nas 3 etapas — nome (linha
+principal), telefone (quando existe) e `📍 unidade` sempre visíveis, do início ao fim da entrega.
+`npx vite build` validado sem erro.
+
+**Status no GitHub**: branch `feat/mostra-cliente-unidade-em-toda-entrega`, commit `c1fc23e`,
+aguardando merge — atualizar este bloco com o SHA do merge assim que for mesclado.
 
 ---
 
