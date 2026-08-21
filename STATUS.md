@@ -201,8 +201,9 @@ coordenadora e o cliente final — e cada passo/campo a mais é risco de desist�
 - `npx vite build` validado sem erro.
 - **Ainda não existe**: tela "Clientes" de gestão/consulta — combinado que o Junior traz o
   requisito de uso futuro antes de desenhar isso.
-- **Status no GitHub**: branch `feat/cadastro-leve-de-clientes`, commit `f5e29b7`, aguardando
-  merge — atualizar este bloco com o SHA do merge assim que for mesclado.
+- **Status no GitHub: mesclada na `main`.** Commit da feature: `f5e29b7`
+  (branch `feat/cadastro-leve-de-clientes`). Merge commit na `main`: `face932`
+  (`ebcf71f..face932`).
 
 ---
 
