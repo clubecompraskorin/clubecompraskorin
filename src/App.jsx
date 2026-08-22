@@ -15,6 +15,7 @@ import { ToastHost, ConfirmHost, toast, confirmar } from './lib/dialog'
 import { getUnidades } from './lib/unidades'
 import { listarClientes } from './lib/clientes'
 import UnidadesManager from './UnidadesManager'
+import ModoPdv from './Pdv'
 
 
 // ── SYNC BADGE ────────────────────────────────────────────────────────────────
@@ -50,6 +51,7 @@ export default function App({ org, onOrgRefresh }) {
   const [editProduto, setEditProduto] = useState(null)
   const [viewPedido, setViewPedido]   = useState(null)
   const [modoEntrega, setModoEntrega]     = useState(null)
+  const [modoPdv, setModoPdv]             = useState(false)
   const [periodosLista, setPeriodosLista] = useState([])
   const [periodoViz, setPeriodoViz]       = useState(null)   // período (objeto) sendo visualizado; null = corrente
   const [pedidosViz, setPedidosViz]       = useState(null)
@@ -286,7 +288,7 @@ export default function App({ org, onOrgRefresh }) {
             </button>
           </div>
         )}
-        {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} unidades={nomesUnidades} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} />}
+        {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} onIniciarPdv={() => setModoPdv(true)} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} unidades={nomesUnidades} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} />}
         {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} unidades={nomesUnidades} />}
         {tab === 'produtos'   && <ProdutosScreen  produtos={produtos} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} />}
         {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} periodoObj={periodoObjAtivo} isCorrente={!isHistorico} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} orgId={orgId} periodoAtualId={periodoObjAtivo?.id} />}
@@ -340,6 +342,15 @@ export default function App({ org, onOrgRefresh }) {
           />
         </div>
       )}
+
+      {/* MODO PDV — venda no local (feira/culto), overlay global, só no período corrente */}
+      {modoPdv && periodoCorrente && (
+        <ModoPdv
+          orgId={orgId} org={org} periodo={periodoCorrente} produtos={produtos} unidades={unidades} pedidos={pedidos}
+          onSalvo={recarregarTudo}
+          onSair={() => setModoPdv(false)}
+        />
+      )}
     </div>
   )
 }
@@ -368,7 +379,7 @@ function PeriodoNav({ periodoCorrente, periodoViz, periodosLista, onChange, load
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: PEDIDOS
 // ═══════════════════════════════════════════════════════════════════════════════
-function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, onView, onIniciarEntrega, onPrintTodos, isHistorico, periodoNav, unidades = [], filtroImpressao, setFiltroImpressao }) {
+function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, onView, onIniciarEntrega, onIniciarPdv, onPrintTodos, isHistorico, periodoNav, unidades = [], filtroImpressao, setFiltroImpressao }) {
   const [busca, setBusca]   = useState('')
   const [filtro, setFiltro] = useState('todos')
 
@@ -387,6 +398,12 @@ function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, on
         <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-2.5 text-center">
           <div className="text-sm font-bold text-amber-700">👁️ Histórico — somente leitura</div>
         </div>
+      )}
+      {!isHistorico && onIniciarPdv && (
+        <button onClick={onIniciarPdv}
+          className="w-full py-3 bg-green-700 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-2 active:bg-green-800">
+          🎪 Iniciar venda no local (PDV)
+        </button>
       )}
       <div className="grid grid-cols-3 gap-2">
         <Stat label="Pedidos"  value={pedidos.length} color="green" />
