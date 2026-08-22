@@ -967,7 +967,7 @@ function DashboardScreen({ pedidos, produtos, unidades = [], orgId, periodoAtual
           <div className="text-xs font-black text-stone-400 uppercase tracking-widest mb-1">Origem</div>
           {[['whatsapp','📋 WhatsApp'],['catalogo','🌐 Catálogo']].map(([orig, label]) => {
             const grp = porOrigem[orig]; if (!grp?.length) return null
-            return <div key={orig} className="flex justify-between text-sm"><span className="font-semibold text-stone-700">{label} · {grp.length} pedidos</span><span className="font-black text-green-700">{fmt(grp.reduce((s,p)=>s+getVal(p),0))}</span></div>
+            return <div key={orig} className="flex justify-between text-sm"><span className="font-semibold text-stone-700">{label} · {grp.length} pedido{grp.length!==1?'s':''}</span><span className="font-black text-green-700">{fmt(grp.reduce((s,p)=>s+getVal(p),0))}</span></div>
           })}
         </div>
 
@@ -998,7 +998,9 @@ function DashboardScreen({ pedidos, produtos, unidades = [], orgId, periodoAtual
             ))}
             {prodList.length > 5 && <>
               <div className="text-xs font-black text-stone-400 uppercase tracking-widest my-3">Menos vendidos</div>
-              {prodList.slice(-Math.min(5,prodList.length)).reverse().map((p,i) => (
+              {/* Só entre os que já não apareceram no "Top produtos" acima (ranks 6+) —
+                  senão, com poucos produtos no catálogo, as duas listas quase se repetem. */}
+              {prodList.slice(5).slice(-5).reverse().map((p,i) => (
                 <div key={`b${p.cod}`} className="flex items-center gap-2 py-2 border-b border-stone-50 last:border-0">
                   <span className="text-sm font-black text-stone-300 w-5">{prodList.length-i}</span>
                   <div className="flex-1 min-w-0"><div className="text-sm font-semibold text-stone-600 truncate">{p.nome}</div><div className="text-xs text-stone-300">{p.qty} un.</div></div>
@@ -1180,6 +1182,7 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
   const getV = p => calcTotal(p, produtos)
   const getCusto = p => p.itens.reduce((s, it) => { const pr = produtos.find(x => x.id === it.produtoId); return s + (pr?.precoCusto || 0) * it.qty }, 0)
   const total       = pedidosResumo.reduce((s, p) => s + getV(p), 0)
+  const totalItensResumo = pedidosResumo.reduce((s, p) => s + p.itens.reduce((a, i) => a + i.qty, 0), 0)
   const totalCusto  = pedidosResumo.reduce((s, p) => s + getCusto(p), 0)
   const valorLiq    = total - totalCusto
   const margem      = total > 0 && totalCusto > 0 ? ((valorLiq / total) * 100).toFixed(1) : null
@@ -1246,7 +1249,7 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
           <div className="text-xs font-black text-green-400 uppercase tracking-widest">Total de vendas</div>
           <div className="text-5xl font-black">{fmt(total)}</div>
           <div className="text-sm text-green-300 mt-1">
-            {pedidosResumo.length} pedidos · {pedidosResumo.reduce((s, p) => s + p.itens.reduce((a, i) => a + i.qty, 0), 0)} itens
+            {pedidosResumo.length} pedido{pedidosResumo.length!==1?'s':''} · {totalItensResumo} {totalItensResumo!==1?'itens':'item'}
           </div>
         </div>
         {totalCusto > 0 && (
