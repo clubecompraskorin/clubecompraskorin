@@ -24,7 +24,8 @@
 > guardada no aparelho e reenviada sozinha quando a internet voltar, com id de idempotência
 > pro pedido novo do catálogo nunca duplicar; correções pequenas de UX no painel real (logo
 > na tela de login, destaque no botão Entregar, plural e duplicação no Dashboard) e um bug
-> real de auth corrigido (a tela resetava sozinha toda vez que voltava o foco da aba); e
+> real de auth corrigido (a tela resetava sozinha toda vez que voltava o foco da aba) — **Junior
+> confirmou em teste real que resolveu de vez**; e
 > **estoque real não-travante + PDV ágil pra feira/culto implementados e mesclados na `main`**:
 > sobra do período anterior agora é um número vivo (some ao estoque disponível o tempo todo, não
 > só um aviso no início do mês seguinte) e existe um modo de venda rápida em tela cheia, com
