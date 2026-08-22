@@ -30,7 +30,8 @@
 > sobra do período anterior agora é um número vivo (some ao estoque disponível o tempo todo, não
 > só um aviso no início do mês seguinte) e existe um modo de venda rápida em tela cheia, com
 > estoque alocado por unidade religiosa (nova tabela `unidade_estoque_pdv`, sem mexer no pool
-> orçamentário por organização que já existia) (ver seção dedicada).
+> orçamentário por organização que já existia) (ver seção dedicada); e a **página inicial ganhou
+> uma seção de gancho** pro PDV, com print real da tela de venda e nova pergunta no FAQ.
 
 ---
 
@@ -829,6 +830,10 @@ dobrada no número, e os 6 passos do fluxo do PDV) antes do merge.
   antes de autorizar o merge ("PODE MERGER TUDO E PUSH").
 - **Ainda não testado em produção de verdade** (venda real numa feira/culto) — ver item 12 em
   Pendente.
+- **Gancho na página inicial**: nova seção "Feira, bazar ou dia de culto? Venda direto no celular,
+  sem parar a fila" (com print real do PDV, gerado via harness descartável) e nova pergunta no FAQ
+  rápido. Commit `3291d56` (branch `feat/home-gancho-pdv-estoque`), merge `f901dbc` na `main`.
+  Build validado (`npx vite build`) e revisão visual desktop+mobile via Playwright antes do merge.
 
 ---
 
