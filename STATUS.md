@@ -19,10 +19,14 @@
 > proporcional em CSS puro nos rankings — sem instalar biblioteca de gráfico; **auditoria
 > completa de responsividade** (mobile/tablet/desktop) em todas as telas do app e na landing
 > page — único problema real encontrado (overflow do filtro de Pedidos no mobile) corrigido;
-> e **reenvio automático offline nos 2 pontos "de rua"** (checkout do catálogo pelo membro,
+> **reenvio automático offline nos 2 pontos "de rua"** (checkout do catálogo pelo membro,
 > confirmação de entrega pelo representante) — se a conexão cair no meio da ação, ela é
 > guardada no aparelho e reenviada sozinha quando a internet voltar, com id de idempotência
-> pro pedido novo do catálogo nunca duplicar.
+> pro pedido novo do catálogo nunca duplicar; correções pequenas de UX no painel real (logo
+> na tela de login, destaque no botão Entregar, plural e duplicação no Dashboard) e um bug
+> real de auth corrigido (a tela resetava sozinha toda vez que voltava o foco da aba); e
+> **desenho pronto (ainda não implementado) de estoque real não-travante + PDV ágil pra
+> feira/culto** — falta só o Junior confirmar se seguimos pra construir (ver seção dedicada).
 
 ---
 
@@ -727,6 +731,80 @@ sozinho quando a conexão voltar, sem virar uma fila genérica.
 
 ---
 
+## Estoque real (não-travante) + PDV ágil pra feira/culto — desenho pronto, aguardando "sim" pra construir
+
+**Pedido do Junior**: 2 soluções interligadas, ainda **não implementadas** — só desenhadas e alinhadas
+com ele nesta sessão. Não mexer em nada até ele confirmar que quer seguir.
+
+### 1. Estoque real, baseado no que foi comprado de verdade — sem travar nada
+
+Hoje a sobra (`getSobraPeriodoAnterior`) é só um aviso estático mostrado no início do período
+seguinte, na aba Embalagens — a coordenadora vê o número e decide manualmente quantas caixas abrir.
+Não é um valor "vivo": não é consultado durante o mês, não é usado por mais nada.
+
+**Desenho**: virar um número vivo, consultado o tempo todo (não só como aviso no início do mês):
+
+```
+estoque disponível (produto) =
+    sobra real do período anterior (baseada em compra_confirmada_und, quando existe)
+  + caixas abertas neste período × un. por caixa
+  − tudo que já foi vendido neste período (pedido normal + PDV, os dois contam)
+```
+
+- **Sempre prioriza o dado real**: assim que `compra_confirmada_und` do período atual existir, vira o
+  teto de referência no lugar da estimativa de caixas abertas — mesmo princípio que a sobra já usa
+  hoje, só que passando a valer durante o mês inteiro, não só no início do seguinte.
+- **Nunca bloqueia**: o número pode ficar negativo (vendeu além do que tinha) sem impedir a venda —
+  só muda de cor (verde → âmbar → vermelho) como aviso visual. Quem decide se aquilo é problema é a
+  coordenadora, o sistema só avisa.
+- Onde aparece: aba Produtos/Embalagens (no lugar do aviso estático de hoje) e dentro do PDV
+  (item 2), mostrando "restam N" em cada produto durante a venda.
+
+### 2. PDV ágil pra feira e dia de culto
+
+Cenário real: fila de gente, pouco tempo por pessoa, sinal de internet às vezes ruim (igreja/salão
+comunitário), e quem opera pode ter pouca prática de tecnologia — tudo pensado com esses 3
+condicionantes.
+
+**Modo à parte, não uma aba a mais**: botão bem visível ("🎪 Iniciar venda no local") que abre uma
+tela cheia, sem o menu de baixo do sistema, com "Sair" bem claro — mesmo padrão de tela-cheia que o
+Modo Entrega já usa, pra ninguém se perder navegando no meio da venda.
+
+**3 passos, dados do membro por último** (de propósito — não atrasar quem só quer "pegar e pagar"):
+1. Grade de produtos (toca, soma no carrinho — reaproveita o visual do catálogo público que já
+   existe), cada item mostrando "restam N" vindo do estoque real do item 1.
+2. Busca ou cadastro rápido do membro (reaproveita o autocomplete que já existe em `clientes`;
+   telefone opcional pra não travar venda rápida).
+3. Forma de pagamento (botões grandes, reaproveita os do catálogo) + confirmar — grava o pedido
+   já **entregue** na hora (não fica pendente esperando entrega depois — na feira a entrega É a
+   venda) e desconta do estoque na hora. Depois de confirmar, cai direto em "Nova venda" sem passar
+   por menu nenhum, pra atender rápido o próximo da fila.
+
+Reaproveita bastante coisa que já existe: cadastro leve de clientes, botões de pagamento do
+catálogo, e principalmente o **reenvio automático offline** (feature de hoje) — faz muito sentido
+aqui, já que feira/culto é exatamente onde a internet costuma falhar.
+
+### Restrição confirmada pelo Junior — crítica pro desenho, ainda não incorporada na conta acima
+
+**O PDV precisa usar o estoque da unidade religiosa específica onde a feira/culto está
+acontecendo — não o estoque somado da organização inteira.** Hoje `caixas_abertas` e
+`compra_confirmada_und` são um valor único por produto **por período**, sem nenhuma divisão por
+unidade (`org_unidades`) — é um pool só pra organização toda. A conta do item 1 acima ("estoque
+disponível") precisa ser refeita considerando isso: ou o estoque passa a ser rastreado por
+produto **×** unidade (mudança de schema maior — divide `caixas_abertas`/`compra_confirmada_und`
+por unidade), ou existe algum mecanismo de alocar/reservar uma fatia do estoque da org pra cada
+unidade antes da feira/culto começar. **Ainda não desenhado** — é o próximo ponto a resolver antes
+de começar a construir, não só um detalhe de UI do PDV.
+
+### Perguntas em aberto (produto, não bloqueiam o desenho, mas mudam detalhes de implementação)
+
+- Mais de um aparelho vendendo ao mesmo tempo na mesma unidade (duas pessoas ajudando na feira)?
+  Muda como calcular "restam N" pra não mostrar número errado com venda simultânea.
+- Vale identificar a venda como vinda do PDV separado dos outros pedidos (ex: `origem: 'pdv'`), ou
+  pode entrar junto com os demais nos relatórios?
+
+---
+
 ## Pendente / próximos passos
 
 1. **Testar de verdade o comparativo do Dashboard com dado real**: abrir Fechamento → Dashboard
@@ -770,12 +848,10 @@ sozinho quando a conexão voltar, sem virar uma fila genérica.
    conferir que o pedido acompanha o nome novo (e que período arquivado não muda); tentar excluir
    unidade com histórico e conferir que bloqueia com a mensagem certa; excluir unidade sem
    histórico e conferir que continua funcionando normal.
-12. **PDV / estoque persistente por unidade (modo "feira")** — deliberadamente deixado de fora
-   desta rodada. Só faz sentido desenhar quando houver mais clareza de quantas coordenadoras
-   realmente operam em venda contínua (não pedido único/data única). Ver conversa no histórico
-   da sessão pra contexto completo do desenho pensado (PDV como atalho de lançamento rápido,
-   ainda gravando em `korin_pedidos`, com estoque persistente isolado só pra unidade que ligar
-   esse modo — sem afetar o fluxo padrão).
+12. **Estoque real (não-travante) + PDV ágil pra feira/culto** — desenho completo já feito e
+   alinhado com o Junior (ver seção dedicada acima), **aguardando ele confirmar se seguimos pra
+   construir**. Falta resolver o estoque por unidade (pool hoje é só por organização, não por
+   unidade — ver "Restrição confirmada pelo Junior" na seção acima) antes de começar a implementar.
 13. **Conferir visualmente a logo nova em produção**: preview de compartilhamento no WhatsApp de
    verdade (link do `/painel` ou `/pedido`), favicon na aba do navegador, ícone do PWA instalado
    na tela inicial (Android/iOS) — só validei os arquivos estáticos, não o comportamento real de
