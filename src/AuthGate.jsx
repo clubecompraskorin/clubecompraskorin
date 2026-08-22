@@ -70,13 +70,26 @@ export default function AuthGate({ children }) {
   }
 
   useEffect(() => {
-    (async () => {
+    // Guarda o usuário da sessão atual pra comparar em cada evento de auth —
+    // não dá pra confiar só no nome do evento (TOKEN_REFRESHED cobre a
+    // renovação em segundo plano, mas o supabase-js também recupera/reafirma
+    // a sessão de outros jeitos quando a aba volta a ficar em foco, sem
+    // necessariamente usar esse nome). Só reseta a tela quando o usuário de
+    // fato mudou (login novo/diferente) ou sumiu (logout) — mesmo usuário
+    // continuando logado nunca remonta o app.
+    let usuarioAtual = null
+
+    ;(async () => {
       const session = await getSession()
+      usuarioAtual = session?.user?.id || null
       if (session) await resolverOrg()
       else setStatus('fora')
     })()
 
     const unsubscribe = onAuthChange(async (session) => {
+      const usuarioDoEvento = session?.user?.id || null
+      if (usuarioDoEvento === usuarioAtual) return
+      usuarioAtual = usuarioDoEvento
       if (session) await resolverOrg()
       else { setOrg(null); setStatus('fora') }
     })
