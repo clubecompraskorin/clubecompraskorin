@@ -4,19 +4,21 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
-> Última atualização: 21/08/2026. Resumo das entregas recentes (detalhes em cada seção abaixo):
+> Última atualização: 22/08/2026. Resumo das entregas recentes (detalhes em cada seção abaixo):
 > gaps de integridade produto↔pedido corrigidos; cadastro leve de clientes; unidade de retirada
 > obrigatória; encerramento por unidade + export consolidado; renomear/excluir unidade corrigidos;
 > **link de entrega por PIN pro representante da unidade** (separação/entrega sem login completo);
 > **sobra do período anterior + confirmação de compra real** enviada pra Korin (substitui a
 > estimativa, é só informativo); **logo oficial nova** em todo o sistema (headers, ícones PWA,
 > favicon novo, imagem de compartilhamento); **página inicial reformulada** com prints reais em
-> vez de mockup e nova seção de entrega por unidade; e **terminologia oficial trocada em todo
+> vez de mockup e nova seção de entrega por unidade; **terminologia oficial trocada em todo
 > texto visível pro usuário**: "coordenadora" → "Dedicante" (forma curta de "Dedicante do Clube
-> de Compras"), "cliente" → "membro" — não mexeu em nome de variável/coluna do banco; e
+> de Compras"), "cliente" → "membro" — não mexeu em nome de variável/coluna do banco;
 > **Dashboard do Fechamento ganhou ticket médio, membros atendidos e comparativo com o período
 > anterior** (membros/ticket/produtos vendidos, sempre em cima de pedido entregue), com barra
-> proporcional em CSS puro nos rankings — sem instalar biblioteca de gráfico.
+> proporcional em CSS puro nos rankings — sem instalar biblioteca de gráfico; e **auditoria
+> completa de responsividade** (mobile/tablet/desktop) em todas as telas do app e na landing
+> page — único problema real encontrado (overflow do filtro de Pedidos no mobile) corrigido.
 
 ---
 
@@ -634,6 +636,43 @@ produtos vendidos mês × mês anterior, com filtro.
 
 ---
 
+## Auditoria de responsividade (mobile/tablet/desktop) — implementado
+
+**Pedido do Junior**: revisar responsividade em toda a página inicial e em todas as telas/abas do
+sistema — sem elemento truncado, sobreposto ou escondido, fácil de usar em desktop, tablet e
+principalmente smartphone. Explícito: não alterar o que já estava bom, e não mexer no tamanho das
+fontes (estavam ótimas).
+
+**Método**: componentes normalmente inacessíveis sem login real (Supabase não configurado neste
+ambiente) foram temporariamente exportados e renderizados numa página `showcase.html` descartável
+com dado fictício realista, capturados via Playwright em 3 larguras (390px mobile, 768px tablet,
+1440px desktop) — 23 telas/modais do app, mais Home e Ajuda direto pelas rotas reais. No fim, os
+`export` temporários e a página descartável foram revertidos; não sobrou código de teste no repo.
+
+**Achado real**: na tela de Pedidos, no mobile, a linha de filtros (Todos/Pendentes/Entregues +
+seletor de unidade + botão Imprimir) ultrapassava a largura da tela e cortava os últimos itens
+(773px capturado contra 585px de viewport). Corrigido com `flex-wrap` na `App.jsx` — quebra pra
+uma segunda linha só quando necessário, sem alterar tablet/desktop nem o resto do visual.
+
+**Falso positivo descartado**: os botões flutuantes (Colar/+) e a barra fixa "Ver carrinho"
+pareciam sobrepor cards nas capturas de página inteira — mas é artefato do método de screenshot
+(`position: fixed` gravado uma vez na posição relativa ao viewport, não à rolagem real). Conferido
+no CSS que o espaço já é reservado embaixo (`pb-36`/`pb-32` nos `<main>` correspondentes) — não é
+bug, não foi alterado.
+
+**Resto revisado, sem problema**: Entregas, Modo de Entrega, Produtos, Fechamento (Resumo +
+Dashboard), os 4 modais de Pedidos (editar, colar do WhatsApp, detalhe, confirmar compra), os 5
+tabs da aba Web, as 5 telas do catálogo público, as 3 telas da entrega por PIN, o cartão de link
+de entrega do `UnidadesManager`, e Home/Ajuda — todos limpos nas 3 larguras.
+
+- `npx vite build` validado sem erro.
+- **Status no GitHub: mesclada na `main`.** Commit do fix: `674ab00`
+  (branch `fix/responsividade-filtro-pedidos-mobile`). Merge (PR #2): `95b48b8`
+  (`f42b2f9..95b48b8`). Deploy de produção no Vercel confirmado (`dpl_BtnaM1GTvonrVTmLRSB1bi7muVUY`,
+  `READY`).
+
+---
+
 ## Pendente / próximos passos
 
 1. **Testar de verdade o comparativo do Dashboard com dado real**: abrir Fechamento → Dashboard
@@ -683,8 +722,9 @@ produtos vendidos mês × mês anterior, com filtro.
    verdade (link do `/painel` ou `/pedido`), favicon na aba do navegador, ícone do PWA instalado
    na tela inicial (Android/iOS) — só validei os arquivos estáticos, não o comportamento real de
    cache/preview de cada plataforma.
-14. **Conferir a página inicial em produção** (`clubecompraskorin.vercel.app`) — layout, prints
-   novos e responsividade mobile de verdade, num navegador real.
+14. **Conferir a página inicial em produção** (`clubecompraskorin.vercel.app`) — layout e prints
+   novos num navegador real. Responsividade em si já foi auditada (mobile/tablet/desktop, ver
+   seção acima) — mas via dev server local, não a URL de produção de verdade.
 
 ---
 
