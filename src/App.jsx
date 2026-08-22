@@ -458,7 +458,7 @@ function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, on
                     <>
                       <button onClick={e => { e.stopPropagation(); onEdit(pedido) }} className="py-2.5 text-xs font-bold text-blue-600 flex items-center justify-center gap-1 active:bg-blue-50">✏️ Editar</button>
                       {pedido.status === 'pendente'
-                        ? <button onClick={e => { e.stopPropagation(); onIniciarEntrega(pedido) }} className="py-2.5 text-xs font-bold text-green-700 flex items-center justify-center border-x border-stone-100 active:bg-green-50">✓ Entregar</button>
+                        ? <button onClick={e => { e.stopPropagation(); onIniciarEntrega(pedido) }} className="py-2.5 text-xs font-black text-white bg-green-700 flex items-center justify-center active:bg-green-800">✓ Entregar</button>
                         : <div className="py-2.5 text-xs text-stone-300 flex items-center justify-center border-x border-stone-100">✅ Entregue</div>
                       }
                       <button onClick={e => { e.stopPropagation(); onDelete(pedido) }} className="py-2.5 text-xs font-bold text-red-500 flex items-center justify-center active:bg-red-50">🗑️ Excluir</button>
