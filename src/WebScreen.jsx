@@ -209,6 +209,14 @@ function TabProdutos({ produtos, pedidosWeb, onChange, onSave, salvando, somente
                 const caixasAbertas = prod.caixasAbertas || 0
                 const totalPedido = totais[prod.id] || 0
                 const disponivel = qtdCaixa ? caixasAbertas * qtdCaixa : null
+                // Estoque real: soma a sobra de verdade do período anterior (baseada em
+                // compra_confirmada_und, quando existe) ao que foi aberto agora — não é só
+                // um aviso pra lembrar, o produto que sobrou continua vendável de fato.
+                const sobra = sobraAnterior[prod.cod] || 0
+                const disponivelReal = disponivel != null ? disponivel + sobra : null
+                // Não trava em 0 — negativo é sinal visual de "vendeu além do estimado",
+                // decisão de quem tá gerenciando, o sistema só avisa.
+                const restante = disponivelReal != null ? disponivelReal - totalPedido : null
 
                 return (
                   <div key={prod.id} className={`bg-white rounded-2xl border shadow-sm p-3 ${prod.foraDaTabela ? 'border-amber-300' : 'border-stone-100'}`}>
@@ -260,13 +268,9 @@ function TabProdutos({ produtos, pedidosWeb, onChange, onSave, salvando, somente
                     </div>
 
                     {qtdCaixa > 0 && (
-                      <div className="text-xs text-stone-400 font-semibold">
-                        Disponível: {disponivel} un. · Pedidos: {totalPedido} · Restante: {Math.max(0, disponivel - totalPedido)}
-                      </div>
-                    )}
-                    {sobraAnterior[prod.cod] > 0 && (
-                      <div className="text-xs text-amber-700 font-semibold mt-1">
-                        📦 Sobrou {sobraAnterior[prod.cod]} un. do período anterior — considere antes de marcar caixas abertas
+                      <div className={`text-xs font-semibold ${restante < 0 ? 'text-red-600' : restante === 0 ? 'text-amber-600' : 'text-stone-400'}`}>
+                        Disponível: {disponivelReal} un.{sobra > 0 && ` (${disponivel} deste mês + ${sobra} de sobra)`} · Pedidos: {totalPedido} · Restante: {restante}
+                        {restante < 0 && ' — vendendo além do estimado'}
                       </div>
                     )}
                   </div>
@@ -375,7 +379,7 @@ function TabPedidos({ pedidosWeb, produtos, onCancelar, loading, filtroUnidade, 
 }
 
 // ── SUB-ABA: RESUMO ───────────────────────────────────────────────────────────
-function TabResumo({ produtos, pedidosWeb, filtroUnidade, onConfirmarCompra, somenteLeitura }) {
+function TabResumo({ produtos, pedidosWeb, filtroUnidade, onConfirmarCompra, somenteLeitura, sobraAnterior = {} }) {
   const base = filtroUnidade && filtroUnidade !== 'Todas'
     ? pedidosWeb.filter(p => p.unidade === filtroUnidade)
     : pedidosWeb
@@ -406,7 +410,11 @@ function TabResumo({ produtos, pedidosWeb, filtroUnidade, onConfirmarCompra, som
         const qtdCaixa = prod.qtdCaixa || 0
         const caixasAbertas = prod.caixasAbertas || 0
         const totalPedido = totais[prod.id] || 0
-        const caixasNecessarias = qtdCaixa ? Math.ceil(totalPedido / qtdCaixa) : null
+        // Sobra real do período anterior cobre parte do pedido antes de precisar comprar
+        // caixa nova — é o ponto central de tratar a sobra de verdade, não só avisar dela.
+        const sobra = sobraAnterior[prod.cod] || 0
+        const totalACobrir = Math.max(0, totalPedido - sobra)
+        const caixasNecessarias = qtdCaixa ? Math.ceil(totalACobrir / qtdCaixa) : null
         const ok = caixasNecessarias !== null && caixasAbertas >= caixasNecessarias
 
         return (
@@ -422,6 +430,11 @@ function TabResumo({ produtos, pedidosWeb, filtroUnidade, onConfirmarCompra, som
                   {totalPedido} unidades pedidas
                   {caixasNecessarias !== null && ` = ${caixasNecessarias} caixa${caixasNecessarias !== 1 ? 's' : ''}`}
                 </div>
+                {sobra > 0 && (
+                  <div className="text-xs text-teal-700 font-bold mt-0.5">
+                    📦 Já descontando {sobra} un. de sobra do período anterior
+                  </div>
+                )}
                 {prod.compraConfirmadaUnd != null && (
                   <div className="text-xs text-green-700 font-bold mt-0.5">
                     ✅ Compra confirmada: {prod.compraConfirmadaUnd} un.
@@ -1161,7 +1174,7 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
         <>
           <FiltroUnidade value={filtroUnidade} onChange={setFiltroUnidade} unidades={nomesUnidades} />
           <TabResumo produtos={produtosWeb} pedidosWeb={pedidos} filtroUnidade={filtroUnidade}
-            somenteLeitura={somenteLeitura}
+            somenteLeitura={somenteLeitura} sobraAnterior={visualizandoCorrente ? sobraAnterior : {}}
             onConfirmarCompra={visualizandoCorrente ? () => setModalConfirmarCompra(true) : null} />
         </>
       )}
