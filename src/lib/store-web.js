@@ -28,15 +28,23 @@ export const saveClienteDados = dados => local.set(K.cliente, dados)
 
 // ── CLIENTE FINAL (via Vercel Functions, sem acesso direto à tabela) ────────
 export const criarPedidoCliente = async (slug, pedido) => {
+  let r
   try {
-    const r = await fetch('/api/pedido', {
+    r = await fetch('/api/pedido', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ slug, pedido }),
     })
+  } catch {
+    // fetch nem chegou a ter resposta — sem conexão, não erro de servidor.
+    return { ok: false, semConexao: true, error: 'Sem conexão com a internet' }
+  }
+  try {
     const json = await r.json()
-    if (!r.ok || !json.ok) throw new Error(json.error || 'Falha ao salvar pedido')
+    if (!r.ok || !json.ok) return { ok: false, error: json.error || 'Falha ao salvar pedido' }
     return { ok: true, data: json.data }
-  } catch (e) { return { ok: false, error: e.message } }
+  } catch {
+    return { ok: false, error: 'Resposta inválida do servidor' }
+  }
 }
 
 export const consultarMeuPedido = async (slug, telefone, periodoId) => {

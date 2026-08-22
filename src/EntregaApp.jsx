@@ -2,21 +2,29 @@ import { useState, useEffect } from 'react'
 import { getSlugDaURL } from './CatalogoApp'
 import { fmt, calcTotal, sortByCod } from './lib/helpers'
 import { PAGAMENTOS } from './lib/catalog'
+import { salvarPendente, lerPendente, limparPendente } from './lib/offlinePendente'
 
 const K_PIN   = (u) => `entrega-pin-${u}`
 const K_NOME  = 'entrega-nome-representante'
+const K_PENDENTE_ENTREGA = (u) => `entrega-confirmacao-pendente-${u}`
 const getUnidadeIdDaURL = () => new URLSearchParams(window.location.search).get('u')
 
 async function chamar(endpoint, body) {
+  let r
   try {
-    const r = await fetch(`/api/${endpoint}`, {
+    r = await fetch(`/api/${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
+  } catch {
+    // fetch nem chegou a ter resposta — sem conexão, não erro de servidor.
+    return { ok: false, semConexao: true, error: 'Sem conexão com internet' }
+  }
+  try {
     return await r.json()
   } catch {
-    return { ok: false, error: 'Sem conexão com internet' }
+    return { ok: false, error: 'Resposta inválida do servidor' }
   }
 }
 
@@ -250,7 +258,7 @@ function ModoEntregaPublico({ pedido, produtos, nomeRepresentante, onCancelar, o
 }
 
 // ── TELA PRINCIPAL: LISTA DE PEDIDOS DA UNIDADE ──────────────────────────────
-function TelaLista({ dados, nomeRepresentante, onConfirmarEntrega, onSair }) {
+function TelaLista({ dados, nomeRepresentante, onConfirmarEntrega, onSair, pendenteEnvio }) {
   const [pedidoAberto, setPedidoAberto] = useState(null)
   const { org, periodo, unidade, produtos, pedidos } = dados
 
@@ -276,6 +284,12 @@ function TelaLista({ dados, nomeRepresentante, onConfirmarEntrega, onSair }) {
     <div className="min-h-screen bg-stone-100 pb-10">
       <Header org={org} periodo={periodo} unidade={unidade} />
       <div className="px-4 py-4">
+        {pendenteEnvio && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 mb-4 text-center text-amber-700 font-bold text-sm">
+            📤 1 confirmação de entrega aguardando envio — sem conexão agora, vai ser enviada
+            sozinha assim que a internet voltar.
+          </div>
+        )}
         {pedidos.length === 0 && (
           <div className="text-center py-16 text-stone-400 space-y-2">
             <div className="text-5xl">📦</div>
@@ -329,6 +343,7 @@ export default function EntregaApp() {
   const [auth, setAuth]   = useState(null) // { pin, nome }
   const [dados, setDados] = useState(null) // resposta de entrega-lista
   const [erro, setErro]   = useState('')
+  const [pendenteEnvio, setPendenteEnvio] = useState(false)
 
   const carregar = async (pin, nome) => {
     setErro('')
@@ -348,11 +363,47 @@ export default function EntregaApp() {
     if (pinSalvo && nomeSalvo) carregar(pinSalvo, nomeSalvo)
   }, [slug, unidadeId])
 
+  // A confirmação em si é idempotente (update por pedidoId — reenviar de
+  // novo com o mesmo payload não duplica nem corrompe nada), então não
+  // precisa de id de idempotência como o pedido novo do catálogo precisa.
+  const enviarConfirmacao = async (payload) => {
+    const r = await chamar('entrega-confirmar', payload)
+    if (r.semConexao) {
+      salvarPendente(K_PENDENTE_ENTREGA(unidadeId), payload)
+      setPendenteEnvio(true)
+      return { semConexao: true }
+    }
+    limparPendente(K_PENDENTE_ENTREGA(unidadeId))
+    setPendenteEnvio(false)
+    if (!r.ok) return { ok: false, error: r.error }
+    return { ok: true }
+  }
+
+  // Reenvia sozinha uma confirmação de entrega que ficou pendente de uma
+  // tentativa anterior sem conexão — ao reabrir a página, e quando a
+  // internet voltar enquanto ela ainda está aberta.
+  useEffect(() => {
+    if (!unidadeId || !auth) return
+    const pendente = lerPendente(K_PENDENTE_ENTREGA(unidadeId))
+    if (!pendente) return
+    setPendenteEnvio(true)
+    const tentar = async () => {
+      const res = await enviarConfirmacao(pendente)
+      if (res.ok) await carregar(auth.pin, auth.nome)
+    }
+    tentar()
+    window.addEventListener('online', tentar)
+    return () => window.removeEventListener('online', tentar)
+  }, [unidadeId, auth])
+
   const confirmarEntrega = async (pedidoId, itens, pagamento, troco, obs) => {
-    const r = await chamar('entrega-confirmar', {
-      slug, unidadeId, pin: auth.pin, pedidoId, entreguePor: auth.nome, itens, pagamento, troco, obs,
-    })
-    if (!r.ok) { setErro(r.error || 'Erro ao confirmar entrega'); return false }
+    const payload = { slug, unidadeId, pin: auth.pin, pedidoId, entreguePor: auth.nome, itens, pagamento, troco, obs }
+    const res = await enviarConfirmacao(payload)
+    // Sem conexão: já guardado pra reenvio — libera a tela em vez de travar
+    // o representante esperando sinal voltar (é exatamente esse o cenário:
+    // ele está de pé, na porta, apressado).
+    if (res.semConexao) return true
+    if (!res.ok) { setErro(res.error || 'Erro ao confirmar entrega'); return false }
     await carregar(auth.pin, auth.nome)
     return true
   }
@@ -382,7 +433,7 @@ export default function EntregaApp() {
           {erro}
         </div>
       )}
-      <TelaLista dados={dados} nomeRepresentante={auth.nome} onConfirmarEntrega={confirmarEntrega} onSair={sair} />
+      <TelaLista dados={dados} nomeRepresentante={auth.nome} onConfirmarEntrega={confirmarEntrega} onSair={sair} pendenteEnvio={pendenteEnvio} />
     </>
   )
 }

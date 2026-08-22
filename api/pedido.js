@@ -115,11 +115,19 @@ export default async function handler(req, res) {
       total: pedido.total,
       status: pedido.status || 'pendente',
       origem: 'catalogo',
+      client_request_id: pedido.clientRequestId || null,
       updated_at: new Date().toISOString(),
     }
+    // Pedido novo com clientRequestId: reenvio automático (app do cliente
+    // sem conexão na 1ª tentativa) usa o mesmo id de idempotência — se a
+    // 1ª chamada já tinha chegado no servidor mas a resposta se perdeu, este
+    // upsert por client_request_id atualiza a MESMA linha em vez de criar
+    // pedido duplicado. Edição (pedido.id presente) já é idempotente por si
+    // (upsert por id, reenviar só reaplica o mesmo update).
+    const conflictCol = pedido.id ? 'id' : (payload.client_request_id ? 'client_request_id' : 'id')
     const { data, error } = await supabaseAdmin
       .from('korin_pedidos')
-      .upsert(payload, { onConflict: 'id' })
+      .upsert(payload, { onConflict: conflictCol })
       .select('id, status').maybeSingle()
     if (error) throw error
 
