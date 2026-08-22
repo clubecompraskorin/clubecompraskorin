@@ -59,8 +59,7 @@ export default function Login({ onSuccess }) {
     <div className="min-h-screen bg-stone-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
-          <div className="text-4xl mb-2">🌿</div>
-          <div className="text-xl font-black text-green-800">Korin Gestão</div>
+          <img src="/logo-korin.png" alt="Clube de Compras Korin" className="h-16 w-auto mx-auto mb-3" />
           <div className="text-sm text-stone-500">
             {modo === 'login' ? 'Entre na sua conta' : 'Crie sua conta de Dedicante'}
           </div>
