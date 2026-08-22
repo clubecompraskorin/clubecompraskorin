@@ -11,10 +11,18 @@ export const getSession = async () => {
   return data?.session || null
 }
 
+// Eventos que não representam uma sessão nova/diferente — TOKEN_REFRESHED
+// dispara sozinho em renovação automática em segundo plano, inclusive toda
+// vez que a aba volta a ficar em foco. Reagir a eles reseta a tela inteira
+// (AuthGate remonta o app) sem necessidade nenhuma — só reage a mudança de
+// sessão de verdade (login/logout).
+const EVENTOS_IGNORADOS = new Set(['TOKEN_REFRESHED', 'USER_UPDATED'])
+
 export const onAuthChange = (callback) => {
   if (!supabase) return () => {}
-  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+  const { data } = supabase.auth.onAuthStateChange((event, session) => {
     if (fluxoAuth.emAndamento) return
+    if (EVENTOS_IGNORADOS.has(event)) return
     callback(session)
   })
   return () => data.subscription.unsubscribe()
