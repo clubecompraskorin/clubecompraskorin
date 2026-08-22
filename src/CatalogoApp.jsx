@@ -8,6 +8,7 @@ import {
 } from './lib/store-web'
 import { getPeriodoCorrente, getProdutosDoPeriodo } from './lib/periodos'
 import { useInstallPrompt } from './lib/pwa'
+import { salvarPendente, lerPendente, limparPendente, gerarId } from './lib/offlinePendente'
 
 // ── RESOLUÇÃO DE SLUG (URL: /[slug]/pedido) ──────────────────────────────────
 export const getSlugDaURL = () => window.location.pathname.split('/').filter(Boolean)[0] || null
@@ -439,7 +440,7 @@ function TelaDados({ clienteDados, setClienteDados, unidades = [], onVoltar, onA
 
 
 // ── TELA PAGAMENTO ────────────────────────────────────────────────────────────
-function TelaPagamento({ clienteDados, setClienteDados, onVoltar, onConfirmar, salvando, erro, total }) {
+function TelaPagamento({ clienteDados, setClienteDados, onVoltar, onConfirmar, salvando, erro, pendenteOffline, total }) {
   const opcoes = [
     { id: 'PIX',           label: '📱 PIX',      desc: 'Chave PIX' },
     { id: 'Dinheiro',      label: '💵 Dinheiro', desc: 'Dinheiro na entrega' },
@@ -475,6 +476,12 @@ function TelaPagamento({ clienteDados, setClienteDados, onVoltar, onConfirmar, s
           </button>
         ))}
 
+        {pendenteOffline && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-center text-amber-700 font-bold">
+            📤 Sem conexão agora — seu pedido foi guardado neste aparelho e vai ser enviado
+            sozinho assim que a internet voltar. Pode fechar o app, não precisa esperar aqui.
+          </div>
+        )}
         {erro && (
           <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-center text-lg text-red-700 font-bold">
             {erro}
@@ -596,8 +603,10 @@ export default function CatalogoApp() {
   const [isEdicao, setIsEdicao]             = useState(false)
   const [salvando, setSalvando]             = useState(false)
   const [erro, setErro]                     = useState('')
+  const [pendenteOffline, setPendenteOffline] = useState(false)
 
   const { show: showInstall, isIOS: iosInstall, install, dismiss } = useInstallPrompt('catalogo')
+  const chavePendente = `catalogo-pedido-pendente-${slug}`
 
   const total = Object.entries(carrinho).reduce((s, [cod, qty]) => {
     const p = produtos.find(x => x.cod === parseInt(cod))
@@ -700,6 +709,49 @@ export default function CatalogoApp() {
   }
 
   // ── CONFIRMAR PEDIDO ────────────────────────────────────────────────────────
+  // Extraído do handleConfirmar pra ser reutilizado pelo reenvio automático
+  // (efeito abaixo) — recebe o pedido já montado, nunca reconstrói do estado
+  // atual do carrinho (senão um reenvio tardio poderia mandar itens diferentes
+  // do que a pessoa realmente confirmou).
+  const enviarPedido = async (pedido) => {
+    setSalvando(true); setErro('')
+    const result = await criarPedidoCliente(slug, pedido)
+    setSalvando(false)
+
+    if (result.ok) {
+      limparPendente(chavePendente)
+      setPendenteOffline(false)
+      setPedidoExistente(result.data || pedido)
+      setPedidoConfirmado(result.data || pedido)
+      setIsEdicao(!!pedido.id)
+      setTela('confirmacao')
+      return
+    }
+    if (result.semConexao) {
+      // Guarda pra reenviar sozinho — não é erro de verdade, só falta de sinal.
+      salvarPendente(chavePendente, pedido)
+      setPendenteOffline(true)
+      return
+    }
+    // Erro de validação/servidor de verdade — não adianta reenviar sozinho.
+    limparPendente(chavePendente)
+    setPendenteOffline(false)
+    setErro(`Erro ao salvar: ${result.error}. Verifique sua conexão.`)
+  }
+
+  // Reenvia sozinho um pedido que ficou pendente de uma tentativa anterior
+  // sem conexão — ao reabrir a página, e assim que a internet voltar.
+  useEffect(() => {
+    if (!slug) return
+    const pendente = lerPendente(chavePendente)
+    if (!pendente) return
+    setPendenteOffline(true)
+    const tentar = () => enviarPedido(pendente)
+    tentar()
+    window.addEventListener('online', tentar)
+    return () => window.removeEventListener('online', tentar)
+  }, [slug])
+
   const handleConfirmar = async () => {
     if (!clienteDados.nome.trim()) { setErro('Informe seu nome completo'); setTela('dados'); return }
     if (!clienteDados.telefone.trim()) { setErro('Informe seu telefone/WhatsApp'); setTela('dados'); return }
@@ -710,7 +762,6 @@ export default function CatalogoApp() {
     if (!clienteDados.pagamento) { setErro('Selecione a forma de pagamento'); return }
     if (Object.keys(carrinho).length === 0) { setErro('Adicione pelo menos um produto'); return }
 
-    setSalvando(true); setErro('')
     saveClienteDados(clienteDados)
 
     const itens = Object.entries(carrinho)
@@ -722,7 +773,10 @@ export default function CatalogoApp() {
       .sort((a, b) => a.cod - b.cod)
 
     const pedido = {
-      ...(pedidoExistente ? { id: pedidoExistente.id } : {}),
+      // Pedido novo ganha um id de idempotência (clientRequestId) pro reenvio
+      // automático nunca criar duplicado; edição já é idempotente por si (tem
+      // id real), não precisa disso.
+      ...(pedidoExistente ? { id: pedidoExistente.id } : { clientRequestId: gerarId() }),
       nome:      clienteDados.nome.trim(),
       telefone:  clienteDados.telefone.trim(),
       unidade:   clienteDados.unidade,
@@ -732,18 +786,7 @@ export default function CatalogoApp() {
       status:    'pendente',
     }
 
-    const result = await criarPedidoCliente(slug, pedido)
-    setSalvando(false)
-
-    if (result.ok) {
-      const edicao = !!pedidoExistente
-      setPedidoExistente(result.data || pedido)
-      setPedidoConfirmado(result.data || pedido)
-      setIsEdicao(edicao)
-      setTela('confirmacao')
-    } else {
-      setErro(`Erro ao salvar: ${result.error}. Verifique sua conexão.`)
-    }
+    await enviarPedido(pedido)
   }
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
@@ -783,6 +826,7 @@ export default function CatalogoApp() {
       onConfirmar={handleConfirmar}
       salvando={salvando}
       erro={erro}
+      pendenteOffline={pendenteOffline}
       total={total}
     />)
 
