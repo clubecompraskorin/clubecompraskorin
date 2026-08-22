@@ -16,9 +16,13 @@
 > de Compras"), "cliente" → "membro" — não mexeu em nome de variável/coluna do banco;
 > **Dashboard do Fechamento ganhou ticket médio, membros atendidos e comparativo com o período
 > anterior** (membros/ticket/produtos vendidos, sempre em cima de pedido entregue), com barra
-> proporcional em CSS puro nos rankings — sem instalar biblioteca de gráfico; e **auditoria
+> proporcional em CSS puro nos rankings — sem instalar biblioteca de gráfico; **auditoria
 > completa de responsividade** (mobile/tablet/desktop) em todas as telas do app e na landing
-> page — único problema real encontrado (overflow do filtro de Pedidos no mobile) corrigido.
+> page — único problema real encontrado (overflow do filtro de Pedidos no mobile) corrigido;
+> e **reenvio automático offline nos 2 pontos "de rua"** (checkout do catálogo pelo membro,
+> confirmação de entrega pelo representante) — se a conexão cair no meio da ação, ela é
+> guardada no aparelho e reenviada sozinha quando a internet voltar, com id de idempotência
+> pro pedido novo do catálogo nunca duplicar.
 
 ---
 
@@ -673,6 +677,56 @@ de entrega do `UnidadesManager`, e Home/Ajuda — todos limpos nas 3 larguras.
 
 ---
 
+## Reenvio automático offline: checkout do catálogo e confirmação de entrega — implementado
+
+**Contexto**: ao investigar o gap de offline-first (item pendente 6, ver abaixo), identificamos
+que os dois momentos "de rua" do sistema — membro fechando pedido no catálogo público,
+representante confirmando entrega na porta — dependiam de chamada direta ao Supabase/API em
+tempo real, sem nenhuma persistência local. Se a conexão caísse no meio da ação, a pessoa via só
+um erro genérico e precisava refazer tudo manualmente, sem garantia de lembrar de voltar depois.
+
+**Decisão de escopo** (confirmada pelo Junior, depois de avaliar a proposta): não vale a pena um
+offline-first completo agora (engenharia pesada pra um sistema ainda em validação) — mas os dois
+pontos de maior atrito mereciam uma solução leve: guardar a última ação localmente e reenviar
+sozinho quando a conexão voltar, sem virar uma fila genérica.
+
+**O que foi construído**:
+- `src/lib/offlinePendente.js` (novo): helper de leitura/escrita de **1 pendência por chave** no
+  `localStorage` (não é fila com N itens) + gerador de UUID pra idempotência.
+- `src/lib/store-web.js` (`criarPedidoCliente`): passa a distinguir falha de rede (`fetch` nem
+  chegou a ter resposta — `semConexao: true`) de erro de validação/servidor (esse continua
+  mostrando erro normal, nunca é reenviado às cegas).
+- **Catálogo público** (`src/CatalogoApp.jsx`): pedido novo ganha `clientRequestId` (UUID) antes
+  de enviar; se falhar por falta de rede, o pedido é salvo local e reenviado sozinho no evento
+  `online` do navegador ou ao reabrir a página. Edição de pedido existente não precisa disso — já
+  é idempotente por ter `id` real. Banner âmbar na tela de pagamento avisa "seu pedido foi
+  guardado neste aparelho, pode fechar o app".
+- **Entrega por PIN** (`src/EntregaApp.jsx`): mesmo padrão, mas mais simples — confirmar entrega é
+  um `update` por `pedidoId`, já naturalmente idempotente por si (reenviar de novo não duplica
+  nem corrompe nada), não precisou de id extra. Banner "1 confirmação aguardando envio" na lista
+  de pedidos da unidade.
+- **`api/pedido.js` + migration no Supabase** (`nbfvkmdcbfvgpqpvvspv`): `korin_pedidos` ganhou
+  coluna `client_request_id` (índice único parcial, só quando não nulo). Pedido novo com esse id
+  faz `upsert` por ele em vez de sempre inserir — se a 1ª tentativa já tinha chegado no servidor
+  mas a resposta se perdeu por queda de conexão, o reenvio automático atualiza a MESMA linha em
+  vez de criar pedido duplicado.
+- **Fora do escopo, deliberado**: fila de múltiplas ações, Background Sync API (suporte
+  inconsistente em iOS Safari), telas do Dedicante (produtos/embalagens) — risco bem menor ali,
+  continuam exigindo conexão normalmente.
+- `npx vite build` validado sem erro; lógica de `localStorage`/idempotência testada isolada em
+  Node (round-trip do payload, unicidade do UUID, limpeza do slot); os dois banners novos
+  conferidos visualmente em mobile via harness descartável (revertido, não sobrou no repo).
+- **Limitação conhecida**: teste end-to-end com conexão real (simular modo avião no meio do
+  checkout/confirmação e conferir reenvio sem duplicar) não foi possível neste ambiente — sem
+  credenciais Supabase configuradas na sessão. Fica como próximo passo de teste real (ver
+  Pendente).
+- **Status no GitHub: mesclada na `main`.** Commit da feature: `7698201`
+  (branch `feat/reenvio-offline-catalogo-e-entrega`). Merge (PR #3): `68432ae`
+  (`1e294c8..68432ae`). Deploy de produção no Vercel confirmado
+  (`dpl_EDmYVqrSBRz1mmaLE6c2M9LFiYGn`, `READY`).
+
+---
+
 ## Pendente / próximos passos
 
 1. **Testar de verdade o comparativo do Dashboard com dado real**: abrir Fechamento → Dashboard
@@ -693,9 +747,13 @@ de entrega do `UnidadesManager`, e Home/Ajuda — todos limpos nas 3 larguras.
 5. **Atualizar o artefato publicado** com a feature de importação por planilha, com os gaps de
    integridade produto↔pedido, com o link de entrega por PIN e com o gap de estoque/compra
    confirmada (documentado em markdown no repo, artefato visual ainda não reflete).
-6. **Gap de offline-first do Sistema 2** (identificado no comparativo): existe uma proposta
-   técnica desenhada (fila de escrita por "intenção", documentada no artefato) mas **nada foi
-   implementado**. Ainda não há decisão de seguir com isso.
+6. **Gap de offline-first do Sistema 2** (identificado no comparativo): offline-first completo
+   (fila de escrita por "intenção", documentada no artefato) segue sem decisão de seguir — mas os
+   2 pontos de maior risco (checkout do catálogo, confirmação de entrega) já ganharam reenvio
+   automático leve (ver seção acima). **Testar de verdade com conexão real**: simular modo avião
+   no meio do checkout do catálogo e da confirmação de entrega, confirmar que o banner aparece,
+   desativar modo avião e conferir que a ação chega sozinha sem duplicar — não foi possível testar
+   isso neste ambiente (sem credenciais Supabase).
 7. **Próximas partes do fluxo de campo ainda não totalmente levantadas**: como os outros
    coordenadores captam pedido dos membros (coberto), como fecham/enviam o consolidado pra Korin
    (levantamento feito, encerramento por unidade e export consolidado implementados).
