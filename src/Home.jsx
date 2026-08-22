@@ -22,6 +22,7 @@ const FAQ_HOME = [
   { p: 'Funciona no iPhone e no Android?', r: 'Sim. É um site, então funciona em qualquer celular com navegador — não depende de loja de aplicativo.' },
   { p: 'Tem como o representante de uma unidade entregar sem eu conferir tudo?', r: 'Sim. Cada unidade ganha um link próprio com PIN — o representante vê os pedidos daquela unidade, separa e confirma a entrega direto por ali, sem precisar de login completo.' },
   { p: 'Dá pra confirmar o que realmente foi comprado da Korin?', r: 'Sim. Você reimporta a mesma planilha que enviou pra Korin, já preenchida, e o sistema usa a quantidade real em vez da estimativa — inclusive pra calcular a sobra do período seguinte.' },
+  { p: 'Dá pra vender direto numa feira ou culto, sem anotar em papel?', r: 'Sim. Tem um modo de venda no local, separado do resto do sistema, pensado pra fila e pouco tempo por pessoa — você diz o que levou de estoque pra aquela unidade, vende tocando na tela, e cada venda já desconta e entra entregue na hora.' },
 ]
 
 export default function Home() {
@@ -158,6 +159,50 @@ export default function Home() {
                 <p className="text-sm text-[#14241B]/65 leading-relaxed">{c.d}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* PDV — VENDA NO LOCAL EM FEIRA E CULTO */}
+      <section className="bg-white border-y border-[#14241B]/5">
+        <div className="max-w-5xl mx-auto px-6 py-16">
+          <div className="grid md:grid-cols-2 gap-10 items-center">
+            <div>
+              <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Novo · Venda no local</div>
+              <h2 className="text-2xl md:text-3xl font-semibold leading-snug" style={display}>
+                Feira, bazar ou dia de culto? Venda direto no celular, sem parar a fila.
+              </h2>
+              <p className="mt-4 text-[#14241B]/70 leading-relaxed">
+                Um modo à parte, feito pra momento de movimento — grade de produtos grande, poucos
+                toques, e os dados do membro só no fim, pra quem só quer pegar e pagar. Cada venda já
+                sai do estoque daquela unidade na hora, e o pedido cai pronto — entregue — sem passar
+                por conferência depois.
+              </p>
+              <div className="mt-6 space-y-3">
+                {[
+                  { i: '🎪', t: 'Estoque da própria unidade', d: 'Você diz quanto levou de cada produto pra aquela feira ou culto, e o sistema mostra quanto ainda resta enquanto vende — sem misturar com o estoque de outra unidade.' },
+                  { i: '⚡', t: '3 toques até a venda', d: 'Escolhe o produto, confirma a forma de pagamento, pronto. Sem tela cheia de campo, sem letra miúda.' },
+                  { i: '🙋', t: 'Busca ou cadastra o membro na hora', d: 'Se não achar quem comprou, cadastra ali mesmo — telefone é opcional, não trava a venda.' },
+                ].map(b => (
+                  <div key={b.t} className="flex gap-3">
+                    <div className="text-lg flex-shrink-0">{b.i}</div>
+                    <div>
+                      <div className="font-semibold text-sm">{b.t}</div>
+                      <p className="text-sm text-[#14241B]/65 leading-relaxed">{b.d}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-center md:justify-end">
+              <div className="relative">
+                <div className="absolute -inset-3 bg-[#1A5C38]/10 rounded-[32px] rotate-2" />
+                <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 -rotate-1 w-[230px]">
+                  <img src="/screenshot-pdv.jpg" alt="Modo de venda no local (PDV) pra feira e culto, com estoque separado por unidade"
+                    className="rounded-[20px] w-full h-auto block" />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
