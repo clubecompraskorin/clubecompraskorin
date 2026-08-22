@@ -375,6 +375,7 @@ function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, on
   const lista = pedidos
     .filter(p => p.clienteNome.toLowerCase().includes(busca.toLowerCase()))
     .filter(p => filtro === 'todos' || p.status === filtro)
+    .filter(p => filtroImpressao === 'Todas' || (p.unidade || 'Não informada') === filtroImpressao)
     .sort((a, b) => a.clienteNome.localeCompare(b.clienteNome))
 
   const totalGeral = pedidos.reduce((s, p) => s + calcTotal(p, produtos), 0)
@@ -404,17 +405,22 @@ function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, on
           <button key={v} onClick={() => setFiltro(v)}
             className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${filtro === v ? 'bg-green-700 text-white' : 'bg-white text-stone-500 border border-stone-200'}`}>{l}</button>
         ))}
-        {pedidos.some(p => p.status === 'pendente') && (
+        {unidades.length > 0 && (
           <div className="ml-auto flex items-center gap-2 flex-wrap">
+            {/* Filtra a lista abaixo por unidade E decide o que entra no
+                "Imprimir" (sempre só pendentes) — os dois usam o mesmo select
+                de propósito, pra não duplicar controle igual na tela. */}
             <select value={filtroImpressao} onChange={e => setFiltroImpressao(e.target.value)}
               className="border border-stone-200 rounded-full px-2.5 py-1.5 text-xs font-bold bg-white focus:outline-none focus:border-green-500">
               <option value="Todas">Todas unidades</option>
               {unidades.map(u => <option key={u}>{u}</option>)}
             </select>
-            {pedidos.filter(p => p.status === 'pendente' && (filtroImpressao === 'Todas' || (p.unidade || 'Não informada') === filtroImpressao)).length > 0 ? (
-              <button onClick={onPrintTodos} className="px-3 py-1.5 rounded-full text-xs font-bold bg-stone-700 text-white">🖨️ Imprimir</button>
-            ) : (
-              <span className="text-xs text-stone-400 px-1">Sem pendentes</span>
+            {pedidos.some(p => p.status === 'pendente') && (
+              pedidos.filter(p => p.status === 'pendente' && (filtroImpressao === 'Todas' || (p.unidade || 'Não informada') === filtroImpressao)).length > 0 ? (
+                <button onClick={onPrintTodos} className="px-3 py-1.5 rounded-full text-xs font-bold bg-stone-700 text-white">🖨️ Imprimir</button>
+              ) : (
+                <span className="text-xs text-stone-400 px-1">Sem pendentes</span>
+              )
             )}
           </div>
         )}
