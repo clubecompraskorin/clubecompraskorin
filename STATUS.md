@@ -25,8 +25,11 @@
 > pro pedido novo do catálogo nunca duplicar; correções pequenas de UX no painel real (logo
 > na tela de login, destaque no botão Entregar, plural e duplicação no Dashboard) e um bug
 > real de auth corrigido (a tela resetava sozinha toda vez que voltava o foco da aba); e
-> **desenho pronto (ainda não implementado) de estoque real não-travante + PDV ágil pra
-> feira/culto** — falta só o Junior confirmar se seguimos pra construir (ver seção dedicada).
+> **estoque real não-travante + PDV ágil pra feira/culto implementados e mesclados na `main`**:
+> sobra do período anterior agora é um número vivo (some ao estoque disponível o tempo todo, não
+> só um aviso no início do mês seguinte) e existe um modo de venda rápida em tela cheia, com
+> estoque alocado por unidade religiosa (nova tabela `unidade_estoque_pdv`, sem mexer no pool
+> orçamentário por organização que já existia) (ver seção dedicada).
 
 ---
 
@@ -731,10 +734,11 @@ sozinho quando a conexão voltar, sem virar uma fila genérica.
 
 ---
 
-## Estoque real (não-travante) + PDV ágil pra feira/culto — desenho pronto, aguardando "sim" pra construir
+## Estoque real (não-travante) + PDV ágil pra feira/culto — implementado
 
-**Pedido do Junior**: 2 soluções interligadas, ainda **não implementadas** — só desenhadas e alinhadas
-com ele nesta sessão. Não mexer em nada até ele confirmar que quer seguir.
+**Pedido do Junior**: 2 soluções interligadas. Desenhadas e alinhadas com ele nesta sessão,
+depois implementadas e testadas via harness descartável (Junior confirmou que tudo que já
+existia continuava funcionando antes de pedir pra seguir).
 
 ### 1. Estoque real, baseado no que foi comprado de verdade — sem travar nada
 
@@ -784,24 +788,46 @@ Reaproveita bastante coisa que já existe: cadastro leve de clientes, botões de
 catálogo, e principalmente o **reenvio automático offline** (feature de hoje) — faz muito sentido
 aqui, já que feira/culto é exatamente onde a internet costuma falhar.
 
-### Restrição confirmada pelo Junior — crítica pro desenho, ainda não incorporada na conta acima
+### Restrição confirmada pelo Junior — resolvida
 
 **O PDV precisa usar o estoque da unidade religiosa específica onde a feira/culto está
-acontecendo — não o estoque somado da organização inteira.** Hoje `caixas_abertas` e
-`compra_confirmada_und` são um valor único por produto **por período**, sem nenhuma divisão por
-unidade (`org_unidades`) — é um pool só pra organização toda. A conta do item 1 acima ("estoque
-disponível") precisa ser refeita considerando isso: ou o estoque passa a ser rastreado por
-produto **×** unidade (mudança de schema maior — divide `caixas_abertas`/`compra_confirmada_und`
-por unidade), ou existe algum mecanismo de alocar/reservar uma fatia do estoque da org pra cada
-unidade antes da feira/culto começar. **Ainda não desenhado** — é o próximo ponto a resolver antes
-de começar a construir, não só um detalhe de UI do PDV.
+acontecendo — não o estoque somado da organização inteira.** Resolvida sem mexer no pool
+orçamentário existente: nova tabela `unidade_estoque_pdv` (produto × unidade → `alocado_und`),
+puramente aditiva. A Korin continua vendendo só pra organização inteira — não existe "segunda
+compra" por unidade — `alocado_und` é só "quanto desse total a Dedicante decidiu levar pra essa
+unidade vender no local", informativo, nunca trava a venda. Dentro do PDV, "restam N" por produto
+é `alocado_und` menos o que já foi vendido ali via PDV (`getVendidoPdvPorProduto`, filtrado por
+unidade). Sem alocação definida, o PDV funciona igual (mostra só o vendido, sem limite sugerido) —
+zero configuração obrigatória antes de vender.
 
-### Perguntas em aberto (produto, não bloqueiam o desenho, mas mudam detalhes de implementação)
+### Perguntas em aberto — respondidas na implementação
 
 - Mais de um aparelho vendendo ao mesmo tempo na mesma unidade (duas pessoas ajudando na feira)?
-  Muda como calcular "restam N" pra não mostrar número errado com venda simultânea.
-- Vale identificar a venda como vinda do PDV separado dos outros pedidos (ex: `origem: 'pdv'`), ou
-  pode entrar junto com os demais nos relatórios?
+  Ainda não tratado com trava otimista — "restam N" é calculado ao vivo em cima dos pedidos já
+  carregados, então dois aparelhos podem, em teoria, vender o mesmo "último" item quase ao mesmo
+  tempo sem se avisar um do outro. Como o desenho é **não-travante por princípio**, isso não
+  impede a venda (só o aviso visual erra por um instante até recarregar) — mas fica registrado
+  como limitação conhecida, não bug.
+- Vale identificar a venda como vinda do PDV separado dos outros pedidos? **Sim** — todo pedido do
+  PDV grava `origem: 'pdv'`, `status: 'entregue'` na hora (não fica pendente) e `entreguePor`
+  preenchido. Aparece junto dos demais em todos os relatórios/Fechamento, mas é filtrável/
+  identificável por essa origem quando precisar.
+
+### Status no GitHub
+
+Ambas mescladas na `main`, com `npx vite build` validado sem erro e revisão visual via harness
+descartável (showcase.jsx + Playwright, screenshots das duas telas — Produtos/Embalagens com sobra
+dobrada no número, e os 6 passos do fluxo do PDV) antes do merge.
+
+- **Estoque real (item 1)**: commit `a10ffe7` na `main` (branch
+  `feat/estoque-real-sobra-nao-travante`).
+- **PDV ágil (item 2)**: commit `614c56e` na `main`, merge de `feat/pdv-venda-no-local`
+  (commit da feature `2493f13`, migração `add_unidade_estoque_pdv` aplicada direto no Supabase de
+  produção — `nbfvkmdcbfvgpqpvvspv`).
+- Preview do Vercel gerado automaticamente pro branch do PDV foi usado pro Junior testar ao vivo
+  antes de autorizar o merge ("PODE MERGER TUDO E PUSH").
+- **Ainda não testado em produção de verdade** (venda real numa feira/culto) — ver item 12 em
+  Pendente.
 
 ---
 
@@ -848,10 +874,13 @@ de começar a construir, não só um detalhe de UI do PDV.
    conferir que o pedido acompanha o nome novo (e que período arquivado não muda); tentar excluir
    unidade com histórico e conferir que bloqueia com a mensagem certa; excluir unidade sem
    histórico e conferir que continua funcionando normal.
-12. **Estoque real (não-travante) + PDV ágil pra feira/culto** — desenho completo já feito e
-   alinhado com o Junior (ver seção dedicada acima), **aguardando ele confirmar se seguimos pra
-   construir**. Falta resolver o estoque por unidade (pool hoje é só por organização, não por
-   unidade — ver "Restrição confirmada pelo Junior" na seção acima) antes de começar a implementar.
+12. **Testar de verdade o estoque real + PDV numa feira/culto real** (ver seção dedicada acima,
+   já implementado e mesclado na `main`): abrir "🎪 Iniciar venda no local", configurar alocação
+   de estoque por unidade (⚙️ Estoque), vender alguns itens e conferir que "restam N" desconta
+   certo, que o pedido cai como entregue direto no Fechamento/Dashboard com `origem: 'pdv'`, e
+   testar o cenário sem alocação nenhuma configurada (deve vender normal, sem travar). Também
+   conferir visualmente a sobra "dobrada" na aba Produtos/Embalagens com um período que já tenha
+   compra confirmada do mês anterior.
 13. **Conferir visualmente a logo nova em produção**: preview de compartilhamento no WhatsApp de
    verdade (link do `/painel` ou `/pedido`), favicon na aba do navegador, ícone do PWA instalado
    na tela inicial (Android/iOS) — só validei os arquivos estáticos, não o comportamento real de
