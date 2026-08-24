@@ -32,10 +32,10 @@ function Header({ org, periodo, unidade }) {
   return (
     <header className="bg-white shadow-sm sticky top-0 z-20">
       <div className="flex items-center justify-center gap-4 px-4 py-2 border-b border-stone-100">
-        <img src="/logo-korin.png" alt="Clube de Compras Korin" className="h-10 w-auto" />
+        <img src="/logo-clube-unido.png" alt="Clube Unido" className="h-10 w-auto" />
       </div>
       <div className="bg-green-800 text-white text-center px-4 py-2">
-        <div className="text-xs text-green-300 uppercase tracking-widest">{org?.nome || 'Clube de Compras Korin'} · {periodo?.nome || ''}</div>
+        <div className="text-xs text-green-300 uppercase tracking-widest">{org?.nome || 'Clube Unido'} · {periodo?.nome || ''}</div>
         <div className="text-base font-black">📍 {unidade?.nome || ''}</div>
       </div>
     </header>
@@ -61,7 +61,7 @@ function TelaPin({ onEntrou, erroInicial }) {
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col items-center justify-center px-6">
-      <img src="/logo-korin.png" alt="Clube de Compras Korin" className="h-16 w-auto mb-6" />
+      <img src="/logo-clube-unido.png" alt="Clube Unido" className="h-16 w-auto mb-6" />
       <div className="w-full max-w-sm bg-white rounded-3xl shadow-md p-6 space-y-4">
         <div className="text-center">
           <div className="text-2xl mb-1">🚚</div>

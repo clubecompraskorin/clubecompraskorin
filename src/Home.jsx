@@ -33,7 +33,7 @@ export default function Home() {
     <div className="bg-[#F6F2EA] text-[#14241B] min-h-screen">
       {/* NAV */}
       <nav className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
-        <img src="/logo-korin.png" alt="Clube de Compras Korin" className="h-11 md:h-12 w-auto" />
+        <img src="/logo-clube-unido.png" alt="Clube Unido" className="h-11 md:h-12 w-auto" />
         <a href="/painel" className="text-sm font-semibold text-[#1A5C38] hover:text-[#0F3D24] transition-colors">
           Entrar / Criar conta →
         </a>
@@ -61,7 +61,7 @@ export default function Home() {
           <div className="relative">
             <div className="absolute -inset-4 bg-[#1A5C38]/10 rounded-[28px] rotate-2" />
             <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 -rotate-1 w-[260px]">
-              <img src="/screenshot-resumo.jpg" alt="Tela de fechamento do Clube de Compras Korin mostrando quantas caixas comprar da Korin, sem sobra"
+              <img src="/screenshot-resumo.jpg" alt="Tela de fechamento do Clube Unido mostrando quantas caixas comprar da Korin, sem sobra"
                 className="rounded-[20px] w-full h-auto block" />
             </div>
           </div>
@@ -87,7 +87,7 @@ export default function Home() {
             <div className="relative">
               <div className="absolute -inset-3 bg-[#1A5C38]/10 rounded-[32px] -rotate-2" />
               <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 rotate-1 w-[230px]">
-                <img src="/screenshot-embalagens.jpg" alt="Catálogo importado automaticamente no Clube de Compras Korin"
+                <img src="/screenshot-embalagens.jpg" alt="Catálogo importado automaticamente no Clube Unido"
                   className="rounded-[20px] w-full h-auto block" />
               </div>
             </div>
@@ -102,7 +102,7 @@ export default function Home() {
           <p className="text-lg md:text-xl leading-relaxed text-[#14241B]/80">
             Hoje, organizar um pedido coletivo da Korin costuma significar anotar pedido por pedido no WhatsApp,
             somar tudo na mão pra saber quantas caixas comprar, e separar o total de cada membro numa planilha.
-            O Clube de Compras Korin faz esse trabalho automaticamente — cada Dedicante com seu próprio catálogo,
+            O Clube Unido faz esse trabalho automaticamente — cada Dedicante com seu próprio catálogo,
             cada membro pedindo direto por um link.
           </p>
         </div>

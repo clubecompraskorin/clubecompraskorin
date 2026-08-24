@@ -23,10 +23,10 @@ function Header({ periodo, org }) {
   return (
     <header className="bg-white shadow-sm sticky top-0 z-20">
       <div className="flex items-center justify-center gap-4 px-4 py-2 border-b border-stone-100">
-        <img src="/logo-korin.png" alt="Clube de Compras Korin" className="h-10 w-auto" />
+        <img src="/logo-clube-unido.png" alt="Clube Unido" className="h-10 w-auto" />
       </div>
       <div className="bg-green-800 text-white text-center px-4 py-2">
-        <div className="text-xs text-green-300 uppercase tracking-widest">{org?.nome || 'Clube de Compras Korin'}</div>
+        <div className="text-xs text-green-300 uppercase tracking-widest">{org?.nome || 'Clube Unido'}</div>
         <div className="text-base font-black">{periodo?.nome || ''}</div>
       </div>
     </header>
@@ -37,7 +37,7 @@ function Rodape() {
   return (
     <footer className="bg-green-900 px-3 py-2 text-center space-y-0.5">
       <div className="text-green-400 font-semibold" style={{ fontSize: '10px' }}>
-        © Todos os Direitos Reservados — Clube de Compras Korin
+        © Todos os Direitos Reservados — Clube Unido
       </div>
       <a href="https://www.personalsupport.tec.br/" target="_blank" rel="noopener noreferrer"
         className="block text-green-300 font-bold hover:text-white underline" style={{ fontSize: '10px' }}>
@@ -59,7 +59,7 @@ function TelaFechada({ periodo, org, showInstall, iosInstall, install, dismiss }
             <div className="bg-green-700 text-white p-3 flex items-center gap-3">
               <img src="/icon-192.png" alt="" className="w-10 h-10 rounded-xl flex-shrink-0 bg-white p-1" />
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-black">Instale o Clube Korin</div>
+                <div className="text-sm font-black">Instale o Clube Unido</div>
                 <button onClick={install} className="text-xs bg-white text-green-700 font-black px-3 py-1.5 rounded-full mt-1.5 block active:bg-green-100">📲 Instalar agora</button>
               </div>
               <button onClick={dismiss} className="text-green-300 text-2xl">✕</button>
@@ -67,7 +67,7 @@ function TelaFechada({ periodo, org, showInstall, iosInstall, install, dismiss }
           )}
           {(showInstall === 'manual' || iosInstall) && (
             <div className="bg-white border-2 border-green-600 p-4">
-              <div className="text-sm font-black text-green-800 mb-2">📲 Instalar o Clube Korin</div>
+              <div className="text-sm font-black text-green-800 mb-2">📲 Instalar o Clube Unido</div>
               {iosInstall ? (
                 <div className="text-sm text-stone-600">Toque em <strong>Compartilhar ↑</strong> → <strong>"Adicionar à tela de início"</strong></div>
               ) : (
@@ -189,7 +189,7 @@ function TelaCatalogo({ periodo, org, produtos, carrinho, onSetQty, total, total
             <div className="bg-green-700 text-white p-3 flex items-center gap-3">
               <img src="/icon-192.png" alt="" className="w-10 h-10 rounded-xl flex-shrink-0 bg-white p-1" />
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-black">Instale o Clube Korin</div>
+                <div className="text-sm font-black">Instale o Clube Unido</div>
                 <button onClick={install} className="text-xs bg-white text-green-700 font-black px-3 py-1.5 rounded-full mt-1.5 block active:bg-green-100">📲 Instalar agora</button>
               </div>
               <button onClick={dismiss} className="text-green-300 text-2xl">✕</button>
@@ -197,7 +197,7 @@ function TelaCatalogo({ periodo, org, produtos, carrinho, onSetQty, total, total
           )}
           {(showInstall === 'manual' || iosInstall) && (
             <div className="bg-white border-2 border-green-600 p-4">
-              <div className="text-sm font-black text-green-800 mb-2">📲 Instalar o Clube Korin</div>
+              <div className="text-sm font-black text-green-800 mb-2">📲 Instalar o Clube Unido</div>
               {iosInstall ? (
                 <div className="text-sm text-stone-600">Toque em <strong>Compartilhar ↑</strong> → <strong>"Adicionar à tela de início"</strong></div>
               ) : (

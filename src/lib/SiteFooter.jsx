@@ -16,7 +16,7 @@ export default function SiteFooter() {
         </div>
       </div>
       <div className="border-t border-white/10 max-w-5xl mx-auto px-6 py-4 text-[11px] text-white/35">
-        © {new Date().getFullYear()} Clube de Compras Korin — desenvolvido por Personal Support
+        © {new Date().getFullYear()} Clube Unido — desenvolvido por Personal Support
       </div>
     </footer>
   )

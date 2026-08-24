@@ -1,7 +1,7 @@
 {
-  "name": "Korin Gestão",
-  "short_name": "Korin Admin",
-  "description": "Gestão de pedidos do Clube de Compras Korin",
+  "name": "Unido Gestão",
+  "short_name": "Unido Admin",
+  "description": "Gestão de pedidos do Clube Unido",
   "id": "korin-admin-v2",
   "scope": "/painel",
   "start_url": "/painel?source=pwa",

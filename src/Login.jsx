@@ -59,7 +59,7 @@ export default function Login({ onSuccess }) {
     <div className="min-h-screen bg-stone-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
-          <img src="/logo-korin.png" alt="Clube de Compras Korin" className="h-16 w-auto mx-auto mb-3" />
+          <img src="/logo-clube-unido.png" alt="Clube Unido" className="h-16 w-auto mx-auto mb-3" />
           <div className="text-sm text-stone-500">
             {modo === 'login' ? 'Entre na sua conta' : 'Crie sua conta de Dedicante'}
           </div>
@@ -73,7 +73,7 @@ export default function Login({ onSuccess }) {
                 <input
                   type="text" required value={nomeOrg}
                   onChange={e => handleNomeOrg(e.target.value)}
-                  placeholder="Ex: Clube de Compras Korin"
+                  placeholder="Ex: Comunidade Vida Plena"
                   className="w-full mt-1 px-3 py-2 rounded-xl border border-stone-300 text-sm"
                 />
               </div>

@@ -101,7 +101,7 @@ function Dashboard() {
       <header className="border-b border-white/10 px-6 py-5 flex items-center justify-between max-w-6xl mx-auto">
         <div>
           <div className="text-xs tracking-widest uppercase text-white/40" style={mono}>Painel do gestor</div>
-          <div className="font-semibold text-lg" style={display}>Clube de Compras Korin</div>
+          <div className="font-semibold text-lg" style={display}>Clube Unido</div>
         </div>
         <button onClick={signOut} className="text-xs text-white/40 hover:text-white/70 transition-colors">Sair</button>
       </header>

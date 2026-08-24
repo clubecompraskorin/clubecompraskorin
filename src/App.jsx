@@ -230,12 +230,12 @@ export default function App({ org, onOrgRefresh }) {
       <header className="bg-green-800 text-white sticky top-0 z-20 shadow-md">
         {/* Logo */}
         <div className="bg-white flex items-center justify-center px-3 py-2 border-b border-green-700">
-          <img src="/logo-korin.png" alt="Clube de Compras Korin" className="h-12 w-auto" />
+          <img src="/logo-clube-unido.png" alt="Clube Unido" className="h-12 w-auto" />
         </div>
         {/* Título + período + sync */}
         <div className="px-4 py-2.5 flex items-center justify-between">
           <div>
-            <div className="text-lg font-black leading-tight">Clube de Compras Korin</div>
+            <div className="text-lg font-black leading-tight">Clube Unido</div>
             {org?.nome && <div className="text-xs text-green-300 font-bold leading-tight">{org.nome}</div>}
           </div>
           <div className="flex flex-col items-end gap-0.5">
@@ -315,7 +315,7 @@ export default function App({ org, onOrgRefresh }) {
 
       {/* RODAPÉ */}
       <footer className="fixed bottom-0 left-0 w-full bg-green-900 z-20 flex items-center justify-between px-3 py-1 gap-2">
-        <span className="text-green-400 font-semibold truncate min-w-0" style={{fontSize:'10px'}}>© Todos os Direitos Reservados — Clube de Compras Korin</span>
+        <span className="text-green-400 font-semibold truncate min-w-0" style={{fontSize:'10px'}}>© Todos os Direitos Reservados — Clube Unido</span>
         <a href="https://www.personalsupport.tec.br/" target="_blank" rel="noopener noreferrer"
           className="text-green-300 font-bold hover:text-white transition-colors underline underline-offset-2 flex-shrink-0 whitespace-nowrap" style={{fontSize:'10px'}}>
           Desenvolvido por Personal Support
@@ -1252,7 +1252,7 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
       {subTab === 'resumo' && <>
       <div className="text-center">
         <div className="text-2xl font-black text-green-800">{periodo}</div>
-        <div className="text-sm text-stone-500 font-semibold">Resumo do Clube de Compras Korin</div>
+        <div className="text-sm text-stone-500 font-semibold">Resumo do Clube Unido</div>
       </div>
 
       <select value={filtroUnidadeResumo} onChange={e => setFiltroUnidadeResumo(e.target.value)}

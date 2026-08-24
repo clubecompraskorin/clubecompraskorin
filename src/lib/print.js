@@ -7,7 +7,7 @@ const printHeader = (nomeCliente, tel, periodo) => `
   <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:16px;border-bottom:3px solid #2D6A4F;margin-bottom:24px">
     <img src="data:image/png;base64,${LOGO_KORIN}" style="height:48px;width:auto" alt="Korin"/>
     <div style="text-align:center;flex:1;padding:0 12px">
-      <div style="font-size:11px;color:#aaa;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px">Clube de Compras Korin · ${periodo}</div>
+      <div style="font-size:11px;color:#aaa;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px">Clube Unido · ${periodo}</div>
       <div style="font-size:36px;font-weight:900;color:#2D6A4F;line-height:1">${nomeCliente}</div>
       ${tel ? `<div style="font-size:17px;color:#888;margin-top:4px">📱 ${tel}</div>` : ''}
     </div>
@@ -22,7 +22,7 @@ const printTotal = (total, pagamento) => `
     ? `<div style="text-align:center;margin-top:14px;font-size:17px;color:#555">Pagamento: <strong>${pagamento}</strong></div>`
     : ''}
   <div style="margin-top:32px;padding-top:14px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:center">
-    <span style="font-size:11px;color:#aaa">© Todos os Direitos Reservados — Clube de Compras Korin</span>
+    <span style="font-size:11px;color:#aaa">© Todos os Direitos Reservados — Clube Unido</span>
     <a href="https://www.personalsupport.tec.br/" style="font-size:11px;color:#2D6A4F;text-decoration:underline">Desenvolvido por Personal Support</a>
   </div>`
 
@@ -108,7 +108,7 @@ export const printTodos = (pedidos, produtos, periodo) => {
   const w = window.open('', '_blank')
   w.document.write(wrapDocCompact(`Pedidos ${periodo}`, `
     <div class="noprint" style="text-align:center;padding:14px;background:#f5f5f5">
-      <div style="font-size:13px;color:#666;margin-bottom:6px">Clube de Compras Korin · ${periodo} · Controle interno</div>
+      <div style="font-size:13px;color:#666;margin-bottom:6px">Clube Unido · ${periodo} · Controle interno</div>
       <button onclick="window.print()" style="background:#2D6A4F;color:#fff;border:none;padding:12px 36px;border-radius:8px;font-size:18px;cursor:pointer;font-weight:700">🖨️ Imprimir Todos (${pendentes.length} pedidos)</button>
     </div>
     ${blocos}`))
