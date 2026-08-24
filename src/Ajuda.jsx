@@ -100,7 +100,7 @@ export default function Ajuda() {
           Do cadastro ao primeiro pedido recebido
         </h1>
         <p className="mt-3 text-[#14241B]/65 leading-relaxed">
-          Pra uma Dedicante nova começar a usar sozinha, sem precisar perguntar nada pra ninguém.
+          Pra quem está começando agora como Dedicante, sem precisar perguntar nada pra ninguém.
         </p>
       </header>
 

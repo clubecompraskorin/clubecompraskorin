@@ -90,7 +90,7 @@ function TelaFechada({ periodo, org, showInstall, iosInstall, install, dismiss }
         </div>
         <div className="bg-green-50 border border-green-200 rounded-2xl px-6 py-5 max-w-sm w-full">
           <div className="text-base text-green-800 font-semibold">
-            Aguarde o próximo período ou fale com a Dedicante do grupo.
+            Aguarde o próximo período ou fale com quem administra o grupo.
           </div>
         </div>
       </div>
@@ -402,7 +402,7 @@ function TelaDados({ clienteDados, setClienteDados, unidades = [], onVoltar, onA
           </label>
           <div className="space-y-2">
             {unidades.length === 0 && (
-              <div className="text-sm text-stone-400 bg-stone-50 rounded-xl px-4 py-3">Nenhuma unidade de retirada cadastrada ainda. Fale com a Dedicante.</div>
+              <div className="text-sm text-stone-400 bg-stone-50 rounded-xl px-4 py-3">Nenhuma unidade de retirada cadastrada ainda. Fale com quem administra o grupo.</div>
             )}
             {unidades.map(u => u.aberto === false ? (
               <div key={u.id} className="w-full text-left px-5 py-4 rounded-2xl border-2 border-stone-100 bg-stone-50 opacity-60">
@@ -422,7 +422,7 @@ function TelaDados({ clienteDados, setClienteDados, unidades = [], onVoltar, onA
         {/* Retirada info */}
         <div className="bg-green-50 border border-green-100 rounded-2xl px-4 py-3 text-center">
           <div className="text-base font-bold text-green-700">🏪 Retirada presencial</div>
-          <div className="text-sm text-green-600 mt-0.5">A Dedicante avisará quando o pedido estiver pronto</div>
+          <div className="text-sm text-green-600 mt-0.5">Você recebe um aviso quando o pedido estiver pronto</div>
         </div>
 
       </main>
@@ -572,7 +572,7 @@ function TelaConfirmacao({ pedido, periodo, org, isEdicao, onEditar }) {
         {/* Info */}
         <div className="bg-green-50 border border-green-100 rounded-2xl px-4 py-4 text-center mb-4">
           <div className="text-base font-bold text-green-700">
-            A Dedicante avisará quando estiver pronto para retirada! 🌿
+            Você recebe um aviso quando estiver pronto para retirada! 🌿
           </div>
         </div>
 
@@ -804,7 +804,7 @@ export default function CatalogoApp() {
       <div className="text-center">
         <div className="text-4xl mb-3">🔗</div>
         <div className="text-stone-700 font-black text-lg mb-1">Link inválido</div>
-        <div className="text-stone-500 text-sm">Confira o link com a Dedicante do seu grupo.</div>
+        <div className="text-stone-500 text-sm">Confira o link com quem administra seu grupo.</div>
       </div>
     </div>
   )

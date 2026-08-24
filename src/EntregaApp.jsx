@@ -55,7 +55,7 @@ function TelaPin({ onEntrou, erroInicial }) {
     setErro('')
     setEntrando(true)
     const ok = await onEntrou(pin.trim(), nome.trim())
-    if (!ok) setErro('PIN inválido — confira com a Dedicante')
+    if (!ok) setErro('PIN inválido — confira com quem organiza o grupo')
     setEntrando(false)
   }
 

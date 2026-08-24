@@ -5,10 +5,10 @@ const display = { fontFamily: "'Space Grotesk', sans-serif" }
 const mono = { fontFamily: "'JetBrains Mono', monospace" }
 
 const PASSOS = [
-  { n: '01', titulo: 'Catálogo', texto: 'A Dedicante fotografa a tabela de preços da Korin. O sistema lê os produtos e organiza o período sozinho.' },
+  { n: '01', titulo: 'Catálogo', texto: 'Sobe a planilha oficial da Korin — a mesma que já usa pra comprar — ou tira uma foto da tabela. O sistema lê os produtos e organiza o período sozinho.' },
   { n: '02', titulo: 'Pedidos',  texto: 'Cada membro pede pelo link do catálogo, você digita manualmente, ou cola a mensagem do WhatsApp — a IA organiza.' },
-  { n: '03', titulo: 'Entrega', texto: 'Você mesma entrega em 3 passos, ou passa o link com PIN pra outra pessoa entregar por você.' },
-  { n: '04', titulo: 'Fechamento', texto: 'O sistema soma tudo e mostra exatamente quantas caixas comprar. Sem sobra, sem planilha, sem improviso.' },
+  { n: '03', titulo: 'Entrega', texto: 'Entrega em 3 passos, ou passa o link com PIN pra outra pessoa entregar no seu lugar.' },
+  { n: '04', titulo: 'Fechamento', texto: 'O sistema soma tudo e mostra exatamente quantas caixas comprar — e controla a sobra de cada produto pro período seguinte, sem planilha solta.' },
 ]
 
 const FAQ_HOME = [
@@ -23,7 +23,7 @@ const FAQ_HOME = [
   { p: 'Tem como o representante de uma unidade entregar sem eu conferir tudo?', r: 'Sim. Cada unidade ganha um link próprio com PIN — o representante vê os pedidos daquela unidade, separa e confirma a entrega direto por ali, sem precisar de login completo.' },
   { p: 'Dá pra confirmar o que realmente foi comprado da Korin?', r: 'Sim. Você reimporta a mesma planilha que enviou pra Korin, já preenchida, e o sistema usa a quantidade real em vez da estimativa — inclusive pra calcular a sobra do período seguinte.' },
   { p: 'Dá pra vender direto numa feira ou culto, sem anotar em papel?', r: 'Sim. Tem um modo de venda rápida, separado do resto do sistema, pensado pra fila e pouco tempo por pessoa — você diz o que levou de estoque pra aquela unidade, vende tocando na tela, e cada venda já desconta e entra entregue na hora.' },
-  { p: 'Preciso saber mexer em sistema pra começar?', r: 'Não. O guia de ajuda mostra cada passo com print de tela, do zero até o primeiro pedido recebido — dá pra seguir sozinha, sem perguntar nada pra ninguém.' },
+  { p: 'Preciso saber mexer em sistema pra começar?', r: 'Não. O guia de ajuda mostra cada passo com print de tela, do zero até o primeiro pedido recebido — dá pra seguir do começo ao fim sem perguntar nada pra ninguém.' },
 ]
 
 function Hook({ eyebrow, titulo, corpo, img, alt, filhos, invertido = false }) {
@@ -100,10 +100,12 @@ export default function Home() {
         <div className="max-w-3xl mx-auto px-6 py-16 text-center">
           <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Por que existe</div>
           <p className="text-lg md:text-xl leading-relaxed text-[#14241B]/80">
-            Hoje, organizar um pedido coletivo da Korin costuma significar anotar pedido por pedido no WhatsApp,
-            somar tudo na mão pra saber quantas caixas comprar, e separar o total de cada membro numa planilha.
-            O Clube Unido faz esse trabalho automaticamente — cada Dedicante com seu próprio catálogo,
-            cada membro pedindo do jeito que for mais fácil pra ele.
+            Hoje, organizar um pedido coletivo da Korin costuma significar anotar cada pedido à mão — chegou
+            por WhatsApp, por ligação ou de viva voz — depois somar tudo pra saber quantas caixas comprar, e
+            separar o total de cada membro numa planilha. O Clube Unido faz esse trabalho automaticamente:
+            não importa como o pedido chegou até você, incluir é simples — manualmente, colando a mensagem do
+            WhatsApp, ou deixando o membro pedir direto pelo link do catálogo. Cada Dedicante com seu próprio
+            catálogo, cada membro pedindo do jeito que for mais fácil pra ele.
           </p>
         </div>
       </section>
@@ -154,7 +156,7 @@ export default function Home() {
           <div className="mt-6 space-y-3">
             {[
               { i: '💬', t: 'Cola a mensagem do WhatsApp', d: 'Cole o texto que o membro mandou e a IA identifica produto, quantidade e código sozinha.' },
-              { i: '✍️', t: 'Insere manualmente', d: 'Recebeu por ligação ou de viva voz? Monta o pedido você mesma, direto na tela.' },
+              { i: '✍️', t: 'Insere manualmente', d: 'Recebeu por ligação ou de viva voz? Monta o pedido direto na tela.' },
               { i: '🔗', t: 'Divulga o catálogo do mês', d: 'Manda o link uma vez pro grupo, e cada membro pede sozinho, sem precisar de conta.' },
             ].map(b => (
               <div key={b.t} className="flex gap-3">
@@ -337,7 +339,7 @@ export default function Home() {
       <section className="bg-[#1A5C38] text-white">
         <div className="max-w-3xl mx-auto px-6 py-16 text-center">
           <h2 className="text-2xl md:text-3xl font-semibold" style={display}>Pronta pra organizar o pedido do seu grupo?</h2>
-          <p className="mt-3 text-white/70 max-w-md mx-auto">Com 4 passos simples você já começa a usar sozinha — o guia mostra cada um, com print de tela.</p>
+          <p className="mt-3 text-white/70 max-w-md mx-auto">Com 4 passos simples você já começa a usar — o guia mostra cada um, com print de tela.</p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <a href="/painel" className="px-6 py-3.5 rounded-xl bg-white text-[#0F3D24] font-semibold text-sm hover:bg-white/90 transition-colors">
               Criar minha conta →
