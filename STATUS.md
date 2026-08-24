@@ -899,68 +899,46 @@ app diferente pra quem já instalou (duplicaria ícone ou perderia a instalaçã
 
 ## Pendente / próximos passos
 
-1. **Testar de verdade o comparativo do Dashboard com dado real**: abrir Fechamento → Dashboard
-   com pelo menos 2 períodos arquivados na conta, conferir que "Comparativo com o período
-   anterior" aparece com os números certos, testar trocando o filtro de unidade, e conferir o
-   caso de só ter 1 período (comparativo não deve aparecer, sem erro).
-2. **Testar de verdade o link de entrega por PIN**: gerar um link numa unidade, abrir como
-   representante (nome + PIN), separar/entregar um pedido de teste e conferir que aparece em
-   tempo real na tela "Entregas" do painel com `entregue_por` preenchido; testar PIN errado,
-   trocar PIN e confirmar que o antigo para de funcionar, e a instalação como PWA a partir do
-   link (deve abrir direto na unidade certa).
-3. **Testar de verdade no app**: upload de uma planilha real, conferir se a IA classifica bem as
-   categorias, se o preview mostra tudo certo, se salva corretamente. Testar também o bloqueio de
-   remoção de produto com pedido vinculado, o aviso de código reaproveitado, e o novo selo de
-   "fora da tabela" (Produtos e Embalagens).
-4. **Decidir se o catálogo público também deve sinalizar/esconder produto "fora da tabela"** —
-   hoje ele continua comprável por qualquer cliente novo mesmo sem estar na última importação.
-5. **Atualizar o artefato publicado** com a feature de importação por planilha, com os gaps de
-   integridade produto↔pedido, com o link de entrega por PIN e com o gap de estoque/compra
-   confirmada (documentado em markdown no repo, artefato visual ainda não reflete).
-6. **Gap de offline-first do Sistema 2** (identificado no comparativo): offline-first completo
-   (fila de escrita por "intenção", documentada no artefato) segue sem decisão de seguir — mas os
-   2 pontos de maior risco (checkout do catálogo, confirmação de entrega) já ganharam reenvio
-   automático leve (ver seção acima). **Testar de verdade com conexão real**: simular modo avião
-   no meio do checkout do catálogo e da confirmação de entrega, confirmar que o banner aparece,
-   desativar modo avião e conferir que a ação chega sozinha sem duplicar — não foi possível testar
-   isso neste ambiente (sem credenciais Supabase).
-7. **Próximas partes do fluxo de campo ainda não totalmente levantadas**: como os outros
-   coordenadores captam pedido dos membros (coberto), como fecham/enviam o consolidado pra Korin
-   (levantamento feito, encerramento por unidade e export consolidado implementados).
-8. **Aguardando o Junior trazer o requisito de uso futuro do cadastro de clientes** — a base
-   (tabela + upsert automático + autocomplete) já está funcionando, mas nenhuma tela de gestão foi
-   desenhada de propósito, até saber o que de fato vai ser construído em cima disso.
-9. **Testar de verdade o encerramento por unidade**: fechar uma unidade e confirmar que bloqueia
+1. ✅ **Comparativo do Dashboard — confirmado pelo Junior em teste real, tudo certo.**
+2. **Link de entrega por PIN — parcialmente testado.** Junior confirmou funcionando; falta
+   testar **PIN errado** e **instalar como PWA a partir do link**.
+3. **Upload de planilha real — confirmado OK pelo Junior.** Ainda falta testar: bloqueio de
+   remoção de produto com pedido vinculado, aviso de código reaproveitado, e o selo "fora da
+   tabela" em Produtos/Embalagens.
+4. ✅ **Catálogo público esconde produto "fora da tabela" — decisão do Junior, implementada.**
+   Commit `40e4124` na `main`: mesmo padrão já usado pro produto esgotado (só some se o
+   carrinho do cliente não tiver nada dele, pra nunca sumir algo que ele já estava editando).
+5. ✅ **Artefato publicado atualizado** com importação por planilha (implementada), gap de
+   integridade produto↔pedido, link de entrega por PIN e sobra/compra confirmada.
+   `https://claude.ai/code/artifact/3cae4755-c3cf-4998-8c37-5e4fb05f2325`
+6. **Gap de offline-first do Sistema 2 — ainda não testado.** Simular modo avião no meio do
+   checkout do catálogo e da confirmação de entrega, confirmar que o banner aparece, desativar
+   modo avião e conferir que a ação chega sozinha sem duplicar — não foi possível testar isso
+   neste ambiente (sem credenciais Supabase).
+7. ~~Próximas partes do fluxo de campo~~ — **item confuso, substituído**: isso só estava
+   perguntando "como os outros coordenadores fecham e enviam o consolidado pra Korin", e essa
+   pergunta já está respondida pelo que já existe — encerramento por unidade + export
+   consolidado (itens 9 e 10). Não é uma pendência de verdade, só ficou uma nota solta do
+   levantamento de campo original. Removido da lista.
+8. **Cadastro de clientes — Junior confirmou que precisa.** Antes: "aguardando o Junior trazer o
+   requisito". Agora: ele confirmou que sim, precisa de uma tela de gestão. **Falta definir o
+   escopo** — o que exatamente essa tela precisa ter (ver pergunta feita a ele no chat).
+9. **Encerramento por unidade — ainda não testado.** Fechar uma unidade e confirmar que bloqueia
    pedido novo nos 3 caminhos (catálogo, manual, colado) sem travar pedido/entrega já existente;
    testar reabrir.
-10. **Testar de verdade o export consolidado**: gerar planilha "Pedido único" com 2+ unidades
-   marcadas e conferir que soma certo (quantidade e embalagens fechadas), e que "Separado por
-   unidade" continua idêntico ao de antes.
-11. **Testar de verdade renomear/excluir unidade**: renomear uma unidade com pedido vinculado e
-   conferir que o pedido acompanha o nome novo (e que período arquivado não muda); tentar excluir
-   unidade com histórico e conferir que bloqueia com a mensagem certa; excluir unidade sem
-   histórico e conferir que continua funcionando normal.
-12. **Testar de verdade o estoque real + PDV numa feira/culto real** (ver seção dedicada acima,
-   já implementado e mesclado na `main`): abrir "🎪 Iniciar venda no local", configurar alocação
-   de estoque por unidade (⚙️ Estoque), vender alguns itens e conferir que "restam N" desconta
-   certo, que o pedido cai como entregue direto no Fechamento/Dashboard com `origem: 'pdv'`, e
-   testar o cenário sem alocação nenhuma configurada (deve vender normal, sem travar). Também
-   conferir visualmente a sobra "dobrada" na aba Produtos/Embalagens com um período que já tenha
-   compra confirmada do mês anterior.
-13. **Conferir visualmente a logo nova em produção**: preview de compartilhamento no WhatsApp de
-   verdade (link do `/painel` ou `/pedido`), favicon na aba do navegador, ícone do PWA instalado
-   na tela inicial (Android/iOS) — só validei os arquivos estáticos, não o comportamento real de
-   cache/preview de cada plataforma.
-14. **Conferir a página inicial em produção** (`clubecompraskorin.vercel.app`) — layout e prints
-   novos num navegador real. Responsividade em si já foi auditada (mobile/tablet/desktop, ver
-   seção acima) — mas via dev server local, não a URL de produção de verdade.
-15. **Testar de verdade o rebrand pra "Clube Unido" em dispositivo real**: quem já tem o PWA
-   instalado (painel, catálogo ou entrega) precisa reabrir o app e conferir se o ícone atualiza
-   sozinho (a versão do cache do service worker subiu de propósito pra isso — se não atualizar,
-   investigar); instalar do zero num Android e num iPhone e conferir o ícone/nome novo na tela
-   inicial; mandar um link pelo WhatsApp e conferir se o preview de compartilhamento já mostra a
-   marca nova (pode ficar em cache do WhatsApp/Facebook por um tempo, não é bug do sistema);
-   testar uma notificação push de verdade (pedido novo) e conferir se o ícone aparece certo.
+10. **Export consolidado — testado só no desktop, OK.** Falta testar no mobile.
+11. **Renomear/excluir unidade — ainda não testado.**
+12. **Estoque real + PDV numa feira/culto real — PDV parece OK pro Junior, estoque real ainda não
+   testado.** Falta especificamente: conferir que "restam N" desconta certo no PDV (isso o
+   Junior já validou), e testar a sobra "dobrada" na aba Produtos/Embalagens com um período que
+   já tenha compra confirmada do mês anterior (isso ainda não).
+13. ~~Logo nova em produção~~ — **obsoleto, confirmado pelo Junior.** Falava da logo oficial da
+   Korin, substituída pelo rebrand (ver item 15). Removido da lista.
+14. ✅ **Página inicial em produção — confirmado pelo Junior, tudo certo.**
+15. **Rebrand "Clube Unido" — testado em desktop, OK pro Junior.** Falta testar em dispositivo
+   real: ícone atualizando sozinho pra quem já tem o PWA instalado (versão do cache subiu de
+   propósito pra isso), instalar do zero num Android e num iPhone, preview de compartilhamento
+   no WhatsApp, e uma notificação push de verdade.
 
 ---
 
