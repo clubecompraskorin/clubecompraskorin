@@ -4,8 +4,9 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
-> Última atualização: 22/08/2026. Resumo das entregas recentes (detalhes em cada seção abaixo):
-> gaps de integridade produto↔pedido corrigidos; cadastro leve de clientes; unidade de retirada
+> Última atualização: 24/08/2026. Resumo das entregas recentes (detalhes em cada seção abaixo):
+> gaps de integridade produto↔pedido corrigidos; cadastro leve de clientes **com tela de gestão**
+> (buscar, editar, cadastrar/excluir manualmente, exportar planilha); unidade de retirada
 > obrigatória; encerramento por unidade + export consolidado; renomear/excluir unidade corrigidos;
 > **link de entrega por PIN pro representante da unidade** (separação/entrega sem login completo);
 > **sobra do período anterior + confirmação de compra real** enviada pra Korin (substitui a
@@ -34,7 +35,11 @@
 > uma seção de gancho** pro PDV, com print real da tela de venda e nova pergunta no FAQ; e o
 > sistema passou a ter **marca própria — "Clube Unido"** (nome e símbolo novos, desenhados do
 > zero) em vez de usar o nome/logo oficial da Korin, já que o app não é um produto oficial dela
-> — mantidas todas as menções reais à Korin como fornecedora (tabela de preços, planilha, etc).
+> — mantidas todas as menções reais à Korin como fornecedora (tabela de preços, planilha, etc);
+> **catálogo público passou a esconder produto "fora da tabela"** (decisão do Junior, mesmo
+> padrão do produto esgotado); e o **artefato técnico publicado foi atualizado** com a
+> importação por planilha (implementada), o gap de integridade produto↔pedido, o link de
+> entrega por PIN e a sobra/compra confirmada.
 
 ---
 
@@ -194,7 +199,7 @@ item não reflete mais a planilha/foto mais recente.
 
 ---
 
-## Cadastro leve de clientes (base pra uso futuro — Junior vai detalhar depois)
+## Cadastro leve de clientes + tela de gestão — implementado
 
 Sistema não tinha nenhum cadastro de cliente — `cliente_nome`/`cliente_tel` eram só texto solto
 em cada pedido, sem entidade nenhuma amarrando isso, sem histórico entre meses, sem autocomplete
@@ -227,11 +232,33 @@ coordenadora e o cliente final — e cada passo/campo a mais é risco de desist�
   sobrescreve o que a coordenadora já digitou). No `ModalColarPedido`, roda também sobre o nome
   que a IA já extrai do texto colado do WhatsApp.
 - `npx vite build` validado sem erro.
-- **Ainda não existe**: tela "Clientes" de gestão/consulta — combinado que o Junior traz o
-  requisito de uso futuro antes de desenhar isso.
 - **Status no GitHub: mesclada na `main`.** Commit da feature: `f5e29b7`
   (branch `feat/cadastro-leve-de-clientes`). Merge commit na `main`: `face932`
   (`ebcf71f..face932`).
+
+### Tela de gestão "Clientes" — implementada depois, escopo confirmado pelo Junior
+
+Antes: "ainda não existe tela, aguardando o Junior trazer o requisito". Junior confirmou que
+precisa, com escopo: **editar dados**, **cadastrar/excluir manualmente** e **exportar planilha**
+(buscar/listar já vem junto, é a base da tela).
+
+**Implementado**:
+- Migração `add_clientes_delete_policy`: a tabela só tinha SELECT/INSERT/UPDATE — faltava
+  política de DELETE (`is_org_member(org_id)`, mesmo padrão das outras).
+- `src/lib/clientes.js`: `criarClienteManual` (erro aparece pra coordenadora, ao contrário do
+  `upsertCliente` do fluxo de pedido que falha calado de propósito), `atualizarCliente`,
+  `excluirCliente`. `listarClientes` passou a trazer `id`/`created_at` (precisa do id pra
+  editar/excluir).
+- `src/ClientesManager.jsx` (novo): mesmo padrão visual/estrutural do `UnidadesManager.jsx` —
+  lista com form inline de criar/editar, exclusão com confirmação (não afeta pedido já feito,
+  só remove o cadastro). Busca por nome/telefone. Botão "Exportar" gera `.xlsx` (nome, telefone,
+  unidade) com a mesma lib `xlsx` já usada no export de pedidos.
+- Nova sub-aba **"👥 Clientes"** em Web, ao lado de "📍 Unidades" (`WebScreen.jsx`).
+- `npx vite build` validado sem erro; revisado visualmente via harness descartável (estado vazio,
+  formulário de cadastro, lista com clientes fictícios) — harness revertido, não ficou no repo.
+- **Status no GitHub: mesclada na `main`.** Commit `03bd988`
+  (branch `feat/cadastro-clientes-tela-gestao`). Merge `d52a74d` (`cbadf53..d52a74d`).
+- **Ainda não testado por ninguém em uso real** — ver Pendente.
 
 ---
 
@@ -920,9 +947,10 @@ app diferente pra quem já instalou (duplicaria ícone ou perderia a instalaçã
    pergunta já está respondida pelo que já existe — encerramento por unidade + export
    consolidado (itens 9 e 10). Não é uma pendência de verdade, só ficou uma nota solta do
    levantamento de campo original. Removido da lista.
-8. **Cadastro de clientes — Junior confirmou que precisa.** Antes: "aguardando o Junior trazer o
-   requisito". Agora: ele confirmou que sim, precisa de uma tela de gestão. **Falta definir o
-   escopo** — o que exatamente essa tela precisa ter (ver pergunta feita a ele no chat).
+8. ✅ **Tela de gestão de clientes — implementada e mesclada na `main`** (ver seção dedicada
+   acima). Escopo confirmado pelo Junior: editar, cadastrar/excluir manualmente, exportar
+   planilha. **Ainda não testada por ele** — testar buscar, editar um cadastro existente,
+   cadastrar manualmente, excluir (confirmar que não afeta pedido já feito) e exportar.
 9. **Encerramento por unidade — ainda não testado.** Fechar uma unidade e confirmar que bloqueia
    pedido novo nos 3 caminhos (catálogo, manual, colado) sem travar pedido/entrega já existente;
    testar reabrir.
