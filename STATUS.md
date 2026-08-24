@@ -30,8 +30,11 @@
 > sobra do período anterior agora é um número vivo (some ao estoque disponível o tempo todo, não
 > só um aviso no início do mês seguinte) e existe um modo de venda rápida em tela cheia, com
 > estoque alocado por unidade religiosa (nova tabela `unidade_estoque_pdv`, sem mexer no pool
-> orçamentário por organização que já existia) (ver seção dedicada); e a **página inicial ganhou
-> uma seção de gancho** pro PDV, com print real da tela de venda e nova pergunta no FAQ.
+> orçamentário por organização que já existia) (ver seção dedicada); a **página inicial ganhou
+> uma seção de gancho** pro PDV, com print real da tela de venda e nova pergunta no FAQ; e o
+> sistema passou a ter **marca própria — "Clube Unido"** (nome e símbolo novos, desenhados do
+> zero) em vez de usar o nome/logo oficial da Korin, já que o app não é um produto oficial dela
+> — mantidas todas as menções reais à Korin como fornecedora (tabela de preços, planilha, etc).
 
 ---
 
@@ -512,7 +515,11 @@ continua sendo a coordenadora.
 
 ---
 
-## Logo oficial nova aplicada em todo o sistema — implementado
+## Logo oficial nova aplicada em todo o sistema — implementado, depois substituída (ver rebrand)
+
+> **Superada**: a logo oficial da Korin aplicada aqui foi removida do sistema inteiro na sessão
+> seguinte, junto com o rebrand pra "Clube Unido" (ver seção dedicada mais abaixo) — o app não é
+> um produto oficial da Korin. Fica registrado por histórico.
 
 O Junior forneceu a logo oficial (`public/logo_clube_compras_korin.png`, 295×195, fundo branco),
 substituindo a marca antiga (o "pote/lata Korin" que era usada até então). Aplicada em:
@@ -837,6 +844,59 @@ dobrada no número, e os 6 passos do fluxo do PDV) antes do merge.
 
 ---
 
+## Rebrand: "Clube de Compras Korin" → "Clube Unido" — implementado
+
+**Pedido do Junior**: ele vai apresentar o sistema numa Live e cobrar por ele — nesse momento caiu
+a ficha de que o app não é um produto oficial da Korin, então não pode usar o nome nem a logo dela
+como se fosse. Pedido: criar uma marca própria.
+
+**Nome e símbolo escolhidos**: apresentei 4 direções (nome + símbolo, cada uma com um conceito
+diferente — círculo/comunidade, cesta/caixa fechada, colheita/orgânico, clube/continuidade) num
+artefato visual; o Junior escolheu a opção 4, **"Clube Unido"**, com o símbolo de dois círculos
+entrelaçados (ideia de "unir/juntar"), pensado especificamente pra continuar legível até em
+favicon de 16px (por isso os dois círculos usam cores sólidas diferentes, tipo Mastercard — um
+preenchimento translúcido/uniforme desaparecia virando uma mancha em tamanho pequeno).
+
+**O que mudou**: nome e símbolo do sistema em si, em tudo que é identidade — título de cada
+página, meta tags (og:title/description, apple-mobile-web-app-title), os 2 manifests do PWA
+(nome/descrição — não o `id` interno, ver abaixo), favicon, ícones de instalação (192/512/apple-
+touch), tela de login, headers do painel/catálogo/entrega/gestor, rodapés (inclusive impressão),
+imagem de compartilhamento (`og-image.png`) e o nome do app instalado dinamicamente por org
+(`AuthGate.jsx`). Logo antiga (`logo-korin.png`) removida do projeto.
+
+**O que ficou igual, de propósito**: toda menção real à Korin como **fornecedora** — "tabela de
+preços da Korin", "planilha oficial da Korin (.xlsx)", "O que comprar na Korin", "Catálogo Korin"
+etc. Isso não é a marca do sistema, é a descrição factual de quem é o fornecedor real — continua
+certo e não tem por que mudar. A distinção foi feita item por item, não com busca-e-troca cego.
+
+**2 prints reais tinham a marca antiga cravada nos pixels** (`screenshot-embalagens.jpg`,
+`screenshot-entrega.jpg`, usados na página inicial) — refeitos via harness descartável reproduzindo
+o layout real (mesmas classes Tailwind do `App.jsx`/`EntregaApp.jsx`) com dado fictício parecido
+com o original, harness revertido depois.
+
+**Bug pego na validação, corrigido antes do Junior perceber em produção**: os 3 service workers
+(`sw.js`, `sw-catalogo.js`, `sw-entrega.js`) ainda apontavam pro `/logo-korin.png` que acabou de
+ser removido — pré-cache e ícone/badge de notificação push quebrados. Corrigido pra
+`/logo-clube-unido.png` e subida a versão do cache (v2→v3 catálogo/entrega, v8→v9 admin), senão
+quem já tem o PWA instalado ficaria preso no cache antigo.
+
+**`id` dos manifests não foi mexido** (`korin-admin-v2`, `korin-catalogo`) — é só um identificador
+interno do PWA, não aparece pro usuário, e mudar isso faria o sistema operacional tratar como um
+app diferente pra quem já instalou (duplicaria ícone ou perderia a instalação existente).
+
+- `npx vite build` validado sem erro (duas vezes — antes e depois do fix dos service workers);
+  revisão visual completa via Playwright antes do merge (home, login, ajuda, seção do PDV,
+  favicon em 16px e 32px upscalado pra conferir legibilidade).
+- Preview do Vercel gerado automaticamente pro branch (`clubecompraskorin-git-rebran-c38452-…`)
+  foi conferido pelo Junior antes de autorizar o merge ("tudo certinho, siga").
+- **Status no GitHub: mesclada na `main`.** Commit `d00115a` (branch `rebrand/clube-unido`),
+  merge `5cefec6`. Fix dos service workers: commit `cbb9729`, direto na `main` (correção do que
+  tinha acabado de subir, sem precisar de branch/preview novo).
+- Branch `rebrand/clube-unido` não foi possível apagar do GitHub (permissão negada, 403) — fica
+  órfã lá, sem efeito prático, já mesclada.
+
+---
+
 ## Pendente / próximos passos
 
 1. **Testar de verdade o comparativo do Dashboard com dado real**: abrir Fechamento → Dashboard
@@ -894,6 +954,13 @@ dobrada no número, e os 6 passos do fluxo do PDV) antes do merge.
 14. **Conferir a página inicial em produção** (`clubecompraskorin.vercel.app`) — layout e prints
    novos num navegador real. Responsividade em si já foi auditada (mobile/tablet/desktop, ver
    seção acima) — mas via dev server local, não a URL de produção de verdade.
+15. **Testar de verdade o rebrand pra "Clube Unido" em dispositivo real**: quem já tem o PWA
+   instalado (painel, catálogo ou entrega) precisa reabrir o app e conferir se o ícone atualiza
+   sozinho (a versão do cache do service worker subiu de propósito pra isso — se não atualizar,
+   investigar); instalar do zero num Android e num iPhone e conferir o ícone/nome novo na tela
+   inicial; mandar um link pelo WhatsApp e conferir se o preview de compartilhamento já mostra a
+   marca nova (pode ficar em cache do WhatsApp/Facebook por um tempo, não é bug do sistema);
+   testar uma notificação push de verdade (pedido novo) e conferir se o ícone aparece certo.
 
 ---
 
