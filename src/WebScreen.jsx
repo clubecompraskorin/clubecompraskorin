@@ -14,6 +14,7 @@ import { toast, confirmar } from './lib/dialog'
 import { getUnidades } from './lib/unidades'
 import { ehPlanilha, parseTabelaKorin } from './lib/importarPlanilha'
 import UnidadesManager from './UnidadesManager'
+import ClientesManager from './ClientesManager'
 
 const fmt = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',')
 const fmtData = iso => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR') : ''
@@ -1109,6 +1110,7 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
     { id: 'pedidos',   label: `🛒 Pedidos (${pedidos.filter(p => p.status !== 'cancelado').length})` },
     { id: 'resumo',    label: '📊 Resumo' },
     { id: 'unidades',  label: '📍 Unidades' },
+    { id: 'clientes',  label: '👥 Clientes' },
     { id: 'dados',     label: org?.cadastroCompleto ? '🏢 Dados' : '🏢 Dados ⚠️' },
   ]
 
@@ -1193,6 +1195,9 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
       )}
       {subTab === 'unidades' && (
         <UnidadesManager orgId={orgId} orgSlug={orgSlug} modo="settings" onChange={lista => { setUnidades(lista); onUnidadesChange?.(lista) }} />
+      )}
+      {subTab === 'clientes' && (
+        <ClientesManager orgId={orgId} unidadesNomes={nomesUnidades} />
       )}
       {subTab === 'dados' && (
         <TabDados org={org} onSalvo={() => onOrgRefresh?.()} />
