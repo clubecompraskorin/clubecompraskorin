@@ -233,7 +233,10 @@ function TelaCatalogo({ periodo, org, produtos, carrinho, onSetQty, total, total
               const { disponivel } = getDisponivel(p.cod)
               const qty = carrinho[p.cod] || 0
               // Ocultar produto se esgotado E não tem nada no carrinho
-              return !(disponivel === 0 && qty === 0)
+              if (disponivel === 0 && qty === 0) return false
+              // Ocultar produto fora da última tabela importada, a menos que já esteja no carrinho
+              if (p.foraDaTabela && qty === 0) return false
+              return true
             })
             .sort((a, b) => a.cod - b.cod)
           if (!lista.length) return null
