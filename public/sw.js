@@ -1,4 +1,4 @@
-const CACHE = 'korin-admin-v8'
+const CACHE = 'korin-admin-v9'
 
 self.addEventListener('install', e => { self.skipWaiting() })
 
@@ -34,11 +34,11 @@ self.addEventListener('message', e => {
 self.addEventListener('push', e => {
   let dados = {}
   try { dados = e.data ? e.data.json() : {} } catch {}
-  const titulo = dados.titulo || 'Clube de Compras Korin'
+  const titulo = dados.titulo || 'Clube Unido'
   const opcoes = {
     body: dados.corpo || '',
-    icon: '/logo-korin.png',
-    badge: '/logo-korin.png',
+    icon: '/logo-clube-unido.png',
+    badge: '/logo-clube-unido.png',
     data: { url: dados.url || '/painel' },
     tag: dados.tag || undefined,
   }

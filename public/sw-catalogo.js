@@ -1,5 +1,5 @@
-const CACHE = 'korin-cat-v2'
-const ASSETS = ['/pedido', '/pedido.html', '/icon-192.png', '/icon-512.png', '/logo-korin.png', '/manifest-catalogo.json']
+const CACHE = 'korin-cat-v3'
+const ASSETS = ['/pedido', '/pedido.html', '/icon-192.png', '/icon-512.png', '/logo-clube-unido.png', '/manifest-catalogo.json']
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.filter(Boolean)).catch(()=>{})))
