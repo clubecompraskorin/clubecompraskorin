@@ -6,8 +6,8 @@ const mono = { fontFamily: "'JetBrains Mono', monospace" }
 
 const PASSOS = [
   { n: '01', titulo: 'Catálogo', texto: 'A Dedicante fotografa a tabela de preços da Korin. O sistema lê os produtos e organiza o período sozinho.' },
-  { n: '02', titulo: 'Pedidos',  texto: 'Cada membro pede pelo link do catálogo, ou manda a lista pelo grupo mesmo — você só cola a mensagem e a IA organiza.' },
-  { n: '03', titulo: 'Entrega', texto: 'Cada unidade separa e confirma a entrega pelo próprio link, com PIN — você acompanha tudo em tempo real, sem conferir nome por nome.' },
+  { n: '02', titulo: 'Pedidos',  texto: 'Cada membro pede pelo link do catálogo, você digita manualmente, ou cola a mensagem do WhatsApp — a IA organiza.' },
+  { n: '03', titulo: 'Entrega', texto: 'Você mesma entrega em 3 passos, ou passa o link com PIN pra outra pessoa entregar por você.' },
   { n: '04', titulo: 'Fechamento', texto: 'O sistema soma tudo e mostra exatamente quantas caixas comprar. Sem sobra, sem planilha, sem improviso.' },
 ]
 
@@ -18,12 +18,36 @@ const FAQ_HOME = [
   { p: 'Dá pra imprimir os pedidos?', r: 'Sim. Imprime todos os pendentes de uma vez, agrupados numa folha só, e ainda dá pra filtrar por unidade antes de imprimir.' },
   { p: 'Tem como enviar a compra pronta pra Korin?', r: 'Sim. O sistema gera uma planilha com tudo calculado — quanto comprar em caixa fechada, custo e venda — por unidade ou tudo junto.' },
   { p: 'O membro pode comprar online?', r: 'Sim. Cada membro recebe um link e monta o pedido direto no catálogo, sem precisar de conta nem instalar nada.' },
-  { p: 'Cuido de mais de uma unidade — dá pra usar pra todas?', r: 'Sim. Você cadastra quantas unidades precisar numa mesma conta, e os pedidos, a entrega e a planilha já vêm organizados separadamente por unidade.' },
+  { p: 'Cuido de mais de uma unidade — dá pra usar pra todas?', r: 'Sim. Você cadastra quantas unidades precisar numa mesma conta, e os pedidos, a entrega, o estoque e a planilha já vêm organizados separadamente por unidade.' },
   { p: 'Funciona no iPhone e no Android?', r: 'Sim. É um site, então funciona em qualquer celular com navegador — não depende de loja de aplicativo.' },
   { p: 'Tem como o representante de uma unidade entregar sem eu conferir tudo?', r: 'Sim. Cada unidade ganha um link próprio com PIN — o representante vê os pedidos daquela unidade, separa e confirma a entrega direto por ali, sem precisar de login completo.' },
   { p: 'Dá pra confirmar o que realmente foi comprado da Korin?', r: 'Sim. Você reimporta a mesma planilha que enviou pra Korin, já preenchida, e o sistema usa a quantidade real em vez da estimativa — inclusive pra calcular a sobra do período seguinte.' },
-  { p: 'Dá pra vender direto numa feira ou culto, sem anotar em papel?', r: 'Sim. Tem um modo de venda no local, separado do resto do sistema, pensado pra fila e pouco tempo por pessoa — você diz o que levou de estoque pra aquela unidade, vende tocando na tela, e cada venda já desconta e entra entregue na hora.' },
+  { p: 'Dá pra vender direto numa feira ou culto, sem anotar em papel?', r: 'Sim. Tem um modo de venda rápida, separado do resto do sistema, pensado pra fila e pouco tempo por pessoa — você diz o que levou de estoque pra aquela unidade, vende tocando na tela, e cada venda já desconta e entra entregue na hora.' },
+  { p: 'Preciso saber mexer em sistema pra começar?', r: 'Não. O guia de ajuda mostra cada passo com print de tela, do zero até o primeiro pedido recebido — dá pra seguir sozinha, sem perguntar nada pra ninguém.' },
 ]
+
+function Hook({ eyebrow, titulo, corpo, img, alt, filhos, invertido = false }) {
+  return (
+    <section className="max-w-5xl mx-auto px-6 py-4 pb-16">
+      <div className={`grid md:grid-cols-2 gap-10 items-center ${invertido ? 'md:[&>*:first-child]:order-2' : ''}`}>
+        <div>
+          <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">{eyebrow}</div>
+          <h2 className="text-2xl md:text-3xl font-semibold leading-snug" style={display}>{titulo}</h2>
+          <p className="mt-4 text-[#14241B]/70 leading-relaxed">{corpo}</p>
+          {filhos}
+        </div>
+        <div className="flex justify-center md:justify-end">
+          <div className="relative">
+            <div className="absolute -inset-3 bg-[#1A5C38]/10 rounded-[32px] -rotate-2" />
+            <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 rotate-1 w-[230px]">
+              <img src={img} alt={alt} className="rounded-[20px] w-full h-auto block" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
 
 export default function Home() {
   const [pronto, setPronto] = useState(false)
@@ -42,11 +66,14 @@ export default function Home() {
       {/* HERO */}
       <section className="max-w-5xl mx-auto px-6 pt-10 pb-20 md:pt-16 md:pb-28 grid md:grid-cols-2 gap-12 items-center">
         <div className={`transition-all duration-700 ${pronto ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
-          <h1 className="text-[2.4rem] md:text-[3.1rem] leading-[1.08] font-semibold tracking-tight" style={display}>
-            Coordenar o pedido coletivo da Korin, sem planilha e sem digitar pedido um por um.
+          <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Feito pra quem é Dedicante</div>
+          <h1 className="text-[2.2rem] md:text-[2.9rem] leading-[1.1] font-semibold tracking-tight" style={display}>
+            O sistema criado pra facilitar a gestão de quem coordena um Clube de Compras.
           </h1>
           <p className="mt-5 text-[1.05rem] text-[#14241B]/70 leading-relaxed max-w-md">
-            Catálogo, pedidos, embalagens e fechamento de compra do seu clube — organizados automaticamente, num só lugar.
+            Catálogo, pedidos, entrega, estoque e fechamento de compra — tudo organizado
+            automaticamente, num só lugar, pensado pra quem não tem tempo sobrando nem paciência
+            pra sistema complicado.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <a href="/painel" className="px-6 py-3.5 rounded-xl bg-[#1A5C38] text-white font-semibold text-sm hover:bg-[#0F3D24] transition-colors">
@@ -68,33 +95,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* DESTAQUE: FOTO + IA */}
-      <section className="max-w-5xl mx-auto px-6 py-4 pb-16">
-        <div className="grid md:grid-cols-2 gap-10 items-center">
-          <div>
-            <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Sem digitar nada</div>
-            <h2 className="text-2xl md:text-3xl font-semibold leading-snug" style={display}>
-              Tira uma foto ou sobe a planilha da Korin. O catálogo se monta sozinho.
-            </h2>
-            <p className="mt-4 text-[#14241B]/70 leading-relaxed">
-              Você manda a tabela de preços que a Korin manda todo mês — foto ou a planilha oficial mesmo. O sistema
-              lê os produtos, organiza por categoria e identifica se é o mesmo mês ou um período novo, sem você
-              digitar um número. E na hora de comprar, é a mesma planilha que volta pronta — com a quantidade certa
-              em caixa fechada, sem você recontar nada.
-            </p>
-          </div>
-          <div className="flex justify-center md:justify-end">
-            <div className="relative">
-              <div className="absolute -inset-3 bg-[#1A5C38]/10 rounded-[32px] -rotate-2" />
-              <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 rotate-1 w-[230px]">
-                <img src="/screenshot-embalagens.jpg" alt="Catálogo importado automaticamente no Clube Unido"
-                  className="rounded-[20px] w-full h-auto block" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* POR QUE EXISTE */}
       <section className="bg-white border-y border-[#14241B]/5">
         <div className="max-w-3xl mx-auto px-6 py-16 text-center">
@@ -103,15 +103,18 @@ export default function Home() {
             Hoje, organizar um pedido coletivo da Korin costuma significar anotar pedido por pedido no WhatsApp,
             somar tudo na mão pra saber quantas caixas comprar, e separar o total de cada membro numa planilha.
             O Clube Unido faz esse trabalho automaticamente — cada Dedicante com seu próprio catálogo,
-            cada membro pedindo direto por um link.
+            cada membro pedindo do jeito que for mais fácil pra ele.
           </p>
         </div>
       </section>
 
       {/* COMO FUNCIONA */}
       <section className="max-w-5xl mx-auto px-6 py-20">
-        <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-10 text-center">Como funciona</div>
-        <div className="grid md:grid-cols-4 gap-8">
+        <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3 text-center">Como funciona</div>
+        <h2 className="text-2xl md:text-3xl font-semibold leading-snug text-center max-w-2xl mx-auto" style={display}>
+          4 passos simples — e o guia completo mostra cada um com print de tela
+        </h2>
+        <div className="grid md:grid-cols-4 gap-8 mt-12">
           {PASSOS.map(p => (
             <div key={p.n}>
               <div className="text-sm font-medium text-[#1A5C38]/50 mb-2" style={mono}>{p.n}</div>
@@ -120,67 +123,90 @@ export default function Home() {
             </div>
           ))}
         </div>
-      </section>
-
-      {/* GESTÃO COMPLETA — destaque IA WhatsApp + grid de operação */}
-      <section className="bg-white border-y border-[#14241B]/5">
-        <div className="max-w-5xl mx-auto px-6 py-16">
-          <div className="grid md:grid-cols-2 gap-10 items-center">
-            <div>
-              <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Não é só link bonito</div>
-              <h2 className="text-2xl md:text-3xl font-semibold leading-snug" style={display}>
-                O pedido chega de qualquer jeito. A IA organiza.
-              </h2>
-              <p className="mt-4 text-[#14241B]/70 leading-relaxed">
-                Tem membro que nunca vai clicar em link nenhum — só manda mensagem mesmo. Cole o texto do WhatsApp
-                dele e a IA identifica produto, quantidade e código, e organiza junto com todos os outros pedidos do período.
-              </p>
-            </div>
-            <div className="flex justify-center md:justify-end">
-              <div className="relative">
-                <div className="absolute -inset-3 bg-[#1A5C38]/10 rounded-[32px] -rotate-2" />
-                <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 rotate-1 w-[230px]">
-                  <img src="/screenshot-whatsapp-ia.jpg" alt="Interpretação de pedido do WhatsApp por IA"
-                    className="rounded-[20px] w-full h-auto block" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8 mt-16">
-            {[
-              { i: '💰', t: 'Custo e venda, lado a lado', d: 'Cada unidade tem seus pedidos separados, e você vê o preço de custo e o de venda juntos — sabe a margem antes de fechar a compra com a Korin.' },
-              { i: '🚚', t: 'Entrega sem perder tempo', d: 'Os pedidos já chegam agrupados por unidade. Na hora de entregar, é só imprimir — vários pedidos numa folha só, sem desperdiçar papel.' },
-              { i: '📊', t: 'Planilha pronta pra Korin', d: 'Quantidade pedida, quanto comprar em caixa fechada, custo total e venda total — por unidade ou tudo junto. Sem montar nada na mão.' },
-            ].map(c => (
-              <div key={c.t}>
-                <div className="text-2xl mb-3">{c.i}</div>
-                <div className="font-semibold mb-1.5">{c.t}</div>
-                <p className="text-sm text-[#14241B]/65 leading-relaxed">{c.d}</p>
-              </div>
-            ))}
-          </div>
+        <div className="text-center mt-10">
+          <a href="/ajuda" className="text-sm font-semibold text-[#1A5C38] hover:text-[#0F3D24] transition-colors">
+            Ver o passo a passo completo, com prints →
+          </a>
         </div>
       </section>
 
-      {/* PDV — VENDA NO LOCAL EM FEIRA E CULTO */}
-      <section className="bg-white border-y border-[#14241B]/5">
+      {/* HOOK: CATÁLOGO SE MONTA SOZINHO */}
+      <div className="bg-white border-y border-[#14241B]/5">
+        <Hook
+          eyebrow="Sem digitar nada"
+          titulo="Tira uma foto ou sobe a planilha da Korin. O catálogo se monta sozinho."
+          corpo={<>Você manda a tabela de preços que a Korin manda todo mês — foto ou a planilha oficial mesmo. O sistema
+            lê os produtos, organiza por categoria e identifica se é o mesmo mês ou um período novo, sem você
+            digitar um número.</>}
+          img="/screenshot-embalagens.jpg"
+          alt="Catálogo importado automaticamente no Clube Unido"
+        />
+      </div>
+
+      {/* HOOK: 3 JEITOS DE RECEBER PEDIDO */}
+      <Hook
+        eyebrow="Você escolhe como recebe"
+        titulo="3 jeitos de receber pedido — não precisa escolher só um"
+        corpo="Tem membro que nunca vai clicar em link nenhum — só manda mensagem mesmo. Tem quem liga ou passa de viva voz. E tem quem prefere pedir sozinho, sem passar pela sua mão. O sistema aceita os três, ao mesmo tempo, sem confusão."
+        img="/screenshot-whatsapp-ia.jpg"
+        alt="Interpretação de pedido do WhatsApp por IA"
+        filhos={
+          <div className="mt-6 space-y-3">
+            {[
+              { i: '💬', t: 'Cola a mensagem do WhatsApp', d: 'Cole o texto que o membro mandou e a IA identifica produto, quantidade e código sozinha.' },
+              { i: '✍️', t: 'Insere manualmente', d: 'Recebeu por ligação ou de viva voz? Monta o pedido você mesma, direto na tela.' },
+              { i: '🔗', t: 'Divulga o catálogo do mês', d: 'Manda o link uma vez pro grupo, e cada membro pede sozinho, sem precisar de conta.' },
+            ].map(b => (
+              <div key={b.t} className="flex gap-3">
+                <div className="text-lg flex-shrink-0">{b.i}</div>
+                <div>
+                  <div className="font-semibold text-sm">{b.t}</div>
+                  <p className="text-sm text-[#14241B]/65 leading-relaxed">{b.d}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        }
+      />
+
+      {/* HOOK: ENTREGA EM 3 PASSOS OU LINK */}
+      <div className="bg-white border-y border-[#14241B]/5">
+        <Hook
+          invertido
+          eyebrow="Separação e entrega"
+          titulo="Entrega simplificada em 3 passos — você faz, ou passa pra quem for entregar no seu lugar."
+          corpo="Ajusta o que foi retirado, confirma a forma de pagamento, pronto — pedido marcado como entregue na hora, sempre os mesmos 3 passos. E quando você não pode estar lá pessoalmente, cada unidade ganha um link próprio com PIN: o representante faz exatamente os mesmos 3 passos, sem precisar de login completo."
+          img="/screenshot-entrega.jpg"
+          alt="Lista de entrega separada por unidade, com pedidos pendentes e entregues"
+        />
+      </div>
+
+      {/* HOOK: ESTOQUE ATUALIZA SOZINHO */}
+      <Hook
+        eyebrow="Sem contar nada na mão"
+        titulo="A mesma planilha que você manda pro fornecedor atualiza seu estoque sozinho."
+        corpo="Depois de comprar, sobe de novo a mesma planilha — agora já preenchida com o que você realmente pediu pra Korin. O sistema lê a quantidade real, corrige a sobra do período e você nunca mais precisa controlar isso de cabeça ou no papel."
+        img="/screenshot-estoque.jpg"
+        alt="Tela de conferir compra, confirmando a quantidade real comprada da Korin"
+      />
+
+      {/* HOOK: PDV — VENDA RÁPIDA EM FEIRA E CULTO */}
+      <div className="bg-white border-y border-[#14241B]/5">
         <div className="max-w-5xl mx-auto px-6 py-16">
           <div className="grid md:grid-cols-2 gap-10 items-center">
             <div>
-              <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Novo · Venda no local</div>
+              <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Venda rápida</div>
               <h2 className="text-2xl md:text-3xl font-semibold leading-snug" style={display}>
-                Feira, bazar ou dia de culto? Venda direto no celular, sem parar a fila.
+                Precisa vender algo que não estava reservado? Com o PDV, você vende em 3 passos.
               </h2>
               <p className="mt-4 text-[#14241B]/70 leading-relaxed">
-                Um modo à parte, feito pra momento de movimento — grade de produtos grande, poucos
-                toques, e os dados do membro só no fim, pra quem só quer pegar e pagar. Cada venda já
-                sai do estoque daquela unidade na hora, e o pedido cai pronto — entregue — sem passar
-                por conferência depois.
+                Ideal pra dias de feira, evento ou culto — movimento maior, fila de gente, pouco
+                tempo por pessoa. Um modo à parte, com grade de produtos grande e os dados do
+                membro só no fim, pra quem só quer pegar e pagar.
               </p>
               <div className="mt-6 space-y-3">
                 {[
-                  { i: '🎪', t: 'Estoque da própria unidade', d: 'Você diz quanto levou de cada produto pra aquela feira ou culto, e o sistema mostra quanto ainda resta enquanto vende — sem misturar com o estoque de outra unidade.' },
+                  { i: '🎪', t: 'Estoque da própria unidade', d: 'Você diz quanto levou de cada produto pra aquela feira ou culto, e o sistema mostra quanto ainda resta enquanto vende.' },
                   { i: '⚡', t: '3 toques até a venda', d: 'Escolhe o produto, confirma a forma de pagamento, pronto. Sem tela cheia de campo, sem letra miúda.' },
                   { i: '🙋', t: 'Busca ou cadastra o membro na hora', d: 'Se não achar quem comprou, cadastra ali mesmo — telefone é opcional, não trava a venda.' },
                 ].map(b => (
@@ -198,43 +224,39 @@ export default function Home() {
               <div className="relative">
                 <div className="absolute -inset-3 bg-[#1A5C38]/10 rounded-[32px] rotate-2" />
                 <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 -rotate-1 w-[230px]">
-                  <img src="/screenshot-pdv.jpg" alt="Modo de venda no local (PDV) pra feira e culto, com estoque separado por unidade"
+                  <img src="/screenshot-pdv.jpg" alt="Modo de venda rápida (PDV) pra feira e culto, com estoque separado por unidade"
                     className="rounded-[20px] w-full h-auto block" />
                 </div>
               </div>
             </div>
           </div>
         </div>
+      </div>
+
+      {/* MÚLTIPLAS UNIDADES — faixa curta */}
+      <section className="max-w-3xl mx-auto px-6 py-16 text-center">
+        <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Cuida de mais de uma unidade?</div>
+        <p className="text-lg md:text-xl leading-relaxed text-[#14241B]/80">
+          Sem problema — o sistema foi pensado pra você cuidar de cada uma separada. Pedido,
+          entrega, estoque do PDV: tudo já vem organizado por unidade, sem misturar uma com a
+          outra. E na hora de comprar da Korin, você decide se junta tudo ou manda separado.
+        </p>
       </section>
 
-      {/* ENTREGA POR UNIDADE / REPRESENTANTE */}
-      <section className="max-w-5xl mx-auto px-6 py-4 pb-16">
-        <div className="grid md:grid-cols-2 gap-10 items-center">
-          <div>
-            <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Separação por unidade</div>
-            <h2 className="text-2xl md:text-3xl font-semibold leading-snug" style={display}>
-              Tem representante numa unidade? Ele entrega sem você conferir nome por nome.
-            </h2>
-            <p className="mt-4 text-[#14241B]/70 leading-relaxed">
-              Cada unidade ganha um link só dela, com PIN — sem precisar de login completo. O representante abre,
-              vê exatamente quem pediu o quê ali, separa e confirma a entrega direto por ali, e você acompanha tudo
-              em tempo real no seu painel.
-            </p>
-          </div>
-          <div className="flex justify-center md:justify-end">
-            <div className="relative">
-              <div className="absolute -inset-3 bg-[#1A5C38]/10 rounded-[32px] rotate-2" />
-              <div className="relative bg-[#14241B] rounded-[28px] p-2.5 shadow-2xl shadow-[#0F3D24]/25 rotate-1 w-[230px]">
-                <img src="/screenshot-entrega.jpg" alt="Lista de entrega separada por unidade, com pedidos pendentes e entregues"
-                  className="rounded-[20px] w-full h-auto block" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* HOOK: PEDIDO PRO FORNECEDOR */}
+      <div className="bg-white border-y border-[#14241B]/5">
+        <Hook
+          invertido
+          eyebrow="Fechamento de compra"
+          titulo="Soma os pedidos de todas as unidades, ou escolhe só as que quer enviar agora."
+          corpo="Precisa mandar o pedido pra Korin e ainda contava na mão ou numa planilha solta? Marque quais unidades entram, escolha entre um pedido único (soma tudo) ou separado por unidade (uma aba pra cada), e o sistema te devolve exatamente o que pedir — em caixa fechada, com custo e venda lado a lado, pra você já saber a margem antes de fechar."
+          img="/screenshot-export.jpg"
+          alt="Tela de exportar pedido consolidado, escolhendo unidades e formato do arquivo"
+        />
+      </div>
 
       {/* PRO CLIENTE FINAL */}
-      <section className="max-w-5xl mx-auto px-6 pb-20">
+      <section className="max-w-5xl mx-auto px-6 py-16">
         <div className="bg-[#1A5C38]/5 border border-[#1A5C38]/15 rounded-[28px] px-8 py-10 md:px-12 grid md:grid-cols-2 gap-10 items-center">
           <div>
             <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3">Pro seu membro</div>
@@ -247,7 +269,7 @@ export default function Home() {
               {[
                 { i: '🔗', t: 'Pede pelo link', d: 'Sem instalar nada — abre direto no navegador do celular.' },
                 { i: '📍', t: 'Escolhe a unidade', d: 'Indica onde vai retirar, e o pedido já cai separado por local.' },
-                { i: '💬', t: 'Não importa de onde vem', d: 'Pediu pelo link ou mandou a lista no grupo do WhatsApp mesmo? Os dois caem juntos, sem digitar nada na mão.' },
+                { i: '💬', t: 'Não importa de onde vem', d: 'Pediu pelo link, mandou mensagem no WhatsApp, ou você digitou pra ele — os três caem juntos, sem digitar nada duas vezes.' },
               ].map(b => (
                 <div key={b.t} className="flex gap-3">
                   <div className="text-xl flex-shrink-0">{b.i}</div>
@@ -305,7 +327,7 @@ export default function Home() {
           </div>
           <div className="text-center mt-10">
             <a href="/ajuda" className="text-sm font-semibold text-[#1A5C38] hover:text-[#0F3D24] transition-colors">
-              Ver guia completo e mais perguntas →
+              Ver guia completo, com prints de cada passo →
             </a>
           </div>
         </div>
@@ -315,6 +337,7 @@ export default function Home() {
       <section className="bg-[#1A5C38] text-white">
         <div className="max-w-3xl mx-auto px-6 py-16 text-center">
           <h2 className="text-2xl md:text-3xl font-semibold" style={display}>Pronta pra organizar o pedido do seu grupo?</h2>
+          <p className="mt-3 text-white/70 max-w-md mx-auto">Com 4 passos simples você já começa a usar sozinha — o guia mostra cada um, com print de tela.</p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <a href="/painel" className="px-6 py-3.5 rounded-xl bg-white text-[#0F3D24] font-semibold text-sm hover:bg-white/90 transition-colors">
               Criar minha conta →
