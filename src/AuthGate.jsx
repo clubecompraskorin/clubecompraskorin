@@ -5,17 +5,17 @@ import Login from './Login'
 import UnidadesManager from './UnidadesManager'
 
 // Troca o manifest do PWA pra incluir o nome da unidade no app instalado
-// (ex: "Korin Gestão — JC Peruibe"). Gerado no cliente via Blob, sem precisar
+// (ex: "Unido Gestão — JC Peruibe"). Gerado no cliente via Blob, sem precisar
 // de servidor, já que o nome da org já está disponível no front após o login.
 function useManifestPersonalizado(org) {
   useEffect(() => {
     if (!org?.nome) return
     const nome = org.nome
     const manifest = {
-      name: `Korin Gestão — ${nome}`,
+      name: `Unido Gestão — ${nome}`,
       short_name: nome.slice(0, 20),
       description: `Gestão de pedidos — ${nome}`,
-      id: `korin-admin-v2-${org.slug || org.orgId}`,
+      id: `unido-admin-v2-${org.slug || org.orgId}`,
       scope: '/painel',
       start_url: '/painel?source=pwa',
       display: 'standalone',

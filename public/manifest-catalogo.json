@@ -1,7 +1,7 @@
 {
-  "name": "Clube de Compras Korin",
-  "short_name": "Clube Korin",
-  "description": "Faça seu pedido do Clube de Compras Korin",
+  "name": "Clube Unido",
+  "short_name": "Clube Unido",
+  "description": "Faça seu pedido do Clube Unido",
   "id": "korin-catalogo",
   "scope": "/pedido",
   "start_url": "/pedido?source=pwa",
