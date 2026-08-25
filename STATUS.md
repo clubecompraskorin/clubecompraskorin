@@ -1049,6 +1049,53 @@ fracos de legibilidade e o Junior pediu pra implementar a correção.
 
 ---
 
+## Estoque unificado: confirmar compra vira o gatilho do estoque real — implementado
+
+**Como chegamos aqui**: ao analisar a aba Config, o Junior estranhou a sub-aba "Resumo" (só via pedido
+do catálogo — sem sentido, já que pedido também chega por WhatsApp/manual) e não achava onde subia a
+planilha do que foi realmente comprado da Korin. Pedi pra ele descrever o fluxo completo do clube de
+compras antes de mexer em qualquer coisa — resumo do que ele explicou: mês começa com a planilha de
+preços da Korin → ela sobe e o sistema gera o catálogo → membros pedem de qualquer jeito (catálogo,
+WhatsApp, manual, PDV) → numa data ela soma tudo e manda pra Korin (isso ainda não é fechamento) →
+quando a compra chega, ela sobe de volta a MESMA planilha, agora com o que realmente comprou — é esse
+upload que liga o controle de estoque de verdade. Fechamento efetivo só acontece quando sobe a
+planilha do mês seguinte ou quando ela clica pra encerrar período/unidade. E um ponto que corrigiu uma
+suposição minha: **estoque é controlado por Dedicante (organização), não por unidade** — quando ela
+compra da Korin não necessariamente separa por unidade, então dividir estoque por unidade nunca fez
+sentido; o controle de entrega por unidade (link, separação, relatórios) já dá conta disso sozinho.
+
+**O que mudou**:
+- `lib/helpers.js`: novo `calcEstoque(produto, totalPedido, sobra)` — fonte única do estoque real de
+  um produto no período. Prioriza `compra_confirmada_und` (a planilha real) sobre a estimativa de
+  caixas abertas; a partir do momento que a compra é confirmada, é esse número que manda. Usado tanto
+  em Config → Estoque quanto no PDV, pro mesmo produto valer o mesmo saldo em qualquer canal.
+- **Fechamento** ganhou o card "Confirmar o que foi realmente comprado" — mesmo fluxo de upload que
+  existia (reimporta a planilha com "QTDE (CX)" preenchida), só que agora no lugar certo, logo depois
+  dos botões de exportar pedido pra Korin. Tirada a etapa de escolher unidades atendidas (não existe
+  mais compra por unidade).
+- Config: sub-aba "Embalagens" renomeada pra **"Estoque"**, usando `calcEstoque()` — mostra "· compra
+  confirmada" quando o número já é real, não mais estimativa. Sub-aba "Resumo" **removida** —
+  redundante com Fechamento, que já soma pedido de qualquer origem.
+- Totais de pedido em Config passaram a considerar qualquer origem (antes só contava catálogo) —
+  mesmo problema que tinha em Resumo, só que ninguém tinha notado ainda em Estoque/Embalagens.
+- **PDV**: removida a alocação de estoque por unidade (`ConfigEstoquePdv`, tabela
+  `unidade_estoque_pdv`) — agora lê o mesmo estoque compartilhado da organização. Tabela do banco não
+  foi apagada (só parou de ser lida/escrita) pra não arriscar uma migração de schema desnecessária.
+- `Ajuda.jsx`: FAQ da sobra atualizada pra "Config → Estoque".
+
+- `npx vite build` validado. Revisado visualmente via harness Playwright descartável (não ficou no
+  repo) — Estoque com/sem compra confirmada, card novo do Fechamento, PDV sem o botão de configurar
+  estoque, tela de escolher unidade do PDV com o texto atualizado.
+- Preview do Vercel (branch `feat/estoque-unificado-e-confirmar-compra-no-fechamento`) conferido pelo
+  Junior antes do merge.
+- **Status no GitHub: mesclada na `main`, commit `aa17f4e`, merge fast-forward** (sem commit de merge
+  separado).
+- **Pendência anotada pelo Junior**: "não tá errado, só melhoria" — ele quer revisitar a questão do
+  estoque com mais calma numa próxima sessão. Nenhum problema concreto identificado ainda, só um
+  sinal de que a modelagem atual (calcEstoque, confirmar compra em Fechamento) pode evoluir mais.
+
+---
+
 ## Pendente / próximos passos
 
 1. ✅ **Comparativo do Dashboard — confirmado pelo Junior em teste real, tudo certo.**
