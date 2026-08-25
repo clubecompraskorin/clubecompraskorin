@@ -1022,6 +1022,33 @@ era — melhor não ter pedido em dois lugares diferentes do app.
 
 ---
 
+## Config: "rotina do mês" separada de "configuração avulsa" + Embalagens mais legível — implementado
+
+**Pedido do Junior**: análise da aba Config recém-renomeada — se a ordem das sub-abas fazia sentido
+e se a informação estava disposta de forma didática. Concordei que a ordem das sub-abas (Config →
+Embalagens → Resumo → Unidades/Clientes/Dados) já segue o ciclo real do mês, mas achei dois pontos
+fracos de legibilidade e o Junior pediu pra implementar a correção.
+
+**O que mudou**:
+- `TabControles` (sub-aba Config): antes eram 4 cards soltos sem separação de propósito (status do
+  período, importar, "Configurações" com um campo "Nome do período" só de leitura e redundante com
+  o card de status, link + contador de instalação, notificações). Agora tem duas seções com título
+  próprio — **🗓️ Rotina do mês** (status, importar, data limite — o que se mexe todo ciclo) e
+  **⚙️ Configuração avulsa** (link pros membros, notificações — o que se configura uma vez). O campo
+  "Nome do período" read-only saiu; a explicação dele virou legenda do botão de importar, que é onde
+  a ação de fato acontece.
+- `TabProdutos` (sub-aba Embalagens): a linha por produto era uma frase só concatenando 4 números —
+  "Disponível: X un. (Y deste mês + Z de sobra) · Pedidos: N · Restante: R". Quebrada em linhas
+  separadas, no mesmo formato que já funcionava bem no Resumo (uma informação por linha, cor só onde
+  importa — vermelho quando vende além do estimado).
+
+- `npx vite build` validado. Revisado visualmente via harness Playwright descartável reproduzindo os
+  dois componentes com dado fictício (não ficou no repo) — comparação visual antes/depois confirmou
+  a melhora de leitura.
+- **Status no GitHub: commit `98dd91a`, direto na `main`.**
+
+---
+
 ## Pendente / próximos passos
 
 1. ✅ **Comparativo do Dashboard — confirmado pelo Junior em teste real, tudo certo.**
