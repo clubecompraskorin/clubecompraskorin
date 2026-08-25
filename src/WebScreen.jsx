@@ -58,108 +58,113 @@ function TabControles({ periodo, dataLimite, onChangeDataLimite, onToggleAberto,
   }
 
   return (
-    <div className="space-y-4">
-      {/* Open/Close */}
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
-        <div className="text-xs font-black text-stone-400 uppercase tracking-widest mb-3">Status do período</div>
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-2xl font-black text-stone-800">{periodo.nome}</div>
-            <div className={`text-base font-bold mt-0.5 ${periodo.catalogo_aberto ? 'text-green-600' : 'text-red-500'}`}>
-              {periodo.catalogo_aberto ? '🟢 Aberto para pedidos' : '🔴 Fechado'}
-            </div>
-          </div>
-          <button onClick={onToggleAberto}
-            className={`px-5 py-3 rounded-2xl font-black text-base transition-colors ${periodo.catalogo_aberto ? 'bg-red-100 text-red-700 active:bg-red-200' : 'bg-green-600 text-white active:bg-green-700'}`}>
-            {periodo.catalogo_aberto ? 'Fechar' : 'Abrir'}
-          </button>
-        </div>
-      </div>
-
-      {/* Importar catálogo — é o que decide se vira mês novo */}
-      <button onClick={onImportar}
-        className="w-full py-3.5 bg-green-50 border-2 border-green-200 text-green-800 rounded-2xl font-black text-base active:bg-green-100 flex items-center justify-center gap-2">
-        📥 Importar catálogo da Korin
-      </button>
-
-      {/* Período */}
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 space-y-3">
-        <div className="text-xs font-black text-stone-400 uppercase tracking-widest">Configurações</div>
-
-        <div>
-          <label className="block text-sm font-bold text-stone-600 mb-1">Nome do período</label>
-          <div className="w-full border border-stone-200 bg-stone-50 rounded-xl px-4 py-3 text-base font-semibold text-stone-500">
-            {periodo.nome}
-          </div>
-          <p className="text-xs text-stone-400 mt-1.5">Pra virar o mês, importe a nova tabela de preços aqui (📥 acima) — o sistema identifica pela foto se é mês novo e cria o período automaticamente, sem perder o histórico.</p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-bold text-stone-600 mb-1">
-            Data limite para pedidos
-            {dataLimite && <span className="text-stone-400 font-normal ml-1">(até {fmtData(dataLimite)})</span>}
-          </label>
-          <input
-            type="date"
-            value={dataLimite || ''}
-            onChange={e => onChangeDataLimite(e.target.value || null)}
-            className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-green-500"
-          />
-          {dataLimite && (
-            <button onClick={() => onChangeDataLimite(null)}
-              className="text-xs text-stone-400 mt-1 underline">
-              Remover data limite
-            </button>
-          )}
-        </div>
-
-        <button onClick={onSave} disabled={salvando}
-          className="w-full py-3.5 bg-green-700 text-white rounded-2xl font-black text-base active:bg-green-800 disabled:opacity-50">
-          {salvando ? '⟳ Salvando…' : '💾 Salvar configurações'}
-        </button>
-      </div>
-
-      {/* Link */}
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
-        <div className="text-xs font-black text-stone-400 uppercase tracking-widest mb-3">Link para membros</div>
-        <div className="bg-stone-50 rounded-xl px-3 py-2.5 text-sm font-mono text-stone-600 mb-3 break-all">
-          {linkCatalogo}
-        </div>
-        <button
-          onClick={() => navigator.clipboard?.writeText(linkCatalogo).then(() => toast('Link copiado!'))}
-          className="w-full py-3 bg-stone-100 text-stone-700 rounded-xl font-bold text-base active:bg-stone-200">
-          📋 Copiar link
-        </button>
-        {instalacoes !== null && (
-          <div className="flex items-center justify-between bg-green-50 border border-green-100 rounded-xl px-4 py-3">
-            <span className="text-sm font-bold text-green-700">📲 App instalado por</span>
-            <span className="text-2xl font-black text-green-700">{instalacoes}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Notificações neste dispositivo */}
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
-        <div className="text-xs font-black text-stone-400 uppercase tracking-widest mb-3">Notificações</div>
-        {!pushSuportado() ? (
-          <p className="text-sm text-stone-400">Este navegador não suporta notificações. No iPhone, instale o app na tela inicial primeiro.</p>
-        ) : (
-          <>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-bold text-stone-700">Avisar pedido novo/alterado do catálogo</div>
-                <div className="text-xs text-stone-400 mt-0.5">
-                  {pushAtivo ? '🔔 Ativado neste dispositivo' : 'Avisa aqui mesmo, com o app fechado'}
+    <div className="space-y-5">
+      {/* ── ROTINA DO MÊS ──────────────────────────────────────────────────── */}
+      <div>
+        <div className="text-xs font-black text-green-700 uppercase tracking-widest mb-3">🗓️ Rotina do mês</div>
+        <div className="space-y-4">
+          {/* Open/Close */}
+          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
+            <div className="text-xs font-black text-stone-400 uppercase tracking-widest mb-3">Status do período</div>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-black text-stone-800">{periodo.nome}</div>
+                <div className={`text-base font-bold mt-0.5 ${periodo.catalogo_aberto ? 'text-green-600' : 'text-red-500'}`}>
+                  {periodo.catalogo_aberto ? '🟢 Aberto para pedidos' : '🔴 Fechado'}
                 </div>
               </div>
-              <button onClick={toggleNotificacoes} disabled={pushCarregando}
-                className={`px-4 py-2.5 rounded-xl font-black text-sm flex-shrink-0 transition-colors disabled:opacity-50 ${pushAtivo ? 'bg-stone-100 text-stone-600 active:bg-stone-200' : 'bg-green-600 text-white active:bg-green-700'}`}>
-                {pushCarregando ? '...' : pushAtivo ? 'Desativar' : 'Ativar'}
+              <button onClick={onToggleAberto}
+                className={`px-5 py-3 rounded-2xl font-black text-base transition-colors ${periodo.catalogo_aberto ? 'bg-red-100 text-red-700 active:bg-red-200' : 'bg-green-600 text-white active:bg-green-700'}`}>
+                {periodo.catalogo_aberto ? 'Fechar' : 'Abrir'}
               </button>
             </div>
-            <p className="text-xs text-stone-400 mt-2">No iPhone, só funciona com o app instalado na tela inicial. Em outros aparelhos é por dispositivo — repita em cada um que quiser receber.</p>
-          </>
-        )}
+          </div>
+
+          {/* Importar catálogo — é o que decide se vira mês novo */}
+          <div>
+            <button onClick={onImportar}
+              className="w-full py-3.5 bg-green-50 border-2 border-green-200 text-green-800 rounded-2xl font-black text-base active:bg-green-100 flex items-center justify-center gap-2">
+              📥 Importar catálogo da Korin
+            </button>
+            <p className="text-xs text-stone-400 mt-1.5 px-1">Importe a nova tabela de preços quando quiser virar o mês — o sistema identifica se é um mês novo e cria o período automaticamente, sem perder o histórico.</p>
+          </div>
+
+          {/* Data limite */}
+          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 space-y-3">
+            <div>
+              <label className="block text-sm font-bold text-stone-600 mb-1">
+                Data limite para pedidos
+                {dataLimite && <span className="text-stone-400 font-normal ml-1">(até {fmtData(dataLimite)})</span>}
+              </label>
+              <input
+                type="date"
+                value={dataLimite || ''}
+                onChange={e => onChangeDataLimite(e.target.value || null)}
+                className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-green-500"
+              />
+              {dataLimite && (
+                <button onClick={() => onChangeDataLimite(null)}
+                  className="text-xs text-stone-400 mt-1 underline">
+                  Remover data limite
+                </button>
+              )}
+            </div>
+
+            <button onClick={onSave} disabled={salvando}
+              className="w-full py-3.5 bg-green-700 text-white rounded-2xl font-black text-base active:bg-green-800 disabled:opacity-50">
+              {salvando ? '⟳ Salvando…' : '💾 Salvar configurações'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── CONFIGURAÇÃO AVULSA ────────────────────────────────────────────── */}
+      <div>
+        <div className="text-xs font-black text-green-700 uppercase tracking-widest mb-3">⚙️ Configuração avulsa</div>
+        <div className="space-y-4">
+          {/* Link */}
+          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
+            <div className="text-xs font-black text-stone-400 uppercase tracking-widest mb-3">Link para membros</div>
+            <div className="bg-stone-50 rounded-xl px-3 py-2.5 text-sm font-mono text-stone-600 mb-3 break-all">
+              {linkCatalogo}
+            </div>
+            <button
+              onClick={() => navigator.clipboard?.writeText(linkCatalogo).then(() => toast('Link copiado!'))}
+              className="w-full py-3 bg-stone-100 text-stone-700 rounded-xl font-bold text-base active:bg-stone-200">
+              📋 Copiar link
+            </button>
+            {instalacoes !== null && (
+              <div className="flex items-center justify-between bg-green-50 border border-green-100 rounded-xl px-4 py-3 mt-3">
+                <span className="text-sm font-bold text-green-700">📲 App instalado por</span>
+                <span className="text-2xl font-black text-green-700">{instalacoes}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Notificações neste dispositivo */}
+          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
+            <div className="text-xs font-black text-stone-400 uppercase tracking-widest mb-3">Notificações</div>
+            {!pushSuportado() ? (
+              <p className="text-sm text-stone-400">Este navegador não suporta notificações. No iPhone, instale o app na tela inicial primeiro.</p>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-stone-700">Avisar pedido novo/alterado do catálogo</div>
+                    <div className="text-xs text-stone-400 mt-0.5">
+                      {pushAtivo ? '🔔 Ativado neste dispositivo' : 'Avisa aqui mesmo, com o app fechado'}
+                    </div>
+                  </div>
+                  <button onClick={toggleNotificacoes} disabled={pushCarregando}
+                    className={`px-4 py-2.5 rounded-xl font-black text-sm flex-shrink-0 transition-colors disabled:opacity-50 ${pushAtivo ? 'bg-stone-100 text-stone-600 active:bg-stone-200' : 'bg-green-600 text-white active:bg-green-700'}`}>
+                    {pushCarregando ? '...' : pushAtivo ? 'Desativar' : 'Ativar'}
+                  </button>
+                </div>
+                <p className="text-xs text-stone-400 mt-2">No iPhone, só funciona com o app instalado na tela inicial. Em outros aparelhos é por dispositivo — repita em cada um que quiser receber.</p>
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -269,9 +274,21 @@ function TabProdutos({ produtos, pedidosWeb, onChange, onSave, salvando, somente
                     </div>
 
                     {qtdCaixa > 0 && (
-                      <div className={`text-xs font-semibold ${restante < 0 ? 'text-red-600' : restante === 0 ? 'text-amber-600' : 'text-stone-400'}`}>
-                        Disponível: {disponivelReal} un.{sobra > 0 && ` (${disponivel} deste mês + ${sobra} de sobra)`} · Pedidos: {totalPedido} · Restante: {restante}
-                        {restante < 0 && ' — vendendo além do estimado'}
+                      <div className="space-y-0.5">
+                        <div className="text-xs font-bold text-stone-600">
+                          📦 {disponivelReal} un. disponíveis
+                        </div>
+                        {sobra > 0 && (
+                          <div className="text-xs text-teal-700 font-bold">
+                            Inclui {sobra} un. de sobra do período anterior
+                          </div>
+                        )}
+                        <div className="text-xs text-stone-400">
+                          {totalPedido} pedidos
+                        </div>
+                        <div className={`text-xs font-bold ${restante < 0 ? 'text-red-600' : restante === 0 ? 'text-amber-600' : 'text-stone-500'}`}>
+                          Restante: {restante}{restante < 0 && ' — vendendo além do estimado'}
+                        </div>
                       </div>
                     )}
                   </div>
