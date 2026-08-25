@@ -1091,8 +1091,47 @@ sentido; o controle de entrega por unidade (link, separação, relatórios) já 
 - **Status no GitHub: mesclada na `main`, commit `aa17f4e`, merge fast-forward** (sem commit de merge
   separado).
 - **Pendência anotada pelo Junior**: "não tá errado, só melhoria" — ele quer revisitar a questão do
-  estoque com mais calma numa próxima sessão. Nenhum problema concreto identificado ainda, só um
-  sinal de que a modelagem atual (calcEstoque, confirmar compra em Fechamento) pode evoluir mais.
+  estoque com mais calma numa próxima sessão. Resolvida na sessão seguinte, ver próxima seção.
+
+---
+
+## Histórico de compras confirmadas: cada confirmação soma, não substitui — implementado
+
+**O que motivou**: ao revisitar a questão do estoque (pendência da sessão anterior), o Junior levantou
+um caso real — quem vende bastante no PDV pode ter que comprar da Korin mais de uma vez no mesmo
+período (repor no meio do mês), mesmo o padrão do clube de compras sendo uma compra só por mês. No
+modelo anterior (`compra_confirmada_und`, um campo único por produto/período), confirmar uma segunda
+compra SOBRESCREVIA a primeira em vez de somar — e não existia lugar nenhum pra ver ou corrigir o que
+compunha esse número.
+
+**Modelo acordado com o Junior**: o total ("disponível") continua só informativo, nunca editável
+direto — evita perder de onde o número veio. O que é editável são as ENTRADAS que compõem esse total:
+cada confirmação (upload de planilha ou ajuste manual) vira uma linha no histórico, e o disponível é
+sempre a soma de todas as linhas do produto naquele período.
+
+**O que mudou**:
+- Migração `compras_confirmadas_historico`: nova tabela `compras_confirmadas` (uma linha por
+  confirmação, `origem` = 'planilha' ou 'manual', `observacao` livre), RLS no mesmo padrão de
+  `periodo_produtos` (`is_org_member` + período aberto, via 2 helpers novos —
+  `periodo_produto_org_id`/`periodo_produto_periodo_id`). Colunas antigas
+  `periodo_produtos.compra_confirmada_und/unidades` removidas (sem nenhuma linha preenchida em
+  produção ainda — conferido antes de migrar, seguro trocar sem migração de dados).
+- `lib/periodos.js`: `registrarCompraConfirmada` agora INSERE (soma) em vez de UPDATE (substituía).
+  Novo `registrarAjusteManualEstoque` (ajuste rápido sem planilha) e `excluirCompraConfirmada`.
+  `getComprasConfirmadas` lista o histórico de um período. `getSobraPeriodoAnterior` passou a somar o
+  histórico do período anterior.
+- `lib/helpers.js`: `calcEstoque` recebe a soma confirmada como parâmetro (`compraConfirmada`) em vez
+  de ler do produto — quem chama soma o histórico primeiro.
+- Aba Estoque: novo link "📋 Histórico de compras (N)" por produto, abrindo modal com a lista de linhas
+  (📊 planilha / ✍️ manual, com data e observação), total, botão de excluir cada uma, e formulário pra
+  registrar compra extra ali mesmo — sem gerar planilha.
+- PDV usa o mesmo histórico somado no cálculo de restante.
+- Upload de planilha em Fechamento grava o nome do arquivo como observação de cada linha, pra
+  rastreabilidade de onde cada pedaço do estoque veio.
+
+- `npx vite build` validado. Revisado visualmente via harness Playwright descartável (não ficou no
+  repo) — link com contador, modal com histórico misto planilha/manual, estado vazio.
+- **Status no GitHub: mesclada na `main`, commit `ce956e8`, merge fast-forward.**
 
 ---
 
