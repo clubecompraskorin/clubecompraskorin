@@ -354,7 +354,7 @@ function TelaCarrinho({ carrinho, produtos, total, onVoltar, onAvancar, onSetQty
 }
 
 // ── TELA DADOS ────────────────────────────────────────────────────────────────
-function TelaDados({ clienteDados, setClienteDados, unidades = [], onVoltar, onAvancar }) {
+function TelaDados({ clienteDados, setClienteDados, unidades = [], onVoltar, onAvancar, erro }) {
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
       <header className="bg-green-800 text-white px-4 py-4 flex items-center gap-3 sticky top-0 z-20">
@@ -366,6 +366,12 @@ function TelaDados({ clienteDados, setClienteDados, unidades = [], onVoltar, onA
       </header>
 
       <main className="flex-1 px-4 py-5 pb-36 space-y-4">
+        {erro && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-center text-lg text-red-700 font-bold">
+            {erro}
+          </div>
+        )}
+
         {/* Nome */}
         <div>
           <label className="block text-base font-black text-stone-600 uppercase tracking-widest mb-2">
@@ -759,7 +765,9 @@ export default function CatalogoApp() {
     if (!clienteDados.nome.trim()) { setErro('Informe seu nome completo'); setTela('dados'); return }
     if (!clienteDados.telefone.trim()) { setErro('Informe seu telefone/WhatsApp'); setTela('dados'); return }
     if (!clienteDados.unidade) { setErro('Selecione o local de retirada'); setTela('dados'); return }
-    if (unidades.find(u => u.nome === clienteDados.unidade)?.aberto === false) {
+    const unidadeSelecionada = unidades.find(u => u.nome === clienteDados.unidade)
+    if (!unidadeSelecionada) { setErro('Selecione o local de retirada'); setTela('dados'); return }
+    if (unidadeSelecionada.aberto === false) {
       setErro('Essa unidade está com pedidos encerrados no momento'); setTela('dados'); return
     }
     if (!clienteDados.pagamento) { setErro('Selecione a forma de pagamento'); return }
@@ -838,8 +846,9 @@ export default function CatalogoApp() {
       clienteDados={clienteDados}
       setClienteDados={setClienteDados}
       unidades={unidades}
-      onVoltar={() => setTela('carrinho')}
+      onVoltar={() => { setErro(''); setTela('carrinho') }}
       onAvancar={() => { setErro(''); setTela('pagamento') }}
+      erro={erro}
     />
   )
 
