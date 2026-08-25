@@ -973,6 +973,31 @@ reproduzindo o markup/classNames reais de `App.jsx`/`WebScreen.jsx`/`Login.jsx`/
 
 ---
 
+## Catálogo do cliente parecia travar ao confirmar pedido — corrigido
+
+**Relato do Junior**: testando o catálogo como cliente, escolhia produtos, tentava salvar e "não
+saía da tela" — parecia que o app simplesmente não fazia nada.
+
+**Investigação**: reproduzi o fluxo real com um harness Playwright descartável (mockando Supabase e
+as duas Vercel Functions envolvidas, `/api/pedido` e `/api/meu-pedido`, sem tocar em dado real).
+Achado: se o cliente esquece de tocar no local de retirada — ou a unidade salva no aparelho dele foi
+renomeada/excluída desde a última compra —, `handleConfirmar` já bloqueava certo e mandava de volta
+pra tela "Seus dados", mas o `erro` só era passado/renderizado na `TelaPagamento`. A `TelaDados`
+nunca recebia esse prop, então o usuário via a mesma tela de novo, sem nenhuma mensagem — clicava
+"Continuar" e "Confirmar" de novo, entrava num loop sem explicação nenhuma.
+
+**Corrigido**: `TelaDados` agora recebe e mostra `erro`, igual já acontecia na `TelaPagamento`.
+Aproveitei e endureci a validação: unidade que não existe mais na lista atual (renomeada/excluída)
+agora é barrada com a mesma mensagem — antes passava batido e o pedido ia pro servidor com um local
+de retirada inválido, sem avisar ninguém.
+
+- `npx vite build` validado. Reproduzido e confirmado com o harness Playwright antes e depois da
+  correção (cenário sem unidade selecionada e cenário de unidade obsoleta) — harness não ficou no
+  repo.
+- **Status no GitHub: commit `eaca247`, direto na `main`** (correção pontual, sem branch/preview).
+
+---
+
 ## Pendente / próximos passos
 
 1. ✅ **Comparativo do Dashboard — confirmado pelo Junior em teste real, tudo certo.**
