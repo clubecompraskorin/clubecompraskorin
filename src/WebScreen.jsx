@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { getPedidos, cancelarPedido, getTotaisPorProduto } from './lib/store'
+import { getPedidos, getTotaisPorProduto } from './lib/store'
 import { calcTotal } from './lib/helpers'
 import { atualizarDadosOrganizacao } from './lib/auth'
 import {
@@ -10,7 +10,7 @@ import {
 import { getPwaInstallCount } from './lib/pwa'
 import { pushSuportado, pushJaInscrito, ativarPush, desativarPush } from './lib/push'
 import { CAT_COR, CATS_ORDEM } from './lib/catalog'
-import { toast, confirmar } from './lib/dialog'
+import { toast } from './lib/dialog'
 import { getUnidades } from './lib/unidades'
 import { ehPlanilha, parseTabelaKorin } from './lib/importarPlanilha'
 import UnidadesManager from './UnidadesManager'
@@ -18,8 +18,8 @@ import ClientesManager from './ClientesManager'
 
 const fmt = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',')
 const fmtData = iso => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR') : ''
-// Esta aba só monitora pedido vindo do catálogo — pedido manual fica nas
-// abas Pedidos/Entregas do app principal.
+// Usado só pros totais de Embalagens/Resumo — a lista de pedidos em si
+// (incluindo os do catálogo) fica na aba Pedidos do app principal.
 const getPedidosCatalogo = async (periodoId) => (await getPedidos(periodoId)).filter(p => p.origem === 'catalogo')
 const normalizarTexto = s => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 
@@ -287,93 +287,6 @@ function TabProdutos({ produtos, pedidosWeb, onChange, onSave, salvando, somente
           className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-lg active:bg-green-800 disabled:opacity-50">
           {salvando ? '⟳ Salvando…' : '💾 Salvar configuração de produtos'}
         </button>
-      )}
-    </div>
-  )
-}
-
-// ── SUB-ABA: PEDIDOS ──────────────────────────────────────────────────────────
-function TabPedidos({ pedidosWeb, produtos, onCancelar, loading, filtroUnidade, somenteLeitura }) {
-  const base = filtroUnidade && filtroUnidade !== 'Todas'
-    ? pedidosWeb.filter(p => p.unidade === filtroUnidade)
-    : pedidosWeb
-  const ativos = base.filter(p => p.status !== 'cancelado')
-  const cancelados = base.filter(p => p.status === 'cancelado')
-  const totalGeral = ativos.reduce((s, p) => s + calcTotal(p, produtos), 0)
-
-  if (loading) return (
-    <div className="text-center py-12 text-stone-400 font-bold animate-pulse">Carregando pedidos…</div>
-  )
-
-  if (ativos.length === 0 && cancelados.length === 0) return (
-    <div className="text-center py-12 text-stone-400">
-      <div className="text-4xl mb-3">📭</div>
-      <div className="font-bold">Nenhum pedido recebido ainda</div>
-    </div>
-  )
-
-  return (
-    <div className="space-y-3">
-      {/* Resumo */}
-      {ativos.length > 0 && (
-        <div className="bg-green-800 text-white rounded-2xl p-4 flex justify-between items-center">
-          <div>
-            <div className="text-sm text-green-300 font-bold">{ativos.length} pedido{ativos.length !== 1 ? 's' : ''}</div>
-            <div className="text-3xl font-black">{fmt(totalGeral)}</div>
-          </div>
-          <div className="text-4xl">📋</div>
-        </div>
-      )}
-
-      {/* Lista */}
-      {ativos.map(pedido => {
-        const itensComProduto = pedido.itens
-          .map(it => { const p = produtos.find(x => x.id === it.produtoId); return p ? { ...it, cod: p.cod, nome: p.nome, preco: p.preco } : null })
-          .filter(Boolean)
-          .sort((a, b) => a.cod - b.cod)
-        return (
-        <div key={pedido.id} className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-          <div className="px-4 py-3">
-            <div className="flex justify-between items-start mb-1">
-              <div className="text-xl font-black text-stone-800">{pedido.clienteNome}</div>
-              <div className="text-lg font-black text-green-700 ml-2">{fmt(calcTotal(pedido, produtos))}</div>
-            </div>
-            <div className="text-sm text-stone-500">
-              📍 {pedido.unidade} · 💳 {pedido.pagamento}
-            </div>
-            {pedido.clienteTel && (
-              <div className="text-sm text-stone-400">📱 {pedido.clienteTel}</div>
-            )}
-            <div className="text-xs text-stone-300 mt-0.5">
-              {new Date(pedido.dataPedido).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-            </div>
-          </div>
-          <div className="px-4 pb-3">
-            {itensComProduto.map(it => (
-              <div key={it.cod} className="flex justify-between text-sm py-0.5">
-                <span className="text-stone-800 font-semibold">
-                  <span className="text-xs bg-stone-100 px-1 rounded font-bold mr-1">{it.cod}</span>
-                  {it.qty}× {it.nome}
-                </span>
-                <span className="text-stone-700 font-bold">{fmt(it.preco * it.qty)}</span>
-              </div>
-            ))}
-          </div>
-          {!somenteLeitura && (
-            <div className="border-t border-stone-50 px-4 py-2">
-              <button onClick={() => onCancelar(pedido.id)}
-                className="text-xs text-red-400 font-bold active:text-red-600">
-                Cancelar pedido
-              </button>
-            </div>
-          )}
-        </div>
-      )})}
-
-      {cancelados.length > 0 && (
-        <div className="text-xs text-stone-400 font-semibold text-center mt-2">
-          {cancelados.length} pedido{cancelados.length !== 1 ? 's' : ''} cancelado{cancelados.length !== 1 ? 's' : ''}
-        </div>
       )}
     </div>
   )
@@ -966,7 +879,7 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
   const orgSlug = org?.slug
   const [subTab, setSubTab]               = useState(abrirEm || 'controles')
   // Reage a abrirEm tanto no mount quanto em mudanças posteriores (ex: usuário já
-  // está na aba Web e clica em "Completar cadastro" de novo) — antes só lia o
+  // está na aba Config e clica em "Completar cadastro" de novo) — antes só lia o
   // valor inicial e nunca mais reagia, então o botão não fazia nada se a tela
   // já estivesse montada.
   useEffect(() => { if (abrirEm) { setSubTab(abrirEm); onAbrirEmConsumido?.() } }, [abrirEm])
@@ -1072,13 +985,6 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
     if (alvo === periodoCorrente?.id) onRecarregar?.()
   }
 
-  const handleCancelar = async id => {
-    if (!await confirmar('Cancelar este pedido?')) return
-    await cancelarPedido(id)
-    const peds = await getPedidosCatalogo(periodoWeb || periodoCorrente?.id)
-    setPedidos(peds)
-  }
-
   if (loading) return (
     <div className="px-4 py-12 text-center text-stone-400 font-bold animate-pulse">Carregando…</div>
   )
@@ -1107,7 +1013,6 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
   const TABS = [
     { id: 'controles', label: '⚙️ Config' },
     { id: 'produtos',  label: '📦 Embalagens' },
-    { id: 'pedidos',   label: `🛒 Pedidos (${pedidos.filter(p => p.status !== 'cancelado').length})` },
     { id: 'resumo',    label: '📊 Resumo' },
     { id: 'unidades',  label: '📍 Unidades' },
     { id: 'clientes',  label: '👥 Clientes' },
@@ -1165,12 +1070,6 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
       {subTab === 'produtos' && (
         <TabProdutos produtos={produtosWeb} pedidosWeb={pedidos} onChange={setProdutosWeb} onSave={handleSaveProdutos} salvando={salvando} somenteLeitura={somenteLeitura}
           sobraAnterior={visualizandoCorrente ? sobraAnterior : {}} />
-      )}
-      {subTab === 'pedidos' && (
-        <>
-          <FiltroUnidade value={filtroUnidade} onChange={setFiltroUnidade} unidades={nomesUnidades} />
-          <TabPedidos pedidosWeb={pedidos} produtos={produtosWeb} onCancelar={handleCancelar} loading={loading} filtroUnidade={filtroUnidade} somenteLeitura={somenteLeitura} />
-        </>
       )}
       {subTab === 'resumo' && (
         <>

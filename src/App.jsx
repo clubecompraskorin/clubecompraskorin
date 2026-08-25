@@ -302,7 +302,7 @@ export default function App({ org, onOrgRefresh }) {
           { id: 'entregas',   icon: '🚚', label: 'Entregas' },
           { id: 'produtos',   icon: '📦', label: 'Produtos' },
           { id: 'fechamento', icon: '📊', label: 'Fechamento' },
-          { id: 'web',        icon: '🌐', label: 'Web' },
+          { id: 'web',        icon: '⚙️', label: 'Config' },
         ].map(({ id, icon, label }) => (
           <button key={id} onClick={() => setTab(id)}
             className={`flex-1 flex flex-col items-center py-2.5 relative transition-colors ${tab === id ? 'text-green-700' : 'text-stone-400'}`}>
@@ -382,10 +382,12 @@ function PeriodoNav({ periodoCorrente, periodoViz, periodosLista, onChange, load
 function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, onView, onIniciarEntrega, onIniciarPdv, onPrintTodos, isHistorico, periodoNav, unidades = [], filtroImpressao, setFiltroImpressao }) {
   const [busca, setBusca]   = useState('')
   const [filtro, setFiltro] = useState('todos')
+  const [somenteCatalogo, setSomenteCatalogo] = useState(false)
 
   const lista = pedidos
     .filter(p => p.clienteNome.toLowerCase().includes(busca.toLowerCase()))
     .filter(p => filtro === 'todos' || p.status === filtro)
+    .filter(p => !somenteCatalogo || p.origem === 'catalogo')
     .filter(p => filtroImpressao === 'Todas' || (p.unidade || 'Não informada') === filtroImpressao)
     .sort((a, b) => a.clienteNome.localeCompare(b.clienteNome))
 
@@ -422,6 +424,10 @@ function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, on
           <button key={v} onClick={() => setFiltro(v)}
             className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${filtro === v ? 'bg-green-700 text-white' : 'bg-white text-stone-500 border border-stone-200'}`}>{l}</button>
         ))}
+        <button onClick={() => setSomenteCatalogo(v => !v)}
+          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${somenteCatalogo ? 'bg-blue-600 text-white' : 'bg-white text-stone-500 border border-stone-200'}`}>
+          🌐 Só catálogo
+        </button>
         {unidades.length > 0 && (
           <div className="ml-auto flex items-center gap-2 flex-wrap">
             {/* Filtra a lista abaixo por unidade E decide o que entra no
@@ -813,7 +819,7 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
   return (
     <div className="px-4 py-4 space-y-4">
       <div className="bg-stone-50 border border-stone-100 rounded-2xl px-4 py-3 text-sm text-stone-500 font-semibold text-center">
-        Pra importar tabela nova ou virar o mês, use 📥 na aba Web.
+        Pra importar tabela nova ou virar o mês, use 📥 na aba Config.
       </div>
       {cats.map(cat => {
         const list = produtos.filter(p => p.categoria === cat).sort((a, b) => a.cod - b.cod)

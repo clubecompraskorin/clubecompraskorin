@@ -21,14 +21,14 @@ const PASSOS = [
   {
     n: '03',
     titulo: 'Importe a primeira tabela de preços',
-    texto: 'Na aba Web → Config, toque em "Importar catálogo da Korin" e tire uma foto da tabela de preços, ou suba a planilha oficial da Korin (.xlsx) direto. O sistema lê os produtos e cria o período automaticamente — sem digitar nada.',
+    texto: 'Na aba Config, toque em "Importar catálogo da Korin" e tire uma foto da tabela de preços, ou suba a planilha oficial da Korin (.xlsx) direto. O sistema lê os produtos e cria o período automaticamente — sem digitar nada.',
     img: '/screenshot-embalagens.jpg',
     alt: 'Catálogo importado, com as embalagens de cada produto já configuradas',
   },
   {
     n: '04',
     titulo: 'Compartilhe o link do catálogo',
-    texto: 'Ainda na aba Web → Config tem um link pronto pra copiar e enviar pros seus membros. Eles pedem direto por ali, sem precisar instalar nada.',
+    texto: 'Ainda na aba Config tem um link pronto pra copiar e enviar pros seus membros. Eles pedem direto por ali, sem precisar instalar nada.',
     img: '/screenshot-link-catalogo.jpg',
     alt: 'Link do catálogo pronto pra copiar e enviar pros membros',
   },
@@ -42,7 +42,7 @@ const PASSOS = [
   {
     n: '06',
     titulo: 'Se tiver representante numa unidade, gere o link de entrega dele',
-    texto: 'Em Web → Unidades, gere o link de entrega daquela unidade (com PIN). O representante abre pelo celular, sem precisar de login completo, separa e confirma a entrega direto por ali — você acompanha tudo em tempo real.',
+    texto: 'Em Config → Unidades, gere o link de entrega daquela unidade (com PIN). O representante abre pelo celular, sem precisar de login completo, separa e confirma a entrega direto por ali — você acompanha tudo em tempo real.',
     img: '/screenshot-link-entrega-gerar.jpg',
     alt: 'Link de entrega com PIN gerado pra uma unidade',
   },
@@ -58,7 +58,7 @@ const PASSOS = [
 const FAQ = [
   {
     p: 'Como eu viro o mês?',
-    r: 'Importe a tabela de preços nova na aba Web. O sistema compara com o período atual: se for o mesmo mês, só atualiza os preços; se for um mês diferente, ele cria um período novo automaticamente e pede a data limite de pedidos.',
+    r: 'Importe a tabela de preços nova na aba Config. O sistema compara com o período atual: se for o mesmo mês, só atualiza os preços; se for um mês diferente, ele cria um período novo automaticamente e pede a data limite de pedidos.',
   },
   {
     p: 'Os pedidos do mês anterior se perdem quando eu importo um catálogo novo?',
@@ -66,19 +66,19 @@ const FAQ = [
   },
   {
     p: 'Posso ter mais de uma unidade de retirada?',
-    r: 'Sim, quantas precisar. Gerencie em Web → Unidades.',
+    r: 'Sim, quantas precisar. Gerencie em Config → Unidades.',
   },
   {
     p: 'Preciso preencher CPF/CNPJ pra usar o sistema?',
-    r: 'Não é obrigatório. É só pra identificação caso o sistema passe a ter cobrança ou integração com outros serviços no futuro. Você completa quando quiser, em Web → Dados.',
+    r: 'Não é obrigatório. É só pra identificação caso o sistema passe a ter cobrança ou integração com outros serviços no futuro. Você completa quando quiser, em Config → Dados.',
   },
   {
     p: 'Como funciona o link de entrega por PIN?',
-    r: 'Em Web → Unidades, gere o link daquela unidade — o sistema cria um PIN de 4 dígitos. Passe o link e o PIN pro representante; ele acessa pelo celular sem precisar de login completo, vê só os pedidos daquela unidade, separa e confirma a entrega. Se trocar de representante, é só gerar um PIN novo — o antigo para de funcionar.',
+    r: 'Em Config → Unidades, gere o link daquela unidade — o sistema cria um PIN de 4 dígitos. Passe o link e o PIN pro representante; ele acessa pelo celular sem precisar de login completo, vê só os pedidos daquela unidade, separa e confirma a entrega. Se trocar de representante, é só gerar um PIN novo — o antigo para de funcionar.',
   },
   {
     p: 'Como sei quanto sobrou de cada produto pro próximo período?',
-    r: 'Em Web → Produtos/Embalagens, o sistema mostra a sobra do período anterior por produto (compra em caixa fechada menos o que foi vendido) — é só informativo, não trava nada. Você decide quantas caixas marcar como abertas no período novo.',
+    r: 'Em Config → Embalagens, o sistema mostra a sobra do período anterior por produto (compra em caixa fechada menos o que foi vendido) — é só informativo, não trava nada. Você decide quantas caixas marcar como abertas no período novo.',
   },
 ]
 
