@@ -23,13 +23,8 @@ const produtoFromDb = (row) => ({
   qtdCaixa: row.qtd_caixa || 0,
   caixasAbertas: row.caixas_abertas || 0,
   foraDaTabela: row.fora_da_tabela || false,
-  compraConfirmadaUnd: row.compra_confirmada_und ?? null,
 })
 
-// compra_confirmada_und deliberadamente FORA daqui — esse upsert é usado por
-// qualquer edição comum de produto (config de embalagem, reimportar
-// catálogo), e omitir a coluna faz o upsert preservar o valor já gravado em
-// vez de sobrescrever com null. Só registrarCompraConfirmada() escreve nela.
 const produtoToDb = (periodoId, p) => ({
   periodo_id: periodoId,
   cod: p.cod,
@@ -207,21 +202,46 @@ export async function substituirProdutosDoPeriodo(periodoId, produtosApp) {
   } catch (e) { return { ok: false, error: e.message } }
 }
 
-// ── COMPRA CONFIRMADA (planilha realmente enviada pra Korin) ────────────────
+// ── COMPRAS CONFIRMADAS (histórico — planilha real ou ajuste manual) ───────
+// Cada confirmação vira uma LINHA em compras_confirmadas, nunca sobrescreve
+// a anterior — o estoque disponível de um produto é a SOMA de todas as
+// linhas dele no período (ver calcEstoque em lib/helpers.js). Isso permite
+// mais de uma compra confirmada no mesmo período (ex: comprou de novo no
+// meio do mês pra repor o PDV), sem perder o que já tinha sido confirmado.
+
+const compraFromDb = (row) => ({
+  id: row.id,
+  periodoProdutoId: row.periodo_produto_id,
+  cod: row.periodo_produtos?.cod,
+  quantidadeUnd: row.quantidade_und,
+  origem: row.origem,
+  observacao: row.observacao,
+  criadoEm: row.created_at,
+})
+
+/** Todas as compras confirmadas dos produtos de um período, mais recente primeiro. */
+export async function getComprasConfirmadas(periodoId) {
+  if (!supabase || !periodoId) return []
+  try {
+    const { data, error } = await supabase
+      .from('compras_confirmadas')
+      .select('id, periodo_produto_id, quantidade_und, origem, observacao, created_at, periodo_produtos!inner(cod, periodo_id)')
+      .eq('periodo_produtos.periodo_id', periodoId)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return (data || []).map(compraFromDb)
+  } catch (e) { console.error(e); return [] }
+}
+
 /**
- * Registra a quantidade de fato comprada da Korin (planilha enviada, não a
- * estimativa dos pedidos) — por produto, casando por `cod`. Sempre SUBSTITUI
- * o que já estava gravado pro produto naquele período (não soma): a
- * Dedicante deve reimportar uma única planilha representando a compra
- * completa do período; reimportar de novo sobrescreve a anterior.
- * `itens`: [{ cod, qtdeCaixas }].
+ * Registra a quantidade de fato comprada da Korin (planilha reimportada) —
+ * por produto, casando por `cod`. Cada item vira uma linha nova, somando ao
+ * que já existia. `itens`: [{ cod, qtdeCaixas }].
  *
  * A Korin vende só pra organização inteira — não existe "compra por
- * unidade". A partir daqui o estoque desse produto no período passa a ser
- * esse número (ver calcEstoque em lib/helpers.js), não mais a estimativa de
- * caixas abertas — vale igual pra pedido do clube e pra venda no PDV.
+ * unidade". Vale igual pra pedido do clube e pra venda no PDV.
  */
-export async function registrarCompraConfirmada(periodoId, itens) {
+export async function registrarCompraConfirmada(periodoId, itens, observacao = null) {
   if (!supabase || !periodoId) return { ok: false, error: 'Sem conexão com internet' }
   try {
     const { data: existentes, error: e1 } = await supabase
@@ -231,25 +251,43 @@ export async function registrarCompraConfirmada(periodoId, itens) {
     const porCod = {}
     ;(existentes || []).forEach(p => { porCod[p.cod] = p })
 
-    const atualizacoes = itens
+    const linhas = itens
       .map(it => {
         const prod = porCod[it.cod]
         if (!prod || !prod.qtd_caixa) return null
-        return { id: prod.id, compra_confirmada_und: Math.round(it.qtdeCaixas * prod.qtd_caixa) }
+        return { periodo_produto_id: prod.id, quantidade_und: Math.round(it.qtdeCaixas * prod.qtd_caixa), origem: 'planilha', observacao }
       })
       .filter(Boolean)
 
-    if (!atualizacoes.length) return { ok: false, error: 'Nenhum produto da planilha bate com o catálogo deste período' }
+    if (!linhas.length) return { ok: false, error: 'Nenhum produto da planilha bate com o catálogo deste período' }
 
-    const resultados = await Promise.all(atualizacoes.map(u =>
-      supabase.from('periodo_produtos')
-        .update({ compra_confirmada_und: u.compra_confirmada_und })
-        .eq('id', u.id)
-    ))
-    const falhou = resultados.find(r => r.error)
-    if (falhou) throw falhou.error
+    const { error } = await supabase.from('compras_confirmadas').insert(linhas)
+    if (error) throw error
 
-    return { ok: true, atualizados: atualizacoes.length }
+    return { ok: true, atualizados: linhas.length }
+  } catch (e) { return { ok: false, error: e.message } }
+}
+
+/** Ajuste rápido de um único produto, direto na aba Estoque — sem planilha. */
+export async function registrarAjusteManualEstoque(periodoProdutoId, quantidade, observacao = null) {
+  if (!supabase || !periodoProdutoId) return { ok: false, error: 'Sem conexão com internet' }
+  const qtd = Math.round(Number(quantidade))
+  if (!qtd || qtd <= 0) return { ok: false, error: 'Informe uma quantidade válida' }
+  try {
+    const { error } = await supabase.from('compras_confirmadas')
+      .insert({ periodo_produto_id: periodoProdutoId, quantidade_und: qtd, origem: 'manual', observacao: observacao || null })
+    if (error) throw error
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e.message } }
+}
+
+/** Remove uma linha do histórico (ex: upload errado, ajuste manual enganado). */
+export async function excluirCompraConfirmada(id) {
+  if (!supabase || !id) return { ok: false, error: 'Sem conexão com internet' }
+  try {
+    const { error } = await supabase.from('compras_confirmadas').delete().eq('id', id)
+    if (error) throw error
+    return { ok: true }
   } catch (e) { return { ok: false, error: e.message } }
 }
 
@@ -280,10 +318,11 @@ async function getPeriodoAnteriorArquivado(orgId, periodoAtualId) {
 
 /**
  * Sobra por produto (em unidades) do período arquivado imediatamente
- * anterior — puramente informativo, nunca usado pra travar nada. Prioriza
- * compra_confirmada_und (planilha real enviada) quando existe; senão usa a
- * mesma estimativa da tela "O que comprar" (pedidos arredondados pra caixa
- * fechada). Retorna { [cod]: sobraEmUnidades }, só com sobra > 0.
+ * anterior — puramente informativo, nunca usado pra travar nada. Prioriza a
+ * soma das compras confirmadas (planilha real enviada, todas as linhas)
+ * quando existe alguma; senão usa a mesma estimativa da tela "O que
+ * comprar" (pedidos arredondados pra caixa fechada). Retorna
+ * { [cod]: sobraEmUnidades }, só com sobra > 0.
  */
 export async function getSobraPeriodoAnterior(orgId, periodoAtualId) {
   if (!supabase || !orgId) return {}
@@ -291,17 +330,20 @@ export async function getSobraPeriodoAnterior(orgId, periodoAtualId) {
     const anterior = await getPeriodoAnteriorArquivado(orgId, periodoAtualId)
     if (!anterior) return {}
 
-    const [produtosAnt, pedidosAnt] = await Promise.all([
+    const [produtosAnt, pedidosAnt, comprasAnt] = await Promise.all([
       getProdutosDoPeriodo(anterior.id),
       getPedidos(anterior.id),
+      getComprasConfirmadas(anterior.id),
     ])
     const totais = getTotaisPorProduto(pedidosAnt)
+    const confirmadoPorProdutoId = {}
+    comprasAnt.forEach(c => { confirmadoPorProdutoId[c.periodoProdutoId] = (confirmadoPorProdutoId[c.periodoProdutoId] || 0) + c.quantidadeUnd })
 
     const porCod = {}
     produtosAnt.forEach(p => {
       if (!p.qtdCaixa) return
       const totalPedido = totais[p.id] || 0
-      const compra = p.compraConfirmadaUnd ?? (p.qtdCaixa * Math.ceil(totalPedido / p.qtdCaixa))
+      const compra = confirmadoPorProdutoId[p.id] ?? (p.qtdCaixa * Math.ceil(totalPedido / p.qtdCaixa))
       const sobra = Math.max(0, compra - totalPedido)
       if (sobra > 0) porCod[p.cod] = sobra
     })

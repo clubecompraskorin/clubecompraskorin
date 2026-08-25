@@ -5,12 +5,12 @@ import { atualizarDadosOrganizacao } from './lib/auth'
 import {
   listarPeriodos, atualizarPeriodo, criarPeriodoComCopia,
   getProdutosDoPeriodo, salvarProdutoNoPeriodo, substituirProdutosDoPeriodo,
-  getSobraPeriodoAnterior,
+  getSobraPeriodoAnterior, getComprasConfirmadas, registrarAjusteManualEstoque, excluirCompraConfirmada,
 } from './lib/periodos'
 import { getPwaInstallCount } from './lib/pwa'
 import { pushSuportado, pushJaInscrito, ativarPush, desativarPush } from './lib/push'
 import { CAT_COR, CATS_ORDEM } from './lib/catalog'
-import { toast } from './lib/dialog'
+import { toast, confirmar } from './lib/dialog'
 import { getUnidades } from './lib/unidades'
 import { ehPlanilha, parseTabelaKorin } from './lib/importarPlanilha'
 import UnidadesManager from './UnidadesManager'
@@ -157,8 +157,16 @@ function TabControles({ periodo, dataLimite, onChangeDataLimite, onToggleAberto,
 // O "disponível" some dessa estimativa (caixasAbertas × qtdCaixa) só até a
 // compra ser confirmada em Fechamento — depois disso, calcEstoque() usa o
 // número real confirmado. Ver lib/helpers.js.
-function TabProdutos({ produtos, pedidos, onChange, onSave, salvando, somenteLeitura, sobraAnterior = {} }) {
+function TabProdutos({ produtos, pedidos, onChange, onSave, salvando, somenteLeitura, sobraAnterior = {}, comprasConfirmadas = [], onComprasChange }) {
   const totais = getTotaisPorProduto(pedidos)
+  const [modalHistoricoProd, setModalHistoricoProd] = useState(null)
+
+  const confirmadoPorProdutoId = {}
+  const entradasPorProdutoId = {}
+  comprasConfirmadas.forEach(c => {
+    confirmadoPorProdutoId[c.periodoProdutoId] = (confirmadoPorProdutoId[c.periodoProdutoId] || 0) + c.quantidadeUnd
+    ;(entradasPorProdutoId[c.periodoProdutoId] ||= []).push(c)
+  })
 
   const setProdCfg = (cod, campo, val) => {
     const n = parseInt(val) || 0
@@ -201,9 +209,11 @@ function TabProdutos({ produtos, pedidos, onChange, onSave, salvando, somenteLei
                 const caixasAbertas = prod.caixasAbertas || 0
                 const totalPedido = totais[prod.id] || 0
                 const sobra = sobraAnterior[prod.cod] || 0
+                const confirmado = confirmadoPorProdutoId[prod.id] ?? null
+                const entradas = entradasPorProdutoId[prod.id] || []
                 // Não trava em 0 — negativo é sinal visual de "vendeu além do estimado",
                 // decisão de quem tá gerenciando, o sistema só avisa.
-                const { disponivel: disponivelReal, restante } = calcEstoque(prod, totalPedido, sobra)
+                const { disponivel: disponivelReal, restante } = calcEstoque(prod, totalPedido, sobra, confirmado)
 
                 return (
                   <div key={prod.id} className={`bg-white rounded-2xl border shadow-sm p-3 ${prod.foraDaTabela ? 'border-amber-300' : 'border-stone-100'}`}>
@@ -258,7 +268,7 @@ function TabProdutos({ produtos, pedidos, onChange, onSave, salvando, somenteLei
                       <div className="space-y-0.5">
                         <div className="text-xs font-bold text-stone-600">
                           📦 {disponivelReal} un. disponíveis
-                          {prod.compraConfirmadaUnd != null && <span className="text-green-700"> · compra confirmada</span>}
+                          {confirmado != null && <span className="text-green-700"> · compra confirmada</span>}
                         </div>
                         {sobra > 0 && (
                           <div className="text-xs text-teal-700 font-bold">
@@ -273,6 +283,12 @@ function TabProdutos({ produtos, pedidos, onChange, onSave, salvando, somenteLei
                         </div>
                       </div>
                     )}
+                    {qtdCaixa > 0 && (
+                      <button onClick={() => setModalHistoricoProd(prod)}
+                        className="text-xs text-stone-400 font-bold underline mt-2">
+                        📋 Histórico de compras{entradas.length > 0 ? ` (${entradas.length})` : ''}
+                      </button>
+                    )}
                   </div>
                 )
               })}
@@ -281,12 +297,121 @@ function TabProdutos({ produtos, pedidos, onChange, onSave, salvando, somenteLei
         )
       })}
 
+      {modalHistoricoProd && (
+        <ModalHistoricoCompra
+          produto={modalHistoricoProd}
+          entradas={entradasPorProdutoId[modalHistoricoProd.id] || []}
+          somenteLeitura={somenteLeitura}
+          onClose={() => setModalHistoricoProd(null)}
+          onChange={onComprasChange}
+        />
+      )}
+
       {!somenteLeitura && (
         <button onClick={onSave} disabled={salvando}
           className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-lg active:bg-green-800 disabled:opacity-50">
           {salvando ? '⟳ Salvando…' : '💾 Salvar configuração de produtos'}
         </button>
       )}
+    </div>
+  )
+}
+
+// ── MODAL: HISTÓRICO DE COMPRAS DE UM PRODUTO ────────────────────────────────
+// Onde a Dedicante monitora e altera a compra confirmada: vê cada linha que
+// compõe o "disponível" (planilha ou ajuste manual), remove uma errada, ou
+// registra uma compra extra sem precisar gerar planilha — cada adição SOMA
+// ao estoque, nunca substitui (ver registrarAjusteManualEstoque em
+// lib/periodos.js). O total em si não é editável direto, só as entradas.
+function ModalHistoricoCompra({ produto, entradas, somenteLeitura, onClose, onChange }) {
+  const [quantidade, setQuantidade] = useState('')
+  const [observacao, setObservacao] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [excluindo, setExcluindo] = useState(null)
+  const [erro, setErro] = useState('')
+
+  const total = entradas.reduce((s, e) => s + e.quantidadeUnd, 0)
+
+  const adicionar = async () => {
+    setErro('')
+    setSalvando(true)
+    const r = await registrarAjusteManualEstoque(produto.id, quantidade, observacao.trim() || null)
+    setSalvando(false)
+    if (!r.ok) { setErro(r.error); return }
+    setQuantidade(''); setObservacao('')
+    onChange?.()
+  }
+
+  const excluir = async (id) => {
+    if (!await confirmar('Remover essa compra confirmada do histórico?')) return
+    setExcluindo(id)
+    const r = await excluirCompraConfirmada(id)
+    setExcluindo(null)
+    if (!r.ok) { toast('Erro ao remover: ' + r.error); return }
+    onChange?.()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
+      <div className="bg-white w-full rounded-t-3xl flex flex-col" style={{ maxHeight: '90vh' }}>
+        <div className="p-4 border-b border-stone-100 flex-shrink-0 flex justify-between items-center">
+          <div>
+            <div className="text-xl font-black">Histórico de compras</div>
+            <div className="text-sm text-stone-400">{produto.nome}</div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-full bg-stone-100 text-xl">✕</button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2">
+          {entradas.length === 0 ? (
+            <div className="text-center py-8 text-stone-400 text-sm">Nenhuma compra confirmada ainda pra esse produto.</div>
+          ) : (
+            <>
+              <div className="bg-green-50 border border-green-100 rounded-2xl px-4 py-3 flex justify-between items-center">
+                <span className="text-sm font-bold text-green-700">Total confirmado</span>
+                <span className="text-xl font-black text-green-700">{total} un.</span>
+              </div>
+              {entradas.map(e => (
+                <div key={e.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-stone-50">
+                  <div className="text-lg flex-shrink-0">{e.origem === 'planilha' ? '📊' : '✍️'}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-stone-800">{e.quantidadeUnd} un.</div>
+                    <div className="text-xs text-stone-400">
+                      {new Date(e.criadoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      {e.observacao && ` · ${e.observacao}`}
+                    </div>
+                  </div>
+                  {!somenteLeitura && (
+                    <button onClick={() => excluir(e.id)} disabled={excluindo === e.id}
+                      className="p-2 rounded-xl bg-red-50 text-red-500 text-sm flex-shrink-0 disabled:opacity-50">
+                      {excluindo === e.id ? '⟳' : '🗑️'}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+
+        {!somenteLeitura && (
+          <div className="p-4 border-t border-stone-100 flex-shrink-0 space-y-2">
+            <div className="text-xs font-black text-stone-500 uppercase tracking-widest">Registrar compra extra</div>
+            <div className="flex gap-2">
+              <input type="number" min="1" value={quantidade} onChange={e => setQuantidade(e.target.value)}
+                placeholder="Quantidade (un.)"
+                className="w-32 border border-stone-200 rounded-xl px-3 py-2.5 text-base font-bold focus:outline-none focus:border-green-500" />
+              <input value={observacao} onChange={e => setObservacao(e.target.value)}
+                placeholder="Observação (opcional)"
+                className="flex-1 min-w-0 border border-stone-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-green-500" />
+            </div>
+            {erro && <div className="text-xs text-red-600 font-semibold">{erro}</div>}
+            <button onClick={adicionar} disabled={salvando || !quantidade}
+              className="w-full py-3 bg-green-700 text-white rounded-2xl font-black text-sm active:bg-green-800 disabled:opacity-50">
+              {salvando ? '⟳ Salvando…' : '+ Adicionar ao estoque'}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -679,6 +804,15 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
     getSobraPeriodoAnterior(orgId, periodoCorrente.id).then(setSobraAnterior)
   }, [orgId, periodoCorrente?.id])
 
+  // Histórico de compras confirmadas do período sendo visualizado — recarrega
+  // sozinho quando muda de período, e sob demanda depois de adicionar/excluir
+  // uma linha (ver recarregarComprasConfirmadas passado pro modal).
+  const [comprasConfirmadas, setComprasConfirmadas] = useState([])
+  const recarregarComprasConfirmadas = useCallback(() => {
+    if (periodoWeb) getComprasConfirmadas(periodoWeb).then(setComprasConfirmadas)
+  }, [periodoWeb])
+  useEffect(() => { recarregarComprasConfirmadas() }, [recarregarComprasConfirmadas])
+
   // Só ressincroniza quando o PERÍODO muda (id diferente) — nunca durante um
   // refresh automático do mesmo período, senão apaga edição em andamento.
   useEffect(() => { setDataLimiteEdit(periodoCorrente?.data_limite ?? null) }, [periodoCorrente?.id])
@@ -827,7 +961,8 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
       )}
       {subTab === 'produtos' && (
         <TabProdutos produtos={produtosWeb} pedidos={pedidos} onChange={setProdutosWeb} onSave={handleSaveProdutos} salvando={salvando} somenteLeitura={somenteLeitura}
-          sobraAnterior={visualizandoCorrente ? sobraAnterior : {}} />
+          sobraAnterior={visualizandoCorrente ? sobraAnterior : {}}
+          comprasConfirmadas={comprasConfirmadas} onComprasChange={recarregarComprasConfirmadas} />
       )}
       {subTab === 'unidades' && (
         <UnidadesManager orgId={orgId} orgSlug={orgSlug} modo="settings" onChange={lista => { setUnidades(lista); onUnidadesChange?.(lista) }} />

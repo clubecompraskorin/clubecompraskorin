@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { fmt, calcEstoque } from './lib/helpers'
 import { CAT_COR, CATS_ORDEM, PAGAMENTOS } from './lib/catalog'
 import { salvarPedido, getTotaisPorProduto } from './lib/store'
-import { getSobraPeriodoAnterior } from './lib/periodos'
+import { getSobraPeriodoAnterior, getComprasConfirmadas } from './lib/periodos'
 import { listarClientes } from './lib/clientes'
 import { toast } from './lib/dialog'
 
@@ -18,24 +18,31 @@ export default function ModoPdv({ orgId, org, periodo, produtos, unidades, pedid
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [sobraAnterior, setSobraAnterior] = useState({})
+  const [comprasConfirmadas, setComprasConfirmadas] = useState([])
   const [clientesConhecidos, setClientesConhecidos] = useState([])
   const [ultimaVenda, setUltimaVenda] = useState(null)
 
   useEffect(() => { if (orgId) listarClientes(orgId).then(setClientesConhecidos) }, [orgId])
   useEffect(() => { if (orgId && periodo?.id) getSobraPeriodoAnterior(orgId, periodo.id).then(setSobraAnterior) }, [orgId, periodo?.id])
+  useEffect(() => { if (periodo?.id) getComprasConfirmadas(periodo.id).then(setComprasConfirmadas) }, [periodo?.id])
 
   // Mesmo estoque usado na aba Config → Estoque: um saldo só por produto,
   // somando pedido de qualquer canal (catálogo, WhatsApp, manual, PDV de
   // qualquer unidade) — a Korin vende pra organização inteira, não existe
   // "estoque da unidade" separado.
   const totaisTodos = useMemo(() => getTotaisPorProduto(pedidos), [pedidos])
+  const confirmadoPorProdutoId = useMemo(() => {
+    const m = {}
+    comprasConfirmadas.forEach(c => { m[c.periodoProdutoId] = (m[c.periodoProdutoId] || 0) + c.quantidadeUnd })
+    return m
+  }, [comprasConfirmadas])
 
   const restante = (produtoId) => {
     const prod = produtos.find(p => p.id === produtoId)
     if (!prod) return null
     const sobra = sobraAnterior[prod.cod] || 0
     const totalPedido = (totaisTodos[produtoId] || 0) + (carrinho[produtoId] || 0)
-    return calcEstoque(prod, totalPedido, sobra).restante
+    return calcEstoque(prod, totalPedido, sobra, confirmadoPorProdutoId[produtoId] ?? null).restante
   }
 
   const setQty = (id, qty) => {

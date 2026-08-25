@@ -16,14 +16,16 @@ export const sortByCod = (itens, produtos) =>
 
 // Estoque real de um produto no período — usado em qualquer tela que precise
 // saber "quanto ainda dá pra vender": aba Estoque e PDV, pro mesmo produto
-// valer o mesmo saldo em qualquer canal. Prioriza a compra confirmada (a
-// planilha real enviada pra Korin) sobre a estimativa de caixas abertas —
-// a partir do momento que a Dedicante confirma a compra, é esse número que
-// manda, não mais a estimativa. `totalPedido` já deve somar pedido de
-// qualquer origem/unidade (catálogo, WhatsApp, manual, PDV).
-export const calcEstoque = (produto, totalPedido, sobra = 0) => {
-  const base = produto.compraConfirmadaUnd != null
-    ? produto.compraConfirmadaUnd
+// valer o mesmo saldo em qualquer canal. Prioriza a soma das compras
+// confirmadas (histórico real, uma ou mais — ver getComprasConfirmadas em
+// lib/periodos.js) sobre a estimativa de caixas abertas — a partir da
+// primeira confirmação, é esse número que manda, não mais a estimativa.
+// `totalPedido` já deve somar pedido de qualquer origem/unidade (catálogo,
+// WhatsApp, manual, PDV). `compraConfirmada` é a soma das linhas do
+// histórico pra esse produto, ou null se nenhuma ainda.
+export const calcEstoque = (produto, totalPedido, sobra = 0, compraConfirmada = null) => {
+  const base = compraConfirmada != null
+    ? compraConfirmada
     : (produto.qtdCaixa ? (produto.caixasAbertas || 0) * produto.qtdCaixa : null)
   if (base == null) return { disponivel: null, restante: null }
   const disponivel = base + sobra

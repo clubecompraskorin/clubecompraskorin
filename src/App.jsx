@@ -1469,7 +1469,7 @@ function ModalConfirmarCompra({ periodoId, produtosAtuais, onConcluido, onClose 
   const confirmarSalvar = async () => {
     setSalvando(true)
     const payload = itens.map(it => ({ cod: it.cod, qtdeCaixas: it.qtdeCaixas }))
-    const r = await registrarCompraConfirmada(periodoId, payload)
+    const r = await registrarCompraConfirmada(periodoId, payload, arquivo?.name || null)
     setSalvando(false)
     if (!r.ok) { toast('Erro ao registrar: ' + r.error); return }
     toast(`Compra confirmada pra ${r.atualizados} produto${r.atualizados > 1 ? 's' : ''}`)
