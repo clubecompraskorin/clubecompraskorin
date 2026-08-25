@@ -24,11 +24,10 @@ const produtoFromDb = (row) => ({
   caixasAbertas: row.caixas_abertas || 0,
   foraDaTabela: row.fora_da_tabela || false,
   compraConfirmadaUnd: row.compra_confirmada_und ?? null,
-  compraConfirmadaUnidades: row.compra_confirmada_unidades || null,
 })
 
-// compra_confirmada_und/unidades deliberadamente FORA daqui — esse upsert é
-// usado por qualquer edição comum de produto (config de embalagem, reimportar
+// compra_confirmada_und deliberadamente FORA daqui — esse upsert é usado por
+// qualquer edição comum de produto (config de embalagem, reimportar
 // catálogo), e omitir a coluna faz o upsert preservar o valor já gravado em
 // vez de sobrescrever com null. Só registrarCompraConfirmada() escreve nela.
 const produtoToDb = (periodoId, p) => ({
@@ -213,12 +212,16 @@ export async function substituirProdutosDoPeriodo(periodoId, produtosApp) {
  * Registra a quantidade de fato comprada da Korin (planilha enviada, não a
  * estimativa dos pedidos) — por produto, casando por `cod`. Sempre SUBSTITUI
  * o que já estava gravado pro produto naquele período (não soma): a
- * coordenadora deve reimportar uma única planilha representando a compra
+ * Dedicante deve reimportar uma única planilha representando a compra
  * completa do período; reimportar de novo sobrescreve a anterior.
- * `itens`: [{ cod, qtdeCaixas }]. `unidadesAtendidas`: nomes das unidades
- * (informativo, pra rastreabilidade de quando o envio cobre só parte delas).
+ * `itens`: [{ cod, qtdeCaixas }].
+ *
+ * A Korin vende só pra organização inteira — não existe "compra por
+ * unidade". A partir daqui o estoque desse produto no período passa a ser
+ * esse número (ver calcEstoque em lib/helpers.js), não mais a estimativa de
+ * caixas abertas — vale igual pra pedido do clube e pra venda no PDV.
  */
-export async function registrarCompraConfirmada(periodoId, itens, unidadesAtendidas) {
+export async function registrarCompraConfirmada(periodoId, itens) {
   if (!supabase || !periodoId) return { ok: false, error: 'Sem conexão com internet' }
   try {
     const { data: existentes, error: e1 } = await supabase
@@ -240,7 +243,7 @@ export async function registrarCompraConfirmada(periodoId, itens, unidadesAtendi
 
     const resultados = await Promise.all(atualizacoes.map(u =>
       supabase.from('periodo_produtos')
-        .update({ compra_confirmada_und: u.compra_confirmada_und, compra_confirmada_unidades: unidadesAtendidas || null })
+        .update({ compra_confirmada_und: u.compra_confirmada_und })
         .eq('id', u.id)
     ))
     const falhou = resultados.find(r => r.error)

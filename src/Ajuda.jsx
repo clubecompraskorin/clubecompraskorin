@@ -78,7 +78,7 @@ const FAQ = [
   },
   {
     p: 'Como sei quanto sobrou de cada produto pro próximo período?',
-    r: 'Em Config → Embalagens, o sistema mostra a sobra do período anterior por produto (compra em caixa fechada menos o que foi vendido) — é só informativo, não trava nada. Você decide quantas caixas marcar como abertas no período novo.',
+    r: 'Em Config → Estoque, o sistema mostra a sobra do período anterior por produto (compra em caixa fechada menos o que foi vendido) — é só informativo, não trava nada. Você decide quantas caixas marcar como abertas no período novo.',
   },
 ]
 

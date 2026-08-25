@@ -9,8 +9,9 @@ import WebScreen from './WebScreen'
 import {
   getPeriodoCorrente, listarPeriodos, getProdutosDoPeriodo,
   salvarProdutoNoPeriodo, removerProdutoDoPeriodo, arquivarPeriodo, desarquivarPeriodo,
-  getComparativoPeriodoAnterior,
+  getComparativoPeriodoAnterior, registrarCompraConfirmada,
 } from './lib/periodos'
+import { parseTabelaKorin } from './lib/importarPlanilha'
 import { ToastHost, ConfirmHost, toast, confirmar } from './lib/dialog'
 import { getUnidades } from './lib/unidades'
 import { listarClientes } from './lib/clientes'
@@ -291,7 +292,7 @@ export default function App({ org, onOrgRefresh }) {
         {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} onIniciarPdv={() => setModoPdv(true)} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} unidades={nomesUnidades} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} />}
         {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} unidades={nomesUnidades} />}
         {tab === 'produtos'   && <ProdutosScreen  produtos={produtos} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} />}
-        {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} periodoObj={periodoObjAtivo} isCorrente={!isHistorico} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} orgId={orgId} periodoAtualId={periodoObjAtivo?.id} />}
+        {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} periodoObj={periodoObjAtivo} isCorrente={!isHistorico} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} orgId={orgId} periodoAtualId={periodoObjAtivo?.id} onRecarregar={recarregarTudo} />}
         {tab === 'web'        && <WebScreen produtos={produtos} periodo={periodoCorrente} org={org} onUnidadesChange={setUnidades} onRecarregar={recarregarTudo} abrirEm={webAbrirEm} onAbrirEmConsumido={() => setWebAbrirEm(null)} onOrgRefresh={onOrgRefresh} />}
       </main>
 
@@ -1113,10 +1114,11 @@ function DashboardScreen({ pedidos, produtos, unidades = [], orgId, periodoAtual
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: FECHAMENTO
 // ═══════════════════════════════════════════════════════════════════════════════
-function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, periodoNav, periodoObj, isCorrente, onArquivar, onDesarquivar, filtroImpressao, setFiltroImpressao, orgId, periodoAtualId }) {
+function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, periodoNav, periodoObj, isCorrente, onArquivar, onDesarquivar, filtroImpressao, setFiltroImpressao, orgId, periodoAtualId, onRecarregar }) {
   const [subTab, setSubTab]   = useState('resumo')
   const [filtroUnidadeResumo, setFiltroUnidadeResumo] = useState('Todas')
   const [unidadesExport, setUnidadesExport] = useState(new Set(unidades))
+  const [mostrarConfirmarCompra, setMostrarConfirmarCompra] = useState(false)
   useEffect(() => { setUnidadesExport(new Set(unidades)) }, [unidades.join('|')])
 
   const pedidosResumo = pedidos.filter(p => filtroUnidadeResumo === 'Todas' || (p.unidade || 'Não informada') === filtroUnidadeResumo)
@@ -1374,6 +1376,18 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
           📄 Separado por unidade (uma aba cada)
         </button>
       </div>
+
+      {isCorrente && (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 space-y-2">
+          <div className="text-xs font-black text-stone-400 uppercase tracking-widest">Depois que a Korin entregar</div>
+          <p className="text-sm text-stone-500">Suba a mesma planilha, agora com a quantidade que você realmente comprou. É esse passo que liga o estoque real do período.</p>
+          <button onClick={() => setMostrarConfirmarCompra(true)}
+            className="w-full py-3.5 bg-stone-100 text-stone-700 rounded-2xl font-black text-sm active:bg-stone-200">
+            📥 Confirmar o que foi realmente comprado
+          </button>
+        </div>
+      )}
+
       {pedidos.some(p => p.status === 'pendente') && (
         <>
           <select value={filtroImpressao} onChange={e => setFiltroImpressao(e.target.value)}
@@ -1391,7 +1405,161 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
         </>
       )}
       </>}
+      {mostrarConfirmarCompra && (
+        <ModalConfirmarCompra
+          periodoId={periodoAtualId}
+          produtosAtuais={produtos}
+          onConcluido={() => { setMostrarConfirmarCompra(false); onRecarregar?.() }}
+          onClose={() => setMostrarConfirmarCompra(false)}
+        />
+      )}
       <div style={{ height: 20 }} />
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MODAL: CONFIRMAR COMPRA REALMENTE ENVIADA PRA KORIN
+// ═══════════════════════════════════════════════════════════════════════════════
+// Reimporta a MESMA planilha da Korin, só que agora preenchida com a
+// quantidade (QTDE (CX)) que a Dedicante de fato mandou — mais confiável que
+// o cálculo estimado dos pedidos. É esse upload que liga o estoque real do
+// período (ver calcEstoque em lib/helpers.js): a partir daqui o "disponível"
+// de cada produto passa a valer o que foi realmente comprado, não mais a
+// estimativa de caixas abertas. Estoque é único por organização, não por
+// unidade — a Korin vende só pra org inteira, então não faz sentido dividir
+// aqui; separar por unidade continua sendo trabalho da entrega, não da compra.
+function ModalConfirmarCompra({ periodoId, produtosAtuais, onConcluido, onClose }) {
+  const [etapa, setEtapa]         = useState('upload') // upload | preview
+  const [arquivo, setArquivo]     = useState(null)
+  const [itens, setItens]         = useState([])
+  const [carregando, setCarregando] = useState(false)
+  const [salvando, setSalvando]   = useState(false)
+  const [erro, setErro]           = useState('')
+
+  const handleFile = e => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setErro('')
+    setArquivo(file)
+  }
+
+  const processar = async () => {
+    if (!arquivo) return
+    setCarregando(true); setErro('')
+    try {
+      const { produtos } = await parseTabelaKorin(arquivo)
+      const comQtde = produtos
+        .filter(p => p.qtdeEnviada > 0)
+        .map(p => {
+          const atual = produtosAtuais.find(x => x.cod === p.cod)
+          return { cod: p.cod, nome: atual?.nome || p.nome, qtdeCaixas: p.qtdeEnviada, qtdCaixa: atual?.qtdCaixa || p.qtdCaixa || 0, achouNoCatalogo: !!atual }
+        })
+      if (!comQtde.length) {
+        setErro('Nenhuma quantidade encontrada nessa planilha. Confira se é a planilha com a coluna "QTDE (CX)" preenchida.')
+        return
+      }
+      setItens(comQtde)
+      setEtapa('preview')
+    } catch {
+      setErro('Erro ao ler a planilha. Confira se é um arquivo .xlsx válido.')
+    } finally { setCarregando(false) }
+  }
+
+  const confirmarSalvar = async () => {
+    setSalvando(true)
+    const payload = itens.map(it => ({ cod: it.cod, qtdeCaixas: it.qtdeCaixas }))
+    const r = await registrarCompraConfirmada(periodoId, payload)
+    setSalvando(false)
+    if (!r.ok) { toast('Erro ao registrar: ' + r.error); return }
+    toast(`Compra confirmada pra ${r.atualizados} produto${r.atualizados > 1 ? 's' : ''}`)
+    onConcluido()
+  }
+
+  const naoAchados = itens.filter(i => !i.achouNoCatalogo)
+
+  if (etapa === 'upload') return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
+      <div className="bg-white w-full rounded-t-3xl p-5 space-y-4">
+        <div className="flex justify-between items-center">
+          <div className="text-xl font-black">Confirmar compra enviada</div>
+          <button onClick={onClose} className="p-2 rounded-full bg-stone-100 text-xl">✕</button>
+        </div>
+        <div className="bg-stone-50 border border-stone-100 rounded-2xl px-4 py-3 text-sm text-stone-500 font-semibold">
+          Suba a mesma planilha da Korin, mas a que você já preencheu com as quantidades e enviou de
+          verdade — não a tabela em branco. É esse número que passa a valer como estoque do período,
+          em vez de só uma estimativa.
+        </div>
+        {!arquivo ? (
+          <label>
+            <div className="border-2 border-dashed border-green-300 rounded-2xl p-10 text-center cursor-pointer active:bg-green-50">
+              <div className="text-5xl mb-3">📊</div>
+              <div className="text-base font-black text-green-700">Escolher a planilha enviada</div>
+              <div className="text-sm text-stone-400 mt-1">Arquivo .xlsx com "QTDE (CX)" preenchida</div>
+            </div>
+            <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
+          </label>
+        ) : (
+          <div className="flex items-center gap-3 bg-stone-50 rounded-2xl p-4 border border-stone-100">
+            <div className="text-3xl flex-shrink-0">📊</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-bold text-stone-800 truncate">{arquivo.name}</div>
+              <button onClick={() => setArquivo(null)} className="text-xs text-stone-400 underline mt-0.5">Trocar arquivo</button>
+            </div>
+          </div>
+        )}
+        {erro && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 font-semibold">{erro}</div>}
+        <button onClick={processar} disabled={!arquivo || carregando}
+          className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-lg active:bg-green-800 disabled:opacity-50 flex items-center justify-center gap-2">
+          {carregando ? <><span className="animate-spin inline-block">⟳</span> Lendo planilha…</> : '📊 Ler planilha'}
+        </button>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
+      <div className="bg-white w-full rounded-t-3xl flex flex-col" style={{ maxHeight: '90vh' }}>
+        <div className="p-4 border-b border-stone-100 flex-shrink-0">
+          <div className="flex justify-between items-center">
+            <div>
+              <div className="text-xl font-black">Conferir compra</div>
+              <div className="text-sm text-stone-400">{itens.length} produtos com quantidade</div>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-full bg-stone-100 text-xl">✕</button>
+          </div>
+        </div>
+
+        {naoAchados.length > 0 && (
+          <div className="px-4 pt-3 flex-shrink-0">
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-sm text-amber-800">
+              ⚠️ {naoAchados.length} produto{naoAchados.length > 1 ? 's' : ''} da planilha não {naoAchados.length > 1 ? 'batem' : 'bate'} com o catálogo deste período (código não encontrado) — {naoAchados.length > 1 ? 'serão' : 'será'} ignorado{naoAchados.length > 1 ? 's' : ''}.
+            </div>
+          </div>
+        )}
+
+        <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2 mt-2">
+          {itens.filter(i => i.achouNoCatalogo).map(it => (
+            <div key={it.cod} className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-stone-50">
+              <div className="w-8 h-8 rounded-lg bg-green-700 text-white flex items-center justify-center text-xs font-black flex-shrink-0">{it.cod}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-bold text-stone-800 truncate">{it.nome}</div>
+                <div className="text-xs text-stone-400">
+                  {it.qtdeCaixas} caixa{it.qtdeCaixas !== 1 ? 's' : ''}{it.qtdCaixa > 0 ? ` × ${it.qtdCaixa} = ${it.qtdeCaixas * it.qtdCaixa} un.` : ' (sem un./embalagem configurada)'}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="p-4 border-t border-stone-100 flex gap-3 flex-shrink-0">
+          <button onClick={() => setEtapa('upload')}
+            className="px-5 py-3.5 bg-stone-100 text-stone-600 rounded-2xl font-black active:bg-stone-200">← Voltar</button>
+          <button onClick={confirmarSalvar} disabled={salvando}
+            className="flex-1 py-3.5 bg-green-700 text-white rounded-2xl font-black text-base active:bg-green-800 disabled:opacity-50">
+            {salvando ? '⟳ Salvando…' : '✅ Confirmar compra'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

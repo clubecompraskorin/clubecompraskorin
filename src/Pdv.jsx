@@ -1,76 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
-import { fmt } from './lib/helpers'
+import { fmt, calcEstoque } from './lib/helpers'
 import { CAT_COR, CATS_ORDEM, PAGAMENTOS } from './lib/catalog'
-import { salvarPedido } from './lib/store'
+import { salvarPedido, getTotaisPorProduto } from './lib/store'
+import { getSobraPeriodoAnterior } from './lib/periodos'
 import { listarClientes } from './lib/clientes'
-import { getAlocacoesUnidade, definirAlocacao, getVendidoPdvPorProduto } from './lib/pdv'
 import { toast } from './lib/dialog'
-
-// ── CONFIG DE ESTOQUE DA UNIDADE (quanto foi levado pra lá) ────────────────
-function ConfigEstoquePdv({ produtos, alocacoes, onFechar, onSalvo }) {
-  const [valores, setValores] = useState(() => {
-    const v = {}
-    produtos.forEach(p => { v[p.id] = alocacoes[p.id] ?? '' })
-    return v
-  })
-  const [salvando, setSalvando] = useState(false)
-  const cats = [...new Set([...CATS_ORDEM, ...produtos.map(p => p.categoria)])]
-
-  const salvar = async () => {
-    setSalvando(true)
-    const mudou = produtos.filter(p => (valores[p.id] || '') !== (alocacoes[p.id] ?? ''))
-    for (const p of mudou) {
-      await definirAlocacao(p.id, alocacoes._unidadeId, parseInt(valores[p.id]) || 0)
-    }
-    setSalvando(false)
-    onSalvo()
-    onFechar()
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/60 z-[60] flex flex-col justify-end">
-      <div className="bg-stone-50 rounded-t-3xl flex flex-col overflow-hidden" style={{ maxHeight: '90vh' }}>
-        <div className="bg-white flex items-center justify-between px-5 py-4 border-b border-stone-100 rounded-t-3xl flex-shrink-0">
-          <div>
-            <div className="text-lg font-black text-stone-800">📦 Estoque desta unidade</div>
-            <div className="text-xs text-stone-400">Quanto de cada produto você está levando pra cá</div>
-          </div>
-          <button onClick={onFechar} className="p-2 rounded-full bg-stone-100 text-xl">✕</button>
-        </div>
-        <div className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
-          {cats.map(cat => {
-            const lista = produtos.filter(p => p.categoria === cat).sort((a, b) => a.cod - b.cod)
-            if (!lista.length) return null
-            return (
-              <div key={cat}>
-                <div className="text-xs font-black uppercase tracking-widest mb-2 px-1" style={{ color: CAT_COR[cat] || '#555' }}>{cat}</div>
-                <div className="space-y-2">
-                  {lista.map(p => (
-                    <div key={p.id} className="bg-white rounded-2xl border border-stone-100 shadow-sm p-3 flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-bold text-stone-800 truncate">{p.nome}</div>
-                        <div className="text-xs text-stone-400">{p.unidade} · {fmt(p.preco)}</div>
-                      </div>
-                      <input type="number" min="0" placeholder="0" value={valores[p.id]}
-                        onChange={e => setValores(prev => ({ ...prev, [p.id]: e.target.value }))}
-                        className="w-20 flex-shrink-0 border border-stone-200 rounded-xl px-3 py-2.5 text-base font-bold text-center focus:outline-none focus:border-green-500" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-        <div className="flex-shrink-0 p-4 border-t border-stone-100">
-          <button onClick={salvar} disabled={salvando}
-            className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-lg active:bg-green-800 disabled:opacity-50">
-            {salvando ? '⟳ Salvando…' : '💾 Salvar estoque desta unidade'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ── APP PRINCIPAL DO PDV ─────────────────────────────────────────────────────
 export default function ModoPdv({ orgId, org, periodo, produtos, unidades, pedidos, onSalvo, onSair }) {
@@ -83,30 +17,25 @@ export default function ModoPdv({ orgId, org, periodo, produtos, unidades, pedid
   const [pagamento, setPagamento] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
-  const [alocacoes, setAlocacoes] = useState({})
+  const [sobraAnterior, setSobraAnterior] = useState({})
   const [clientesConhecidos, setClientesConhecidos] = useState([])
-  const [mostrarConfig, setMostrarConfig] = useState(false)
   const [ultimaVenda, setUltimaVenda] = useState(null)
 
   useEffect(() => { if (orgId) listarClientes(orgId).then(setClientesConhecidos) }, [orgId])
+  useEffect(() => { if (orgId && periodo?.id) getSobraPeriodoAnterior(orgId, periodo.id).then(setSobraAnterior) }, [orgId, periodo?.id])
 
-  const carregarAlocacoes = async (unidadeId) => {
-    const mapa = await getAlocacoesUnidade(periodo.id, unidadeId)
-    mapa._unidadeId = unidadeId
-    setAlocacoes(mapa)
-  }
-
-  useEffect(() => { if (unidadeAtual) carregarAlocacoes(unidadeAtual.id) }, [unidadeAtual?.id])
-
-  const vendidoPdv = useMemo(
-    () => unidadeAtual ? getVendidoPdvPorProduto(pedidos, unidadeAtual.nome) : {},
-    [pedidos, unidadeAtual?.nome]
-  )
+  // Mesmo estoque usado na aba Config → Estoque: um saldo só por produto,
+  // somando pedido de qualquer canal (catálogo, WhatsApp, manual, PDV de
+  // qualquer unidade) — a Korin vende pra organização inteira, não existe
+  // "estoque da unidade" separado.
+  const totaisTodos = useMemo(() => getTotaisPorProduto(pedidos), [pedidos])
 
   const restante = (produtoId) => {
-    const alocado = alocacoes[produtoId]
-    if (alocado == null) return null // sem alocação configurada — não mostra número, não avisa
-    return alocado - (vendidoPdv[produtoId] || 0) - (carrinho[produtoId] || 0)
+    const prod = produtos.find(p => p.id === produtoId)
+    if (!prod) return null
+    const sobra = sobraAnterior[prod.cod] || 0
+    const totalPedido = (totaisTodos[produtoId] || 0) + (carrinho[produtoId] || 0)
+    return calcEstoque(prod, totalPedido, sobra).restante
   }
 
   const setQty = (id, qty) => {
@@ -177,7 +106,7 @@ export default function ModoPdv({ orgId, org, periodo, produtos, unidades, pedid
         <div className="text-center mb-6">
           <div className="text-4xl mb-2">📍</div>
           <div className="text-xl font-black text-stone-800">Em qual unidade?</div>
-          <div className="text-sm text-stone-500 mt-1">A venda vai usar o estoque alocado pra essa unidade</div>
+          <div className="text-sm text-stone-500 mt-1">A venda desconta do estoque geral, junto com os outros pedidos</div>
         </div>
         <div className="space-y-2 max-w-md mx-auto">
           {unidades.filter(u => u.aberto !== false).map(u => (
@@ -280,9 +209,6 @@ export default function ModoPdv({ orgId, org, periodo, produtos, unidades, pedid
             <div className="text-xs text-green-300 uppercase tracking-widest">🎪 Venda no local</div>
             <div className="text-lg font-black">📍 {unidadeAtual.nome}</div>
           </div>
-          <button onClick={() => setMostrarConfig(true)} className="text-xs bg-green-700 px-3 py-2 rounded-xl font-bold active:bg-green-600">
-            ⚙️ Estoque
-          </button>
         </div>
         <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="🔍 Buscar produto ou código…"
           className="w-full px-4 py-2.5 rounded-xl text-sm bg-white text-stone-800 focus:outline-none" />
@@ -334,10 +260,6 @@ export default function ModoPdv({ orgId, org, periodo, produtos, unidades, pedid
         </button>
       )}
 
-      {mostrarConfig && (
-        <ConfigEstoquePdv produtos={produtos} alocacoes={alocacoes} onFechar={() => setMostrarConfig(false)}
-          onSalvo={() => carregarAlocacoes(unidadeAtual.id)} />
-      )}
     </div>
   )
 }
