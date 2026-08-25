@@ -998,6 +998,30 @@ de retirada inválido, sem avisar ninguém.
 
 ---
 
+## Aba "Web" renomeada pra "Config" e Pedidos consolidado numa aba só — implementado
+
+**Análise pedida pelo Junior**: "Web" misturava configuração (Config, Embalagens, Unidades, Clientes,
+Dados) com uma sub-aba "Pedidos" que só listava pedidos vindos do catálogo — mas a aba Pedidos
+principal já mostra todos os pedidos, de qualquer origem (já tinha badge 🌐/📋 distinguindo e ação de
+cancelar pro catálogo). Concordei que fazia sentido: 6 dos 7 itens de Web são mesmo config, um não
+era — melhor não ter pedido em dois lugares diferentes do app.
+
+**O que mudou**:
+- Bottom nav: "🌐 Web" → "⚙️ Config".
+- `WebScreen.jsx`: removida a sub-aba Pedidos (`TabPedidos`, `handleCancelar`, botão na lista de
+  sub-abas). Embalagens/Resumo continuam usando os totais de pedidos do catálogo por baixo dos
+  panos — só a listagem em si saiu, pra não ficar duplicada.
+- Aba Pedidos principal: novo filtro "🌐 Só catálogo" ao lado dos filtros de status (Todos/
+  Pendentes/Entregues) — substitui a visão que existia só dentro de Web.
+- `Ajuda.jsx`: todas as referências a "Web → Config"/"aba Web" atualizadas pra "Config" (mesmo nome
+  da aba agora, sem redundância).
+
+- `npx vite build` validado.
+- **Status no GitHub: commit `df7e3dd`, direto na `main`** (mudança mecânica e bem delimitada —
+  build passou limpo, revisão de diff confirmou que nada mais referenciava o código removido).
+
+---
+
 ## Pendente / próximos passos
 
 1. ✅ **Comparativo do Dashboard — confirmado pelo Junior em teste real, tudo certo.**
