@@ -924,6 +924,55 @@ app diferente pra quem já instalou (duplicaria ícone ou perderia a instalaçã
 
 ---
 
+## Página inicial e Ajuda reformuladas: objetivo do sistema, hooks de venda e prints reais — implementado
+
+**Pedido do Junior**: a home já tinha visual bom e prints reais, mas faltava deixar claro *o que
+o sistema resolve* logo de cara. Pediu pra citar o objetivo (facilitar a gestão de quem coordena
+um Clube de Compras) e cobrir 6 pontos específicos — de que jeito o pedido chega, como funciona a
+entrega, como o estoque atualiza sozinho, venda rápida (PDV), múltiplas unidades, e pedido
+consolidado pro fornecedor — cada um mostrando a dor real que resolve, com print. Pediu também pra
+deixar claro que dá pra começar com passos simples, e que a Ajuda mostrasse esses passos com
+prints. Único requisito rígido: manter o depoimento existente sem alterar nada.
+
+**O que mudou na Home**: novo headline com o objetivo em primeiro plano; parágrafo "Por que existe"
+reescrito; 3 seções novas ("3 jeitos de receber pedido", "Estoque atualiza sozinho", "Pedido pro
+fornecedor" consolidando por unidade); seção de entrega reescrita cobrindo tanto autoentrega quanto
+delegação por link/PIN; faixa compacta sobre múltiplas unidades (decisão minha, confirmada com o
+Junior: não virou seção pesada porque o cuidado por unidade já aparece implícito em pedido/entrega/
+estoque/fornecedor — uma seção a mais ficaria repetitiva). Depoimento da Valéria mantido 100%
+inalterado, como pedido.
+
+**O que mudou na Ajuda**: os 7 passos do guia completo ganharam print de tela ao lado de cada
+explicação, em layout alternado (imagem ora à esquerda, ora à direita).
+
+**7 screenshots novos** (`screenshot-estoque.jpg`, `screenshot-export.jpg`, `screenshot-criar-
+conta.jpg`, `screenshot-onboarding-unidades.jpg`, `screenshot-link-catalogo.jpg`, `screenshot-
+pedidos-lista.jpg`, `screenshot-link-entrega-gerar.jpg`) — gerados via harness descartável
+reproduzindo o markup/classNames reais de `App.jsx`/`WebScreen.jsx`/`Login.jsx`/
+`UnidadesManager.jsx` com dado fictício, harness revertido depois, nenhum ficou no repo.
+
+**Correção de uma rodada de revisão do Junior**, antes do merge:
+- Linguagem de gênero: "a Dedicante", "você mesma", "sozinha" (formas femininas) removidas da Home
+  e Ajuda — Dedicante pode ser homem ou mulher. Achado o mesmo padrão nas telas que o membro vê
+  (`CatalogoApp.jsx`, `EntregaApp.jsx`) e corrigido junto.
+- Passo "Catálogo" e o hook "Sem digitar nada" davam a entender que só dava pra tirar foto — agora
+  deixam claro que a planilha oficial da Korin (a mesma que a Dedicante já usa pra comprar) é a via
+  principal, com a foto como alternativa.
+- Passo "Fechamento" dizia "sem sobra" — impreciso, já que caixa fechada não é garantia de venda
+  total. Corrigido pra "controla a sobra", não "elimina a sobra".
+- "Por que existe" dava a entender que o pedido só chega por WhatsApp — reescrito pra deixar claro
+  que qualquer forma de chegada (WhatsApp, ligação, viva voz) é simples de incluir no sistema.
+
+- `npx vite build` validado (antes e depois da rodada de correções). Revisão visual completa via
+  Playwright, seção por seção, desktop e mobile, nas duas páginas, antes de cada push.
+- Preview do Vercel (branch `feat/home-reformulada-hooks-e-ajuda-com-prints`) conferido pelo Junior,
+  que pediu os ajustes de linguagem/precisão acima antes de aprovar o merge.
+- **Status no GitHub: mesclada na `main`.** Commits `0ccab28` (conteúdo + prints) e `f34e07e`
+  (correções pós-revisão), branch `feat/home-reformulada-hooks-e-ajuda-com-prints`, merge
+  fast-forward direto na `main` (sem commit de merge separado).
+
+---
+
 ## Pendente / próximos passos
 
 1. ✅ **Comparativo do Dashboard — confirmado pelo Junior em teste real, tudo certo.**
