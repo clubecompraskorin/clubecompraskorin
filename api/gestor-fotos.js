@@ -23,12 +23,15 @@ const slugify = (s) => (s || 'produto').toLowerCase().normalize('NFD').replace(/
   .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80)
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).end()
-  if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+  const dados = req.method === 'GET' ? req.query : (req.method === 'POST' ? req.body : null)
+  if (!dados) return res.status(405).end()
+
+  const token = req.method === 'GET' ? dados.token : req.headers.authorization?.replace('Bearer ', '')
+  if (token !== process.env.CRON_SECRET) {
     return res.status(401).json({ ok: false, error: 'Não autorizado' })
   }
 
-  const { nomeKorin, urlOrigem } = req.body
+  const { nomeKorin, urlOrigem } = dados
   if (!nomeKorin || !urlOrigem) return res.status(400).json({ ok: false, error: 'nomeKorin e urlOrigem são obrigatórios' })
 
   try {
