@@ -767,7 +767,7 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
 // calcEstoque em lib/helpers.js). Filtro de período é o seletor de período
 // já existente no topo da aba Config (produtos/pedidos aqui já vêm
 // escopados pra ele).
-function TabRelatorios({ produtos, pedidos, periodo, unidades, sobraAnterior = {}, comprasConfirmadas = [] }) {
+function TabRelatorios({ produtos, pedidos, periodo, unidades, org, sobraAnterior = {}, comprasConfirmadas = [] }) {
   const [filtroUnidade, setFiltroUnidade] = useState('Todas')
   const [unidadesExport, setUnidadesExport] = useState(new Set(unidades))
   useEffect(() => { setUnidadesExport(new Set(unidades)) }, [unidades.join('|')])
@@ -858,13 +858,15 @@ function TabRelatorios({ produtos, pedidos, periodo, unidades, sobraAnterior = {
       const { restante } = calcEstoque(p, totalPedido, sobra, confirmado, totaisEntregues[p.id] || 0)
       return { cod: p.cod, nome: p.nome, unidade: p.unidade, saldo: restante }
     })
-    printRelatorioEstoque(linhas, periodo)
+    printRelatorioEstoque(linhas, periodo, org?.nome)
   }
 
   // ── Relatório de Fechamento (resumo financeiro) ─────────────────────
   const gerarFechamento = () => {
     const getV = p => calcTotal(p, produtos)
     const getCusto = p => p.itens.reduce((s, it) => { const pr = produtos.find(x => x.id === it.produtoId); return s + (pr?.precoCusto || 0) * it.qty }, 0)
+    const entregues    = pedidosFiltrados.filter(p => p.status === 'entregue')
+    const pendentes    = pedidosFiltrados.filter(p => p.status === 'pendente')
     const valorVenda   = pedidosFiltrados.reduce((s, p) => s + getV(p), 0)
     const valorCustoN  = pedidosFiltrados.reduce((s, p) => s + getCusto(p), 0)
     const temCusto     = valorCustoN > 0
@@ -873,10 +875,14 @@ function TabRelatorios({ produtos, pedidos, periodo, unidades, sobraAnterior = {
     printRelatorioFechamento({
       valorVenda: valorVenda.toFixed(2).replace('.', ','),
       valorCusto: temCusto ? valorCustoN.toFixed(2).replace('.', ',') : null,
+      qtdePedidosEntregues: entregues.length,
+      valorVendaEntregues: entregues.reduce((s, p) => s + getV(p), 0).toFixed(2).replace('.', ','),
+      qtdePedidosPendentes: pendentes.length,
+      valorVendaPendentes: pendentes.reduce((s, p) => s + getV(p), 0).toFixed(2).replace('.', ','),
       qtdePedidos: pedidosFiltrados.length,
       qtdeItens,
       margem,
-    }, periodo, unidadeLabel)
+    }, periodo, unidadeLabel, org?.nome)
   }
 
   const qtdPendentes = pedidosFiltrados.filter(p => p.status === 'pendente').length
@@ -897,7 +903,7 @@ function TabRelatorios({ produtos, pedidos, periodo, unidades, sobraAnterior = {
       <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm space-y-2">
         <div className="text-sm font-black text-stone-700">📋 Pedidos Pendentes</div>
         <div className="text-xs text-stone-400">{qtdPendentes} pedido{qtdPendentes !== 1 ? 's' : ''} nesse filtro</div>
-        <button onClick={() => printRelatorioPedidos(pedidosFiltrados, produtos, periodo, 'pendente', unidadeLabel)}
+        <button onClick={() => printRelatorioPedidos(pedidosFiltrados, produtos, periodo, 'pendente', unidadeLabel, org?.nome)}
           className="w-full py-3 bg-stone-800 text-white rounded-xl font-black text-sm active:bg-stone-900">
           🖨️ Gerar relatório
         </button>
@@ -906,7 +912,7 @@ function TabRelatorios({ produtos, pedidos, periodo, unidades, sobraAnterior = {
       <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm space-y-2">
         <div className="text-sm font-black text-stone-700">✅ Pedidos Entregues</div>
         <div className="text-xs text-stone-400">{qtdEntregues} pedido{qtdEntregues !== 1 ? 's' : ''} nesse filtro</div>
-        <button onClick={() => printRelatorioPedidos(pedidosFiltrados, produtos, periodo, 'entregue', unidadeLabel)}
+        <button onClick={() => printRelatorioPedidos(pedidosFiltrados, produtos, periodo, 'entregue', unidadeLabel, org?.nome)}
           className="w-full py-3 bg-stone-800 text-white rounded-xl font-black text-sm active:bg-stone-900">
           🖨️ Gerar relatório
         </button>
@@ -1186,7 +1192,7 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
           comprasConfirmadas={comprasConfirmadas} onComprasChange={recarregarComprasConfirmadas} />
       )}
       {subTab === 'relatorios' && (
-        <TabRelatorios produtos={produtosWeb} pedidos={pedidos} periodo={periodoSelecionado?.nome || periodoCorrente.nome} unidades={nomesUnidades}
+        <TabRelatorios produtos={produtosWeb} pedidos={pedidos} periodo={periodoSelecionado?.nome || periodoCorrente.nome} unidades={nomesUnidades} org={org}
           sobraAnterior={visualizandoCorrente ? sobraAnterior : {}}
           comprasConfirmadas={comprasConfirmadas} />
       )}

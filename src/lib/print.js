@@ -88,13 +88,15 @@ const wrapDocCompact = (title, body) => `<!DOCTYPE html><html><head>
 // e, quando filtrado por unidade, o nome dela aparece no cabeçalho.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const relatorioHeader = (titulo, periodo, unidadeLabel) => `
+// nomeDedicante + unidadeLabel (null = "Todas as unidades", senão o nome dela)
+// aparecem em todo relatório — deixa claro de qual Dedicante e de qual
+// recorte (organização inteira ou só uma unidade) aquele papel é.
+const relatorioHeader = (titulo, periodo, unidadeLabel, nomeDedicante) => `
   <div style="text-align:center;padding:16px 0 12px;border-bottom:3px solid #2D6A4F;margin-bottom:18px">
     <div style="font-size:11px;color:#999;letter-spacing:2px;text-transform:uppercase">Clube Unido</div>
     <div style="font-size:25px;font-weight:900;color:#2D6A4F;margin-top:2px">${titulo}</div>
-    <div style="font-size:14px;color:#666;margin-top:4px;font-weight:600">
-      ${periodo}${unidadeLabel && unidadeLabel !== 'Todas' ? ` · Unidade: ${unidadeLabel}` : ''}
-    </div>
+    <div style="font-size:14px;color:#666;margin-top:4px;font-weight:600">${periodo}</div>
+    <div style="font-size:13px;color:#888;margin-top:2px">${nomeDedicante ? `${nomeDedicante} · ` : ''}${unidadeLabel || 'Todas as unidades'}</div>
   </div>`
 
 const relatorioRodape = () => `
@@ -140,7 +142,7 @@ const buildBlocosCompactos = (pedidos, produtos) => pedidos
   }).join('')
 
 // ── Relatório de Pedidos (Pendentes ou Entregues) ───────────────────────────
-export const printRelatorioPedidos = (pedidos, produtos, periodo, status, unidadeLabel) => {
+export const printRelatorioPedidos = (pedidos, produtos, periodo, status, unidadeLabel, nomeDedicante) => {
   const titulo = status === 'entregue' ? 'Pedidos Entregues' : 'Pedidos Pendentes'
   const lista = pedidos.filter(p => p.status === status)
   const blocos = lista.length
@@ -150,7 +152,7 @@ export const printRelatorioPedidos = (pedidos, produtos, periodo, status, unidad
   const w = window.open('', '_blank')
   w.document.write(wrapRelatorio(`${titulo} — ${periodo}`, `
     ${botaoImprimir(`Imprimir (${lista.length})`)}
-    ${relatorioHeader(titulo, periodo, unidadeLabel)}
+    ${relatorioHeader(titulo, periodo, unidadeLabel, nomeDedicante)}
     ${blocos}
     ${relatorioRodape()}`))
   w.document.close()
@@ -159,7 +161,7 @@ export const printRelatorioPedidos = (pedidos, produtos, periodo, status, unidad
 // ── Relatório de Estoque (Produto × Saldo atual, org inteira) ───────────────
 // linhas: [{ cod, nome, unidade, saldo: number|null }] — saldo null = produto
 // sem controle de estoque configurado ainda (sem compra confirmada).
-export const printRelatorioEstoque = (linhas, periodo) => {
+export const printRelatorioEstoque = (linhas, periodo, nomeDedicante) => {
   const rows = [...linhas].sort((a, b) => a.cod - b.cod).map(l => `<tr>
       <td style="padding:9px 12px;border-bottom:1px solid #eee;font-size:13px;color:#999;width:50px;font-weight:700">${l.cod}</td>
       <td style="padding:9px 12px;border-bottom:1px solid #eee;font-size:15px">${l.nome}${l.unidade ? ` <span style="font-size:11px;color:#aaa">(${l.unidade})</span>` : ''}</td>
@@ -169,7 +171,7 @@ export const printRelatorioEstoque = (linhas, periodo) => {
   const w = window.open('', '_blank')
   w.document.write(wrapRelatorio(`Estoque — ${periodo}`, `
     ${botaoImprimir('Imprimir')}
-    ${relatorioHeader('Relatório de Estoque', periodo)}
+    ${relatorioHeader('Relatório de Estoque', periodo, null, nomeDedicante)}
     <table>
       <thead><tr>
         <th style="padding:8px 12px;border-bottom:2px solid #2D6A4F;font-size:11px;text-align:left;color:#2D6A4F;text-transform:uppercase;letter-spacing:0.5px">Cód</th>
@@ -183,9 +185,12 @@ export const printRelatorioEstoque = (linhas, periodo) => {
 }
 
 // ── Relatório de Fechamento (resumo financeiro) ─────────────────────────────
-// dados: { valorVenda, valorCusto, qtdePedidos, qtdeItens, margem } — valorCusto
-// e margem podem vir null (nenhum produto com custo cadastrado no período).
-export const printRelatorioFechamento = (dados, periodo, unidadeLabel) => {
+// dados: { valorVenda, valorCusto, qtdePedidos, qtdeItens, margem,
+//   qtdePedidosEntregues, valorVendaEntregues, qtdePedidosPendentes,
+//   valorVendaPendentes } — valorCusto e margem podem vir null (nenhum
+// produto com custo cadastrado no período). Linhas de Pendentes só aparecem
+// quando existe pelo menos 1 pedido pendente no filtro (senão é ruído).
+export const printRelatorioFechamento = (dados, periodo, unidadeLabel, nomeDedicante) => {
   const linha = (label, valor) => `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #eee">
       <span style="font-size:15px;color:#666;font-weight:600">${label}</span>
@@ -195,13 +200,17 @@ export const printRelatorioFechamento = (dados, periodo, unidadeLabel) => {
   const w = window.open('', '_blank')
   w.document.write(wrapRelatorio(`Fechamento — ${periodo}`, `
     ${botaoImprimir('Imprimir')}
-    ${relatorioHeader('Relatório de Fechamento', periodo, unidadeLabel)}
+    ${relatorioHeader('Relatório de Fechamento', periodo, unidadeLabel, nomeDedicante)}
     <div style="border:1px solid #eee;border-radius:14px;overflow:hidden;max-width:480px;margin:0 auto">
-      ${linha('Valor Total Venda', `R$ ${dados.valorVenda}`)}
-      ${linha('Valor Total Custo', dados.valorCusto != null ? `R$ ${dados.valorCusto}` : '—')}
+      ${linha('Valor Total Venda Geral', `R$ ${dados.valorVenda}`)}
+      ${linha('Valor Total Custo Venda Geral', dados.valorCusto != null ? `R$ ${dados.valorCusto}` : '—')}
+      ${linha('Total Pedidos Entregues', dados.qtdePedidosEntregues)}
+      ${linha('Valor Total Pedidos Entregues', `R$ ${dados.valorVendaEntregues}`)}
+      ${dados.qtdePedidosPendentes > 0 ? linha('Total Pedidos Pendentes', dados.qtdePedidosPendentes) : ''}
+      ${dados.qtdePedidosPendentes > 0 ? linha('Valor Total Pedidos Pendentes', `R$ ${dados.valorVendaPendentes}`) : ''}
       ${linha('Qtde. Pedidos', dados.qtdePedidos)}
       ${linha('Qtde. Itens', dados.qtdeItens)}
-      ${linha('Margem', dados.margem != null ? `${dados.margem}%` : '—')}
+      ${linha('Margem Venda Geral x Custo Geral', dados.margem != null ? `${dados.margem}%` : '—')}
     </div>
     ${relatorioRodape()}`))
   w.document.close()
