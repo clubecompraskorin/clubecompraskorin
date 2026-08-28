@@ -4,7 +4,17 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
-> Última atualização: 24/08/2026. Resumo das entregas recentes (detalhes em cada seção abaixo):
+> Última atualização: 28/08/2026. Resumo das entregas recentes (detalhes em cada seção abaixo):
+> **sessão de lançamento de 28/08 — confirmada OK pelo Junior em teste real**: estoque
+> redesenhado (Alerta de caixa + Comprado/Entregue/Reservado→Sobra, sem mais "caixas abertas"
+> travando o catálogo público); push pro membro avisando abertura/fechamento do catálogo (com
+> fechamento automático por prazo vencido); nova aba Config→Relatórios (5 relatórios A4 pra
+> imprimir/PDF, incluindo a planilha pra Korin que saiu de Fechamento); seção de Preço na Home e
+> **trava de trial real até 08/09/2026** (bloqueia painel/catálogo/API pra quem não pagar, com
+> "Marcar pago" manual em `/gestor`); nome de produto limpo automaticamente (com fix de bug que
+> apagava nome customizado a cada reimportação) e foto de produto automática (banco
+> compartilhado, em Pedidos/PDV/Catálogo) — ver seção dedicada "Sessão de lançamento (28/08)"
+> mais abaixo; e, antes disso (24/08):
 > gaps de integridade produto↔pedido corrigidos; cadastro leve de clientes **com tela de gestão**
 > (buscar, editar, cadastrar/excluir manualmente, exportar planilha); unidade de retirada
 > obrigatória; encerramento por unidade + export consolidado; renomear/excluir unidade corrigidos;
@@ -1132,6 +1142,59 @@ sempre a soma de todas as linhas do produto naquele período.
 - `npx vite build` validado. Revisado visualmente via harness Playwright descartável (não ficou no
   repo) — link com contador, modal com histórico misto planilha/manual, estado vazio.
 - **Status no GitHub: mesclada na `main`, commit `ce956e8`, merge fast-forward.**
+
+---
+
+## Sessão de lançamento (28/08): estoque redesenhado, push pro membro, Relatórios, trial e nome/foto automática — implementado, testado pelo Junior
+
+Sessão corrida, puxada pela live de lançamento do mesmo dia — 13 commits direto na `main` (sem
+branch/PR, ritmo de ajuste rápido antes da live). **Junior testou tudo em 28/08 e confirmou que
+está OK.**
+
+**1. Estoque redesenhado** (`5540f87`, `a00d878`, `4569e2f`): modelo anterior tinha 5 termos
+técnicos empilhados (caixas abertas/disponível/confirmado/restante/sobra), confuso pra quem usa.
+Virou dois conceitos separados: **Alerta de caixa** (aviso pré-compra, só leitura, não trava nada)
+e **Comprado/Entregue/Reservado → Sobra** (só existe após a 1ª compra confirmada do mês). Efeito
+colateral consultado e confirmado com o Junior na hora: `caixasAbertas` deixou de travar pedido no
+catálogo público (`getDisponivel` virou sempre `Infinity` — quem trava pedido agora é só
+encerramento de período/unidade, já existente). Sobra do período anterior passou a contar como
+estoque disponível mesmo antes de confirmar a 1ª compra do mês corrente. Badge "Restam N" também
+apareceu na aba Produtos (cadastro), não só em Config → Estoque.
+
+**2. Push pro membro (abertura/fechamento) + 2 fixes de infra Vercel Hobby** (`8d14738`, `fae483b`,
+`b1194e0`): membro agora pode ativar aviso push quando o catálogo abre/fecha (antes só a Dedicante
+recebia push de pedido novo); fechamento automático por data-limite vencida também avisa, via cron.
+Dois problemas de deploy pegos e corrigidos no processo — plano Vercel Hobby limita cron a 1x/dia
+(cron de 15/15min quebrava o build) e a 12 Serverless Functions por deployment (o projeto foi pra
+13 e travou) — consolidados 3 endpoints (`inscrever-membro`, `notificar-membros`,
+`verificar-prazos`) num único `api/membros.js` com dispatch por `acao`, voltando a 11 functions.
+
+**3. Nova aba Config → Relatórios** (`38966d2`): centraliza 5 relatórios A4 pra imprimir/PDF
+(Pedidos Pendentes, Entregues, Estoque, Fechamento-resumo, Planilha pra Korin em XLSX) — a planilha
+pra Korin saiu de Fechamento e foi pra cá, pra não ficar duplicada.
+
+**4. Lançamento comercial**: seção de Preço na Home (`9e83a50`) — setup R$150 único + mensalidade
+R$49,90 (1ª unidade) + R$9,90/unidade adicional, com exemplos calculados. **Trava de trial real**
+(`efff9a3`) até 08/09/2026 — bloqueia painel, catálogo público e a API de pedido (checado no
+servidor, não só na UI) pra quem passar do trial sem pagar; `/gestor` ganhou botão manual "Marcar
+pago" (integração de gateway/Stripe fica pra depois, é setado manualmente por enquanto).
+
+**5. Produto: nome amigável + foto automática** (`809019d`, `16b2e75`, `0b148b5`): nome do produto
+deixou de vir cru da planilha da Korin — gera sugestão limpa automaticamente ("COXA NGMO CONG PCT
+CX C/17KG C/17 PCT" → "COXA NGMO 1KG") e **corrigiu bug real**: reimportar a planilha estava
+apagando qualquer nome que a Dedicante tivesse ajustado manualmente no mês anterior. Foto de
+produto automática (banco compartilhado entre organizações, casada pelo nome cru da Korin, nenhuma
+organização faz upload) aparece em Pedidos/PDV/Catálogo — não em Entregas nem no link de PIN, por
+decisão do Junior. Endpoint que popula o banco de fotos ajustado pra aceitar `GET` (as ferramentas
+de fetch usadas pra popular só disparam GET simples).
+
+- `npx vite build` validado a cada etapa; `node --check` nos endpoints novos/alterados. Sem
+  revisão via harness/Playwright nesta rodada (ritmo de véspera de live) — validação real veio do
+  teste do Junior em produção depois.
+- **Status no GitHub: 13 commits direto na `main`** (sem branch/PR): `85d80b3`, `4569e2f`,
+  `5540f87`, `8d14738`, `fae483b`, `b1194e0`, `38966d2`, `a00d878`, `9e83a50`, `efff9a3`, `809019d`,
+  `16b2e75`, `0b148b5`.
+- **Confirmado pelo Junior em teste real no dia 28/08: tudo OK.**
 
 ---
 
