@@ -5,6 +5,7 @@ import { salvarPedido, getTotaisPorProduto } from './lib/store'
 import { getSobraPeriodoAnterior, getComprasConfirmadas } from './lib/periodos'
 import { listarClientes } from './lib/clientes'
 import { toast } from './lib/dialog'
+import { getMapaFotos, fotoDoProduto } from './lib/fotos'
 
 // ── APP PRINCIPAL DO PDV ─────────────────────────────────────────────────────
 export default function ModoPdv({ orgId, org, periodo, produtos, unidades, pedidos, onSalvo, onSair }) {
@@ -21,6 +22,9 @@ export default function ModoPdv({ orgId, org, periodo, produtos, unidades, pedid
   const [comprasConfirmadas, setComprasConfirmadas] = useState([])
   const [clientesConhecidos, setClientesConhecidos] = useState([])
   const [ultimaVenda, setUltimaVenda] = useState(null)
+  const [fotos, setFotos] = useState({})
+
+  useEffect(() => { getMapaFotos().then(setFotos) }, [])
 
   useEffect(() => { if (orgId) listarClientes(orgId).then(setClientesConhecidos) }, [orgId])
   useEffect(() => { if (orgId && periodo?.id) getSobraPeriodoAnterior(orgId, periodo.id).then(setSobraAnterior) }, [orgId, periodo?.id])
@@ -232,8 +236,17 @@ export default function ModoPdv({ orgId, org, periodo, produtos, unidades, pedid
                 {lista.map(p => {
                   const qty = carrinho[p.id] || 0
                   const rest = restante(p.id)
+                  const foto = fotoDoProduto(p, fotos)
                   return (
                     <div key={p.id} className={`bg-white rounded-2xl border shadow-sm p-3 flex items-center gap-3 ${rest != null && rest < 0 ? 'border-red-300' : 'border-stone-100'}`}>
+                      {foto ? (
+                        <img src={foto} alt="" className="w-11 h-11 rounded-xl object-cover flex-shrink-0 bg-stone-50" loading="lazy" />
+                      ) : (
+                        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0"
+                          style={{ background: CAT_COR[p.categoria] || '#888' }}>
+                          {p.cod}
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-bold text-stone-800 truncate">{p.nome}</div>
                         <div className="text-xs text-stone-400">{fmt(p.preco)} · {p.unidade}</div>

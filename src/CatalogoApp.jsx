@@ -9,6 +9,7 @@ import {
 import { getPeriodoCorrente, getProdutosDoPeriodo } from './lib/periodos'
 import { useInstallPrompt } from './lib/pwa'
 import { pushSuportadoMembro, pushJaInscritoMembro, ativarPushMembro } from './lib/pushMembro'
+import { getMapaFotos, fotoDoProduto } from './lib/fotos'
 import { salvarPendente, lerPendente, limparPendente, gerarId } from './lib/offlinePendente'
 
 // ── RESOLUÇÃO DE SLUG (URL: /[slug]/pedido) ──────────────────────────────────
@@ -132,7 +133,7 @@ function TelaFechada({ periodo, org, slug, showInstall, iosInstall, install, dis
 }
 
 // ── CARD DE PRODUTO ───────────────────────────────────────────────────────────
-function ProdutoCard({ produto, qty, onSetQty, disponivel, qtdCaixa }) {
+function ProdutoCard({ produto, qty, onSetQty, disponivel, qtdCaixa, foto }) {
   const esgotado = disponivel === 0 && qty === 0
   const mostrarInfo = qtdCaixa > 0
   // extras = quantas unidades ainda podem ser adicionadas além do que já está no carrinho
@@ -143,10 +144,14 @@ function ProdutoCard({ produto, qty, onSetQty, disponivel, qtdCaixa }) {
       <div className="p-4">
         {/* Nome e preço */}
         <div className="flex items-start gap-3 mb-3">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-black text-base flex-shrink-0"
-            style={{ background: CAT_COR[produto.categoria] || '#888' }}>
-            {produto.cod}
-          </div>
+          {foto ? (
+            <img src={foto} alt="" className="w-14 h-14 rounded-xl object-cover flex-shrink-0 bg-stone-50" loading="lazy" />
+          ) : (
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-black text-base flex-shrink-0"
+              style={{ background: CAT_COR[produto.categoria] || '#888' }}>
+              {produto.cod}
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <div className="text-xl font-bold text-stone-800 leading-snug">{produto.nome}</div>
             <div className="text-base text-stone-400 mt-0.5">{produto.unidade}</div>
@@ -207,7 +212,7 @@ function ProdutoCard({ produto, qty, onSetQty, disponivel, qtdCaixa }) {
 }
 
 // ── TELA CATÁLOGO ─────────────────────────────────────────────────────────────
-function TelaCatalogo({ periodo, org, slug, produtos, carrinho, onSetQty, total, totalItens, getDisponivel, pedidoExistente, onVerCarrinho, showInstall, iosInstall, install, dismiss }) {
+function TelaCatalogo({ periodo, org, slug, produtos, carrinho, onSetQty, total, totalItens, getDisponivel, pedidoExistente, onVerCarrinho, showInstall, iosInstall, install, dismiss, fotos }) {
   const cats = [...new Set([...CATS_ORDEM, ...produtos.map(p => p.categoria)])]
 
   return (
@@ -291,6 +296,7 @@ function TelaCatalogo({ periodo, org, slug, produtos, carrinho, onSetQty, total,
                     onSetQty={onSetQty}
                     disponivel={disponivel}
                     qtdCaixa={qtdCaixa}
+                    foto={fotoDoProduto(produto, fotos)}
                   />
                 )
               })}
@@ -636,6 +642,7 @@ export default function CatalogoApp() {
   const [org, setOrg]                       = useState(null)
   const [periodo, setPeriodo]               = useState(null)
   const [produtos, setProdutos]             = useState([])
+  const [fotos, setFotos]                   = useState({})
   const [totaisPorProduto, setTotaisPorProduto] = useState({})
   const [carrinho, setCarrinho]             = useState({})    // { [cod]: qty }
   const [unidades, setUnidades]             = useState([])
@@ -657,6 +664,8 @@ export default function CatalogoApp() {
   const totalItens = Object.values(carrinho).reduce((s, q) => s + q, 0)
 
   // ── INIT ───────────────────────────────────────────────────────────────────
+  useEffect(() => { getMapaFotos().then(setFotos) }, [])
+
   useEffect(() => {
     const init = async () => {
       if (!slug) { setTela('org-invalida'); return }
@@ -908,6 +917,7 @@ export default function CatalogoApp() {
       periodo={periodo}
       org={org}
       slug={slug}
+      fotos={fotos}
       produtos={produtos}
       carrinho={carrinho}
       onSetQty={handleSetQty}

@@ -17,6 +17,7 @@ import { getUnidades } from './lib/unidades'
 import { listarClientes } from './lib/clientes'
 import UnidadesManager from './UnidadesManager'
 import ModoPdv from './Pdv'
+import { getMapaFotos, fotoDoProduto } from './lib/fotos'
 
 
 // ── SYNC BADGE ────────────────────────────────────────────────────────────────
@@ -1651,6 +1652,8 @@ function ModalPedido({ pedido, produtos, unidades = [], orgId, onSave, onClose }
 // ═══════════════════════════════════════════════════════════════════════════════
 function ModalDetalhe({ pedido, produtos, onClose, onPrint }) {
   const total = calcTotal(pedido, produtos)
+  const [fotos, setFotos] = useState({})
+  useEffect(() => { getMapaFotos().then(setFotos) }, [])
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex flex-col justify-end">
       <div className="bg-stone-50 rounded-t-3xl flex flex-col overflow-hidden" style={{ maxHeight: '90vh' }}>
@@ -1668,9 +1671,11 @@ function ModalDetalhe({ pedido, produtos, onClose, onPrint }) {
           {sortByCod(pedido.itens, produtos).map((it, i) => {
             const p = produtos.find(x => x.id === it.produtoId)
             if (!p) return null
+            const foto = fotoDoProduto(p, fotos)
             return (
-              <div key={i} className="bg-white rounded-2xl px-4 py-3.5 border border-stone-100 shadow-sm flex justify-between items-center">
-                <div>
+              <div key={i} className="bg-white rounded-2xl px-4 py-3.5 border border-stone-100 shadow-sm flex justify-between items-center gap-3">
+                {foto && <img src={foto} alt="" className="w-11 h-11 rounded-xl object-cover flex-shrink-0 bg-stone-50" loading="lazy" />}
+                <div className="flex-1 min-w-0">
                   <div className="text-base font-black text-stone-800">
                     <span className="text-xs bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded font-black mr-1.5">{p.cod}</span>
                     <span className="text-green-700">{it.qty}×</span> {p.nome}
