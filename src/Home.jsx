@@ -335,7 +335,50 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA FINAL */}
+      {/* PREÇO */}
+      <section className="max-w-5xl mx-auto px-6 py-20">
+        <div className="text-xs font-semibold tracking-widest uppercase text-[#1A5C38]/70 mb-3 text-center">Investimento</div>
+        <h2 className="text-2xl md:text-3xl font-semibold text-center" style={display}>Simples, sem letra miúda</h2>
+        <p className="mt-3 text-[#14241B]/65 text-center max-w-xl mx-auto">
+          Uma taxa única pra começar, e uma mensalidade que cresce só se o seu grupo crescer.
+        </p>
+
+        <div className="mt-10 grid md:grid-cols-2 gap-5 max-w-3xl mx-auto">
+          <div className="bg-white rounded-[24px] shadow-xl shadow-[#0F3D24]/10 p-8 text-center">
+            <div className="text-xs font-semibold tracking-widest uppercase text-[#14241B]/45">Taxa de adesão</div>
+            <div className="mt-3 text-4xl font-semibold text-[#14241B]" style={display}>R$ 150</div>
+            <div className="mt-1 text-sm text-[#14241B]/55">única, no cadastro</div>
+          </div>
+          <div className="bg-white rounded-[24px] shadow-xl shadow-[#0F3D24]/10 p-8 text-center">
+            <div className="text-xs font-semibold tracking-widest uppercase text-[#14241B]/45">Mensalidade</div>
+            <div className="mt-3 text-4xl font-semibold text-[#14241B]" style={display}>R$ 49,90</div>
+            <div className="mt-1 text-sm text-[#14241B]/55">1ª unidade · + R$ 9,90 por unidade extra</div>
+          </div>
+        </div>
+
+        <div className="mt-8 max-w-3xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { un: '1 unidade', valor: 'R$ 49,90' },
+            { un: '4 unidades', valor: 'R$ 79,60' },
+            { un: '10 unidades', valor: 'R$ 139,00' },
+            { un: '16 unidades', valor: 'R$ 198,40' },
+          ].map(x => (
+            <div key={x.un} className="bg-[#1A5C38]/5 rounded-2xl px-3 py-4 text-center">
+              <div className="text-xs text-[#14241B]/55">{x.un}</div>
+              <div className="mt-1 font-semibold text-[#1A5C38]" style={mono}>{x.valor}/mês</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-8 max-w-3xl mx-auto bg-[#1A5C38]/8 border border-[#1A5C38]/15 rounded-2xl px-6 py-4 text-center">
+          <p className="text-sm text-[#14241B]/80">
+            <strong>Teste grátis até 08/09/2026.</strong> Depois disso, cobrança mensal recorrente todo dia 10.
+            Cancele quando quiser, sem multa.
+          </p>
+        </div>
+      </section>
+
+
       <section className="bg-[#1A5C38] text-white">
         <div className="max-w-3xl mx-auto px-6 py-16 text-center">
           <h2 className="text-2xl md:text-3xl font-semibold" style={display}>Pronta pra organizar o pedido do seu grupo?</h2>
