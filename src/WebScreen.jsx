@@ -842,15 +842,32 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
 
   const handleSaveControles = async () => {
     setSalvando(true)
-    const r = await atualizarPeriodo(periodoCorrente.id, { data_limite: dataLimiteEdit })
+    // Reseta o aviso de fechamento automático -- ela mudou a data, o cron
+    // deve poder avisar de novo quando essa NOVA data vencer.
+    const r = await atualizarPeriodo(periodoCorrente.id, { data_limite: dataLimiteEdit, push_fechamento_enviado: false })
     setSalvando(false)
     if (r.ok) { toast('Configurações salvas'); onRecarregar?.() }
     else toast('Erro ao salvar: ' + r.error)
   }
 
+  // Notifica quem ativou aviso no catálogo público -- nunca trava o toggle
+  // se isso falhar (rede, push desativado etc.), é só um efeito colateral.
+  const notificarMembros = async (tipo) => {
+    try {
+      await fetch('/api/notificar-membros', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId, tipo, periodoNome: periodoCorrente?.nome, slug: orgSlug }),
+      })
+    } catch {}
+  }
+
   const handleToggleAberto = async () => {
-    const r = await atualizarPeriodo(periodoCorrente.id, { catalogo_aberto: !periodoCorrente.catalogo_aberto })
-    if (r.ok) onRecarregar?.()
+    const abrindo = !periodoCorrente.catalogo_aberto
+    const r = await atualizarPeriodo(periodoCorrente.id, {
+      catalogo_aberto: abrindo,
+      ...(abrindo ? { push_fechamento_enviado: false } : {}),
+    })
+    if (r.ok) { onRecarregar?.(); notificarMembros(abrindo ? 'abriu' : 'fechou') }
     else toast('Erro ao atualizar: ' + r.error)
   }
 

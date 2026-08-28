@@ -1,4 +1,4 @@
-const CACHE = 'korin-cat-v3'
+const CACHE = 'korin-cat-v4'
 const ASSETS = ['/pedido', '/pedido.html', '/icon-192.png', '/icon-512.png', '/logo-clube-unido.png', '/manifest-catalogo.json']
 
 self.addEventListener('install', e => {
@@ -35,4 +35,31 @@ self.addEventListener('fetch', e => {
 
 self.addEventListener('message', e => {
   if (e.data?.type === 'SKIP_WAITING') self.skipWaiting()
+})
+
+// ── PUSH (catálogo abriu/fechou) ────────────────────────────────────────────
+self.addEventListener('push', e => {
+  let dados = {}
+  try { dados = e.data ? e.data.json() : {} } catch {}
+  const titulo = dados.titulo || 'Clube Unido'
+  const opcoes = {
+    body: dados.corpo || '',
+    icon: '/logo-clube-unido.png',
+    badge: '/logo-clube-unido.png',
+    data: { url: dados.url || '/pedido' },
+    tag: dados.tag || undefined,
+  }
+  e.waitUntil(self.registration.showNotification(titulo, opcoes))
+})
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close()
+  const url = e.notification.data?.url || '/pedido'
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      const aberto = clients.find(c => c.url.includes(url))
+      if (aberto) return aberto.focus()
+      return self.clients.openWindow(url)
+    })
+  )
 })

@@ -8,6 +8,7 @@ import {
 } from './lib/store-web'
 import { getPeriodoCorrente, getProdutosDoPeriodo } from './lib/periodos'
 import { useInstallPrompt } from './lib/pwa'
+import { pushSuportadoMembro, pushJaInscritoMembro, ativarPushMembro } from './lib/pushMembro'
 import { salvarPendente, lerPendente, limparPendente, gerarId } from './lib/offlinePendente'
 
 // ── RESOLUÇÃO DE SLUG (URL: /[slug]/pedido) ──────────────────────────────────
@@ -48,10 +49,41 @@ function Rodape() {
 }
 
 // ── TELA FECHADA ──────────────────────────────────────────────────────────────
-function TelaFechada({ periodo, org, showInstall, iosInstall, install, dismiss }) {
+// ── AVISAR QUANDO ABRIR/FECHAR (push do membro) ──────────────────────────────
+// Não exige ter instalado o app -- só precisa da permissão de notificação do
+// navegador. Mostra 3 estados: botão pra ativar, "ativando…", ou confirmação.
+function BotaoAvisarMembro({ slug }) {
+  const [estado, setEstado] = useState('checando') // checando|inativo|ativando|ativo|indisponivel
+
+  useEffect(() => {
+    if (!pushSuportadoMembro()) { setEstado('indisponivel'); return }
+    pushJaInscritoMembro().then(ja => setEstado(ja ? 'ativo' : 'inativo'))
+  }, [])
+
+  if (estado === 'checando' || estado === 'indisponivel') return null
+
+  const ativar = async () => {
+    setEstado('ativando')
+    const r = await ativarPushMembro(slug)
+    setEstado(r.ok ? 'ativo' : 'inativo')
+  }
+
+  if (estado === 'ativo') {
+    return <div className="text-xs text-center text-green-700 font-bold py-1.5">🔔 Você vai ser avisado quando abrir ou fechar</div>
+  }
+  return (
+    <button onClick={ativar} disabled={estado === 'ativando'}
+      className="w-full text-xs text-center text-stone-500 font-bold py-1.5 underline disabled:opacity-50">
+      {estado === 'ativando' ? '⟳ Ativando…' : '🔔 Avisar quando abrir ou fechar'}
+    </button>
+  )
+}
+
+function TelaFechada({ periodo, org, slug, showInstall, iosInstall, install, dismiss }) {
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
       <Header periodo={periodo} org={org} />
+      <BotaoAvisarMembro slug={slug} />
       {/* Banner instalação PWA */}
       {(showInstall === true || showInstall === 'manual') && (
         <div className="mx-4 mt-3 rounded-2xl shadow-lg overflow-hidden">
@@ -175,12 +207,13 @@ function ProdutoCard({ produto, qty, onSetQty, disponivel, qtdCaixa }) {
 }
 
 // ── TELA CATÁLOGO ─────────────────────────────────────────────────────────────
-function TelaCatalogo({ periodo, org, produtos, carrinho, onSetQty, total, totalItens, getDisponivel, pedidoExistente, onVerCarrinho, showInstall, iosInstall, install, dismiss }) {
+function TelaCatalogo({ periodo, org, slug, produtos, carrinho, onSetQty, total, totalItens, getDisponivel, pedidoExistente, onVerCarrinho, showInstall, iosInstall, install, dismiss }) {
   const cats = [...new Set([...CATS_ORDEM, ...produtos.map(p => p.categoria)])]
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
       <Header periodo={periodo} org={org} />
+      <BotaoAvisarMembro slug={slug} />
 
       {/* Banner instalação PWA */}
       {(showInstall === true || showInstall === 'manual') && (
@@ -813,7 +846,7 @@ export default function CatalogoApp() {
     </div>
   )
 
-  if (isPeriodoFechado(periodo)) return <TelaFechada periodo={periodo} org={org} showInstall={showInstall} iosInstall={iosInstall} install={install} dismiss={dismiss} />
+  if (isPeriodoFechado(periodo)) return <TelaFechada periodo={periodo} org={org} slug={slug} showInstall={showInstall} iosInstall={iosInstall} install={install} dismiss={dismiss} />
 
   if (tela === 'confirmacao' && pedidoConfirmado) return (
     <TelaConfirmacao
@@ -863,6 +896,7 @@ export default function CatalogoApp() {
     <TelaCatalogo
       periodo={periodo}
       org={org}
+      slug={slug}
       produtos={produtos}
       carrinho={carrinho}
       onSetQty={handleSetQty}

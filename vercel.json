@@ -6,5 +6,8 @@
     { "source": "/pedido", "destination": "/pedido.html" },
     { "source": "/:slug/pedido", "destination": "/pedido.html" },
     { "source": "/:slug/entrega", "destination": "/entrega.html" }
+  ],
+  "crons": [
+    { "path": "/api/verificar-prazos", "schedule": "*/15 * * * *" }
   ]
 }
