@@ -692,20 +692,16 @@ export default function CatalogoApp() {
     return () => { document.removeEventListener('visibilitychange', onFocus); clearInterval(interval) }
   }, [tela, org])
 
-  // ── LÓGICA DE DISPONIBILIDADE ──────────────────────────────────────────────
-  // qtdCaixa/caixasAbertas agora vêm direto do produto (coluna do período),
-  // não mais de um mapa solto em config.
-
+  // O catálogo NUNCA trava por estoque — só o encerramento de período/unidade
+  // (manual ou data limite, já tratado em outro lugar) bloqueia pedido novo.
+  // "Caixas abertas" deixou de existir como configuração (era confuso: um
+  // campo a mais pra decidir, sem ligação com o estoque real que passou a
+  // viver em Config → Estoque). qtdCaixa segue existindo só como referência
+  // de tamanho da embalagem, não como teto de pedido.
   const getDisponivel = useCallback((cod) => {
     const prod = produtos.find(p => p.cod === cod)
-    const qtdCaixa = prod?.qtdCaixa || 0
-    if (!qtdCaixa || !prod?.caixasAbertas) return { disponivel: Infinity, qtdCaixa: 0 }
-
-    const totalSlots    = prod.caixasAbertas * qtdCaixa
-    const jaDeOutros    = (totaisPorProduto[cod] || 0) - (pedidoExistente?.itens.find(i => i.cod === cod)?.qty || 0)
-    const disponivel    = Math.max(0, totalSlots - jaDeOutros)
-    return { disponivel, qtdCaixa }
-  }, [produtos, totaisPorProduto, pedidoExistente])
+    return { disponivel: Infinity, qtdCaixa: prod?.qtdCaixa || 0 }
+  }, [produtos])
 
   const handleSetQty = (cod, qty) => {
     const { disponivel } = getDisponivel(cod)

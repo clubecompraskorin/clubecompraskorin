@@ -269,10 +269,13 @@ export async function registrarCompraConfirmada(periodoId, itens, observacao = n
 }
 
 /** Ajuste rápido de um único produto, direto na aba Estoque — sem planilha. */
+// Lança uma linha no histórico de compras — positiva (comprou mais) ou
+// negativa (perda/quebra/ajuste pra baixo). Nunca zero. A soma de todas as
+// linhas de um produto/período é o `compraConfirmada` que calcEstoque usa.
 export async function registrarAjusteManualEstoque(periodoProdutoId, quantidade, observacao = null) {
   if (!supabase || !periodoProdutoId) return { ok: false, error: 'Sem conexão com internet' }
   const qtd = Math.round(Number(quantidade))
-  if (!qtd || qtd <= 0) return { ok: false, error: 'Informe uma quantidade válida' }
+  if (!qtd) return { ok: false, error: 'Informe uma quantidade válida (diferente de zero)' }
   try {
     const { error } = await supabase.from('compras_confirmadas')
       .insert({ periodo_produto_id: periodoProdutoId, quantidade_und: qtd, origem: 'manual', observacao: observacao || null })

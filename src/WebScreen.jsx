@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { getPedidos, getTotaisPorProduto } from './lib/store'
-import { calcEstoque } from './lib/helpers'
+import { getPedidos, getTotaisPorProduto, getEntreguesPorProduto } from './lib/store'
+import { calcEstoque, alertaCaixa } from './lib/helpers'
 import { atualizarDadosOrganizacao } from './lib/auth'
 import {
   listarPeriodos, atualizarPeriodo, criarPeriodoComCopia,
@@ -152,13 +152,14 @@ function TabControles({ periodo, dataLimite, onChangeDataLimite, onToggleAberto,
 }
 
 // ── SUB-ABA: ESTOQUE ──────────────────────────────────────────────────────────
-// qtdCaixa/caixasAbertas agora são colunas do próprio produto no período —
-// não mais um mapa solto. Edição é local (lista em memória) até "Salvar".
-// O "disponível" some dessa estimativa (caixasAbertas × qtdCaixa) só até a
-// compra ser confirmada em Fechamento — depois disso, calcEstoque() usa o
-// número real confirmado. Ver lib/helpers.js.
+// qtdCaixa é o único dado configurado aqui (tamanho da caixa da Korin) — usado
+// só pra calcular o alerta de caixa (ver alertaCaixa em lib/helpers.js), uma
+// ajuda de decisão pra fase ANTES de comprar. O estoque real em si (Comprado/
+// Entregue/Reservado/Sobra) só existe depois que ela confirma pelo menos uma
+// compra — ver calcEstoque em lib/helpers.js.
 function TabProdutos({ produtos, pedidos, onChange, onSave, salvando, somenteLeitura, sobraAnterior = {}, comprasConfirmadas = [], onComprasChange }) {
   const totais = getTotaisPorProduto(pedidos)
+  const totaisEntregues = getEntreguesPorProduto(pedidos)
   const [modalHistoricoProd, setModalHistoricoProd] = useState(null)
 
   const confirmadoPorProdutoId = {}
@@ -173,18 +174,14 @@ function TabProdutos({ produtos, pedidos, onChange, onSave, salvando, somenteLei
     onChange(produtos.map(p => p.cod === cod ? { ...p, [campo]: n } : p))
   }
 
-  const addCaixa = (cod) => {
-    onChange(produtos.map(p => p.cod === cod ? { ...p, caixasAbertas: (p.caixasAbertas || 0) + 1 } : p))
-  }
-
   const cats = [...new Set([...CATS_ORDEM, ...produtos.map(p => p.categoria)])]
 
   return (
     <div className="space-y-4">
       <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 text-sm text-amber-700 font-semibold">
-        Configure quantas unidades vêm em cada embalagem fechada da Korin e quantas caixas estão disponíveis por
-        produto. Esse número vale como estimativa até você confirmar a compra real em Fechamento —
-        depois disso, o estoque passa a valer pelo que foi realmente comprado.
+        Configure quantas unidades vêm em cada embalagem fechada da Korin. O sistema usa isso só pra
+        avisar quando a demanda não é múltiplo exato da caixa. O saldo real de estoque aparece assim
+        que você confirmar a primeira compra em Fechamento.
       </div>
       {somenteLeitura && (
         <div className="bg-stone-100 border border-stone-200 rounded-2xl px-4 py-3 text-sm text-stone-500 font-semibold">
@@ -206,14 +203,15 @@ function TabProdutos({ produtos, pedidos, onChange, onSave, salvando, somenteLei
             <div className="space-y-2">
               {lista.map(prod => {
                 const qtdCaixa = prod.qtdCaixa || 0
-                const caixasAbertas = prod.caixasAbertas || 0
                 const totalPedido = totais[prod.id] || 0
+                const totalEntregue = totaisEntregues[prod.id] || 0
                 const sobra = sobraAnterior[prod.cod] || 0
                 const confirmado = confirmadoPorProdutoId[prod.id] ?? null
                 const entradas = entradasPorProdutoId[prod.id] || []
-                // Não trava em 0 — negativo é sinal visual de "vendeu além do estimado",
-                // decisão de quem tá gerenciando, o sistema só avisa.
-                const { disponivel: disponivelReal, restante } = calcEstoque(prod, totalPedido, sobra, confirmado)
+                // Não trava em 0 — negativo é sinal visual de "vendeu além do
+                // comprado", decisão de quem tá gerenciando, o sistema só avisa.
+                const { disponivel, restante, entregue, reservado } = calcEstoque(prod, totalPedido, sobra, confirmado, totalEntregue)
+                const alerta = confirmado == null ? alertaCaixa(prod, totalPedido) : null
 
                 return (
                   <div key={prod.id} className={`bg-white rounded-2xl border shadow-sm p-3 ${prod.foraDaTabela ? 'border-amber-300' : 'border-stone-100'}`}>
@@ -236,59 +234,45 @@ function TabProdutos({ produtos, pedidos, onChange, onSave, salvando, somenteLei
                       <div className="text-xs text-amber-700 font-bold mb-2">⚠️ Fora da última tabela importada — mantido por ter pedido em aberto</div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-2 mb-2">
-                      <div>
-                        <label className="block text-xs font-bold text-stone-500 mb-1">Un./embalagem</label>
-                        <input
-                          type="number" min="0" value={qtdCaixa || ''}
-                          disabled={somenteLeitura}
-                          onChange={e => setProdCfg(prod.cod, 'qtdCaixa', e.target.value)}
-                          placeholder="0 = sem limite"
-                          className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-base font-bold focus:outline-none focus:border-green-500 disabled:opacity-50"
-                        />
-                      </div>
-                      <div className="min-w-0 overflow-hidden">
-                        <label className="block text-xs font-bold text-stone-500 mb-1">Caixas abertas</label>
-                        <div className="flex gap-1 min-w-0">
-                          <input
-                            type="number" min="0" value={caixasAbertas || ''}
-                            disabled={somenteLeitura}
-                            onChange={e => setProdCfg(prod.cod, 'caixasAbertas', e.target.value)}
-                            className="w-0 flex-1 min-w-0 border border-stone-200 rounded-xl px-3 py-2.5 text-base font-bold focus:outline-none focus:border-green-500 disabled:opacity-50"
-                          />
-                          <button onClick={() => addCaixa(prod.cod)} disabled={somenteLeitura}
-                            className="px-2 py-2.5 bg-green-600 text-white rounded-xl font-black text-sm active:bg-green-700 flex-shrink-0 disabled:opacity-50">
-                            +1
-                          </button>
-                        </div>
-                      </div>
+                    <div className="mb-2">
+                      <label className="block text-xs font-bold text-stone-500 mb-1">Un./embalagem (tamanho da caixa da Korin)</label>
+                      <input
+                        type="number" min="0" value={qtdCaixa || ''}
+                        disabled={somenteLeitura}
+                        onChange={e => setProdCfg(prod.cod, 'qtdCaixa', e.target.value)}
+                        placeholder="0 = não avisar"
+                        className="w-32 border border-stone-200 rounded-xl px-3 py-2.5 text-base font-bold focus:outline-none focus:border-green-500 disabled:opacity-50"
+                      />
                     </div>
 
-                    {disponivelReal != null && (
-                      <div className="space-y-0.5">
-                        <div className="text-xs font-bold text-stone-600">
-                          📦 {disponivelReal} un. disponíveis
-                          {confirmado != null && <span className="text-green-700"> · compra confirmada</span>}
+                    {alerta && (
+                      <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-2 text-xs font-bold text-amber-700">
+                        🔔 {totalPedido} pedidos pra caixa de {qtdCaixa} — {alerta.caixasCheias > 0
+                          ? `${alerta.caixasCheias} caixa${alerta.caixasCheias !== 1 ? 's' : ''} cobre${alerta.caixasCheias !== 1 ? 'm' : ''} ${alerta.atendidos}, ficam ${alerta.foraDaCaixa} de fora`
+                          : `nenhuma caixa fechada cobre tudo ainda, faltam ${alerta.faltamPraFecharMais} pra fechar a 1ª`}
+                        . Comprar mais uma caixa atende todo mundo (sobram {qtdCaixa - alerta.foraDaCaixa} sem dono).
+                      </div>
+                    )}
+
+                    {disponivel != null && (
+                      <div className="bg-stone-50 rounded-xl px-3 py-2.5 space-y-1">
+                        <div className="text-xs text-stone-500 font-semibold">
+                          Comprado: <b className="text-stone-700">{disponivel}</b>
+                          {sobra > 0 && <span className="text-teal-700"> (inclui {sobra} de sobra do mês anterior)</span>}
                         </div>
-                        {sobra > 0 && (
-                          <div className="text-xs text-teal-700 font-bold">
-                            Inclui {sobra} un. de sobra do período anterior
-                          </div>
-                        )}
-                        <div className="text-xs text-stone-400">
-                          {totalPedido} pedidos
+                        <div className="text-xs text-stone-500 font-semibold">
+                          Entregue: <b className="text-stone-700">{entregue}</b> · Reservado (pendente): <b className="text-stone-700">{reservado}</b>
                         </div>
-                        <div className={`text-xs font-bold ${restante < 0 ? 'text-red-600' : restante === 0 ? 'text-amber-600' : 'text-stone-500'}`}>
-                          Restante: {restante}{restante < 0 && ' — vendendo além do estimado'}
+                        <div className={`text-sm font-black ${restante < 0 ? 'text-red-600' : restante === 0 ? 'text-amber-600' : 'text-green-700'}`}>
+                          → Sobra: {restante}{restante < 0 && ' — vendeu além do comprado'}
                         </div>
                       </div>
                     )}
-                    {qtdCaixa > 0 && (
-                      <button onClick={() => setModalHistoricoProd(prod)}
-                        className="text-xs text-stone-400 font-bold underline mt-2">
-                        📋 Histórico de compras{entradas.length > 0 ? ` (${entradas.length})` : ''}
-                      </button>
-                    )}
+
+                    <button onClick={() => setModalHistoricoProd(prod)}
+                      className="text-xs text-stone-400 font-bold underline mt-2">
+                      📋 Histórico de compras{entradas.length > 0 ? ` (${entradas.length})` : ''}
+                    </button>
                   </div>
                 )
               })}
@@ -319,10 +303,11 @@ function TabProdutos({ produtos, pedidos, onChange, onSave, salvando, somenteLei
 
 // ── MODAL: HISTÓRICO DE COMPRAS DE UM PRODUTO ────────────────────────────────
 // Onde a Dedicante monitora e altera a compra confirmada: vê cada linha que
-// compõe o "disponível" (planilha ou ajuste manual), remove uma errada, ou
-// registra uma compra extra sem precisar gerar planilha — cada adição SOMA
-// ao estoque, nunca substitui (ver registrarAjusteManualEstoque em
-// lib/periodos.js). O total em si não é editável direto, só as entradas.
+// compõe o "Comprado" (planilha, ajuste manual positivo ou negativo), remove
+// uma errada, ou lança uma compra extra / perda sem precisar gerar planilha
+// — cada lançamento SOMA (com sinal) ao estoque, nunca substitui (ver
+// registrarAjusteManualEstoque em lib/periodos.js). O total em si não é
+// editável direto, só as entradas.
 function ModalHistoricoCompra({ produto, entradas, somenteLeitura, onClose, onChange }) {
   const [quantidade, setQuantidade] = useState('')
   const [observacao, setObservacao] = useState('')
@@ -343,7 +328,7 @@ function ModalHistoricoCompra({ produto, entradas, somenteLeitura, onClose, onCh
   }
 
   const excluir = async (id) => {
-    if (!await confirmar('Remover essa compra confirmada do histórico?')) return
+    if (!await confirmar('Remover esse lançamento do histórico?')) return
     setExcluindo(id)
     const r = await excluirCompraConfirmada(id)
     setExcluindo(null)
@@ -364,7 +349,7 @@ function ModalHistoricoCompra({ produto, entradas, somenteLeitura, onClose, onCh
 
         <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2">
           {entradas.length === 0 ? (
-            <div className="text-center py-8 text-stone-400 text-sm">Nenhuma compra confirmada ainda pra esse produto.</div>
+            <div className="text-center py-8 text-stone-400 text-sm">Nenhum lançamento ainda pra esse produto.</div>
           ) : (
             <>
               <div className="bg-green-50 border border-green-100 rounded-2xl px-4 py-3 flex justify-between items-center">
@@ -373,9 +358,11 @@ function ModalHistoricoCompra({ produto, entradas, somenteLeitura, onClose, onCh
               </div>
               {entradas.map(e => (
                 <div key={e.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-stone-50">
-                  <div className="text-lg flex-shrink-0">{e.origem === 'planilha' ? '📊' : '✍️'}</div>
+                  <div className="text-lg flex-shrink-0">{e.origem === 'planilha' ? '📊' : e.quantidadeUnd < 0 ? '📉' : '✍️'}</div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-bold text-stone-800">{e.quantidadeUnd} un.</div>
+                    <div className={`text-sm font-bold ${e.quantidadeUnd < 0 ? 'text-red-600' : 'text-stone-800'}`}>
+                      {e.quantidadeUnd > 0 ? '+' : ''}{e.quantidadeUnd} un.
+                    </div>
                     <div className="text-xs text-stone-400">
                       {new Date(e.criadoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                       {e.observacao && ` · ${e.observacao}`}
@@ -395,10 +382,11 @@ function ModalHistoricoCompra({ produto, entradas, somenteLeitura, onClose, onCh
 
         {!somenteLeitura && (
           <div className="p-4 border-t border-stone-100 flex-shrink-0 space-y-2">
-            <div className="text-xs font-black text-stone-500 uppercase tracking-widest">Registrar compra extra</div>
+            <div className="text-xs font-black text-stone-500 uppercase tracking-widest">Lançar compra ou ajuste</div>
+            <div className="text-xs text-stone-400 -mt-1">Positivo = comprou mais · Negativo = perda/quebra</div>
             <div className="flex gap-2">
-              <input type="number" min="1" value={quantidade} onChange={e => setQuantidade(e.target.value)}
-                placeholder="Quantidade (un.)"
+              <input type="number" value={quantidade} onChange={e => setQuantidade(e.target.value)}
+                placeholder="Ex: 12 ou -3"
                 className="w-32 border border-stone-200 rounded-xl px-3 py-2.5 text-base font-bold focus:outline-none focus:border-green-500" />
               <input value={observacao} onChange={e => setObservacao(e.target.value)}
                 placeholder="Observação (opcional)"
@@ -407,7 +395,7 @@ function ModalHistoricoCompra({ produto, entradas, somenteLeitura, onClose, onCh
             {erro && <div className="text-xs text-red-600 font-semibold">{erro}</div>}
             <button onClick={adicionar} disabled={salvando || !quantidade}
               className="w-full py-3 bg-green-700 text-white rounded-2xl font-black text-sm active:bg-green-800 disabled:opacity-50">
-              {salvando ? '⟳ Salvando…' : '+ Adicionar ao estoque'}
+              {salvando ? '⟳ Salvando…' : '+ Lançar'}
             </button>
           </div>
         )}

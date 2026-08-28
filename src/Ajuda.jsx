@@ -78,7 +78,7 @@ const FAQ = [
   },
   {
     p: 'Como sei quanto sobrou de cada produto pro próximo período?',
-    r: 'Em Config → Estoque, o sistema mostra a sobra do período anterior por produto (compra em caixa fechada menos o que foi vendido) — é só informativo, não trava nada. Você decide quantas caixas marcar como abertas no período novo.',
+    r: 'Em Config → Estoque, assim que você confirma a primeira compra do mês, o sistema mostra Comprado / Entregue / Reservado e a Sobra de cada produto — atualiza sozinho a cada pedido. A sobra do período anterior já entra somada automaticamente no mês novo.',
   },
 ]
 

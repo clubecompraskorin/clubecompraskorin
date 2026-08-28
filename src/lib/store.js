@@ -130,3 +130,14 @@ export const getTotaisPorProduto = (pedidos) => {
     .forEach(p => p.itens.forEach(it => { t[it.produtoId] = (t[it.produtoId] || 0) + it.qty }))
   return t
 }
+
+// Mesma soma, só que restrita ao que já foi ENTREGUE de fato — usada junto
+// com getTotaisPorProduto pra decompor o saldo de estoque em
+// Comprado/Entregue/Reservado (ver calcEstoque em lib/helpers.js).
+export const getEntreguesPorProduto = (pedidos) => {
+  const t = {}
+  pedidos
+    .filter(p => p.status === 'entregue')
+    .forEach(p => p.itens.forEach(it => { t[it.produtoId] = (t[it.produtoId] || 0) + it.qty }))
+  return t
+}
