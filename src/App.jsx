@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { getPedidos, salvarPedido, removerPedido, cancelarPedido } from './lib/store'
+import { getPedidos, salvarPedido, removerPedido, cancelarPedido, getTotaisPorProduto } from './lib/store'
 import { useInstallPrompt } from './lib/pwa'
 import * as XLSX from 'xlsx'
-import { fmt, calcTotal, sortByCod } from './lib/helpers'
+import { fmt, calcTotal, sortByCod, calcEstoque } from './lib/helpers'
 import { printPedido, printTodos } from './lib/print'
 import { CAT_COR, CATS_ORDEM, PAGAMENTOS } from './lib/catalog'
 import WebScreen from './WebScreen'
@@ -10,6 +10,7 @@ import {
   getPeriodoCorrente, listarPeriodos, getProdutosDoPeriodo,
   salvarProdutoNoPeriodo, removerProdutoDoPeriodo, arquivarPeriodo, desarquivarPeriodo,
   getComparativoPeriodoAnterior, registrarCompraConfirmada,
+  getSobraPeriodoAnterior, getComprasConfirmadas,
 } from './lib/periodos'
 import { parseTabelaKorin } from './lib/importarPlanilha'
 import { ToastHost, ConfirmHost, toast, confirmar } from './lib/dialog'
@@ -41,6 +42,9 @@ export default function App({ org, onOrgRefresh }) {
   const [webAbrirEm, setWebAbrirEm] = useState(null)
   const [produtos, setProdutos] = useState([])
   const [pedidos, setPedidos]   = useState([])
+  // Estoque real (badge na aba Produtos) — mesma fonte que Config → Estoque usa.
+  const [sobraAnterior, setSobraAnterior]           = useState({})
+  const [comprasConfirmadas, setComprasConfirmadas] = useState([])
   const [periodoCorrente, setPeriodoCorrente] = useState(null)
   const [loaded, setLoaded]     = useState(false)
   const [online, setOnline]     = useState(navigator.onLine)
@@ -75,14 +79,19 @@ export default function App({ org, onOrgRefresh }) {
       const lista = await listarPeriodos(orgId)
       setPeriodosLista(lista)
       if (per) {
-        const [prods, peds] = await Promise.all([
+        const [prods, peds, sobra, compras] = await Promise.all([
           getProdutosDoPeriodo(per.id),
           getPedidos(per.id),
+          getSobraPeriodoAnterior(orgId, per.id),
+          getComprasConfirmadas(per.id),
         ])
         setProdutos(prods)
         setPedidos(peds.filter(p => p.status !== 'cancelado'))
+        setSobraAnterior(sobra)
+        setComprasConfirmadas(compras)
       } else {
         setProdutos([]); setPedidos([])
+        setSobraAnterior({}); setComprasConfirmadas([])
       }
     } finally { setSyncing(false) }
   }, [orgId])
@@ -291,7 +300,7 @@ export default function App({ org, onOrgRefresh }) {
         )}
         {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} onIniciarPdv={() => setModoPdv(true)} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} unidades={nomesUnidades} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} />}
         {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} unidades={nomesUnidades} />}
-        {tab === 'produtos'   && <ProdutosScreen  produtos={produtos} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} />}
+        {tab === 'produtos'   && <ProdutosScreen  produtos={produtos} pedidos={pedidos} sobraAnterior={sobraAnterior} comprasConfirmadas={comprasConfirmadas} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} />}
         {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} periodoObj={periodoObjAtivo} isCorrente={!isHistorico} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} orgId={orgId} periodoAtualId={periodoObjAtivo?.id} onRecarregar={recarregarTudo} />}
         {tab === 'web'        && <WebScreen produtos={produtos} periodo={periodoCorrente} org={org} onUnidadesChange={setUnidades} onRecarregar={recarregarTudo} abrirEm={webAbrirEm} onAbrirEmConsumido={() => setWebAbrirEm(null)} onOrgRefresh={onOrgRefresh} />}
       </main>
@@ -815,8 +824,13 @@ function ModoEntrega({ pedido, produtos, onCancelar, onFinalizar }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: PRODUTOS
 // ═══════════════════════════════════════════════════════════════════════════════
-function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
+function ProdutosScreen({ produtos, pedidos = [], sobraAnterior = {}, comprasConfirmadas = [], onAdd, onEdit, onDelete }) {
   const cats = [...new Set([...CATS_ORDEM, ...produtos.map(p => p.categoria)])]
+  const totais = getTotaisPorProduto(pedidos)
+  const confirmadoPorProdutoId = {}
+  comprasConfirmadas.forEach(c => {
+    confirmadoPorProdutoId[c.periodoProdutoId] = (confirmadoPorProdutoId[c.periodoProdutoId] || 0) + c.quantidadeUnd
+  })
   return (
     <div className="px-4 py-4 space-y-4">
       <div className="bg-stone-50 border border-stone-100 rounded-2xl px-4 py-3 text-sm text-stone-500 font-semibold text-center">
@@ -832,7 +846,12 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
               <span style={{ color: CAT_COR[cat] || '#555' }}>{cat}</span>
             </div>
             <div className="space-y-2">
-              {list.map(prod => (
+              {list.map(prod => {
+                const totalPedido = totais[prod.id] || 0
+                const sobra = sobraAnterior[prod.cod] || 0
+                const confirmado = confirmadoPorProdutoId[prod.id] ?? null
+                const { restante } = calcEstoque(prod, totalPedido, sobra, confirmado)
+                return (
                 <div key={prod.id} className={`bg-white rounded-2xl border px-3 py-3 flex items-center gap-3 shadow-sm ${prod.foraDaTabela ? 'border-amber-300' : 'border-stone-100'}`}>
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0" style={{ background: CAT_COR[prod.categoria] || '#888' }}>
                     {prod.cod}
@@ -844,13 +863,20 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
                       <div className="text-xs text-amber-700 font-bold mt-0.5">⚠️ Fora da última tabela importada — mantido por ter pedido em aberto</div>
                     )}
                   </div>
-                  <div className="text-base font-black text-green-700 flex-shrink-0">{fmt(prod.preco)}</div>
+                  <div className="flex-shrink-0 text-right">
+                    <div className="text-base font-black text-green-700">{fmt(prod.preco)}</div>
+                    {restante != null && (
+                      <div className={`text-xs font-bold ${restante < 0 ? 'text-red-600' : restante === 0 ? 'text-amber-600' : 'text-stone-400'}`}>
+                        Restam {restante}
+                      </div>
+                    )}
+                  </div>
                   <div className="flex gap-1.5 flex-shrink-0">
                     <button onClick={() => onEdit(prod)} className="p-2 rounded-xl bg-blue-50 text-base active:bg-blue-100">✏️</button>
                     <button onClick={() => onDelete(prod.id)} className="p-2 rounded-xl bg-red-50 text-base active:bg-red-100">🗑️</button>
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           </div>
         )
