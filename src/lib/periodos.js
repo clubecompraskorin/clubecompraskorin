@@ -23,6 +23,8 @@ const produtoFromDb = (row) => ({
   qtdCaixa: row.qtd_caixa || 0,
   caixasAbertas: row.caixas_abertas || 0,
   foraDaTabela: row.fora_da_tabela || false,
+  nomeCustomizado: row.nome_customizado || false,
+  nomeOriginalKorin: row.nome_original_korin || null,
 })
 
 const produtoToDb = (periodoId, p) => ({
@@ -36,6 +38,8 @@ const produtoToDb = (periodoId, p) => ({
   qtd_caixa: p.qtdCaixa || null,
   caixas_abertas: p.caixasAbertas || null,
   fora_da_tabela: p.foraDaTabela || false,
+  nome_customizado: p.nomeCustomizado || false,
+  nome_original_korin: p.nomeOriginalKorin || null,
 })
 
 // ── PERÍODOS ──────────────────────────────────────────────────────────────────

@@ -65,7 +65,8 @@ export async function parseTabelaKorin(file) {
 
     produtos.push({
       cod,
-      nome,
+      nome: sugerirNomeAmigavel(nome, derivarUnidade(pesoCaixa, qtdPorCaixa, nome)),
+      nomeOriginalKorin: nome,
       preco:      vendaUnidade,
       precoCusto: qtdPorCaixa > 0 ? Number((custoCaixa / qtdPorCaixa).toFixed(4)) : null,
       qtdCaixa:   qtdPorCaixa || 0,
@@ -78,6 +79,29 @@ export async function parseTabelaKorin(file) {
   }
 
   return { periodo, produtos }
+}
+
+// Remove jargão de logística que só interessa pra Korin/Dedicante, não pro
+// membro (CONG=congelado, PCT=pacote, CX=caixa, "C/17KG C/17 PCT"=descrição
+// de embalagem) e troca pelo peso real da unidade, que o sistema já calcula
+// à parte (derivarUnidade). Ex.: "COXA NGMO CONG PCT CX C/17KG C/17 PCT" ->
+// "COXA NGMO 1KG". É uma SUGESTÃO — mostrada editável na tela de revisão do
+// import, nunca aplicada sem a Dedicante ver antes de confirmar. Produto com
+// nome fora do padrão (ex: contagem em unidades, não peso) pode sair
+// estranho — ela ajusta manualmente nesse caso.
+const PADRAO_EMBALAGEM = /C\/\s*\d+(?:[.,]\d+)?\s*KG(?:\s*C\/\s*\d+\s*PCT)?/gi
+const JARGAO_LOGISTICA = /\b(CONG|PCT|CX)\b/gi
+
+export function sugerirNomeAmigavel(nomeCru, unidade) {
+  let limpo = nomeCru
+    .replace(PADRAO_EMBALAGEM, '')
+    .replace(JARGAO_LOGISTICA, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  if (unidade && !limpo.toUpperCase().includes(unidade.toUpperCase())) {
+    limpo = `${limpo} ${unidade.toUpperCase()}`
+  }
+  return limpo || nomeCru
 }
 
 // Prioriza peso-real da caixa ÷ qtd-por-caixa sobre extrair da descrição — o

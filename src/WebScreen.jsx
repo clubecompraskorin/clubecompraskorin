@@ -529,10 +529,15 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
   const mesclarComExistentes = (produtosNovos) =>
     produtosNovos.map(p => {
       const exist = produtosAtuais.find(x => x.cod === p.cod)
-      const nomeMudou = exist && normalizarTexto(exist.nome) !== normalizarTexto(p.nome)
+      const nomeMudou = exist && normalizarTexto(exist.nomeOriginalKorin || exist.nome) !== normalizarTexto(p.nomeOriginalKorin || p.nome)
       return {
         ...p,
         id: exist?.id,
+        // Nome customizado (por ela, ou ajustado numa revisão de import
+        // anterior) nunca é sobrescrito por uma reimportação — só o nome
+        // cru original da Korin (referência) é sempre atualizado.
+        nome: exist?.nomeCustomizado ? exist.nome : p.nome,
+        nomeCustomizado: exist?.nomeCustomizado || false,
         precoCusto: p.precoCusto ?? exist?.precoCusto ?? null,
         qtdCaixa: exist?.qtdCaixa ?? p.qtdCaixa ?? 0,
         caixasAbertas: exist?.caixasAbertas ?? 0,
@@ -663,6 +668,7 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
                   </span>
                 )}
               </div>
+              <div className="text-xs text-stone-400 mt-1">✏️ Já simplificamos os nomes da Korin — toca em qualquer um pra ajustar. Nome ajustado não é mais sobrescrito nas próximas importações.</div>
             </div>
             <button onClick={onClose} className="p-2 rounded-full bg-stone-100 text-xl">✕</button>
           </div>
@@ -716,7 +722,12 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
             <div key={p.cod} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${p.conflitoCod ? 'bg-amber-50 border border-amber-200' : 'bg-stone-50'}`}>
               <div className={`w-8 h-8 rounded-lg text-white flex items-center justify-center text-xs font-black flex-shrink-0 ${p.conflitoCod ? 'bg-amber-600' : 'bg-green-700'}`}>{p.cod}</div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-bold text-stone-800 truncate">{p.nome}</div>
+                <input value={p.nome}
+                  onChange={e => { const v = e.target.value; setImportados(prev => prev.map((x, j) => j === i ? { ...x, nome: v, nomeCustomizado: true } : x)) }}
+                  className="text-sm font-bold text-stone-800 bg-transparent border-b border-transparent focus:border-green-500 focus:outline-none w-full truncate" />
+                {p.nomeOriginalKorin && normalizarTexto(p.nomeOriginalKorin) !== normalizarTexto(p.nome) && (
+                  <div className="text-[11px] text-stone-400 truncate">Korin: {p.nomeOriginalKorin}</div>
+                )}
                 {p.conflitoCod && (
                   <div className="text-xs text-amber-700 font-semibold truncate">⚠️ código {p.cod} era "{p.nomeAnterior}"</div>
                 )}

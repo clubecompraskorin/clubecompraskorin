@@ -1729,6 +1729,9 @@ function ModalProduto({ produto, onSave, onClose }) {
         <LabelField label="Nome do produto *">
           <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Coxa S/Transg Cong"
             className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base font-semibold focus:outline-none focus:border-green-500" />
+          {produto?.nomeOriginalKorin && produto.nomeOriginalKorin !== nome && (
+            <div className="text-xs text-stone-400 mt-1">Nome na tabela da Korin: {produto.nomeOriginalKorin}</div>
+          )}
         </LabelField>
 
         <LabelField label="Unidade / Embalagem">
@@ -1762,7 +1765,8 @@ function ModalProduto({ produto, onSave, onClose }) {
 
         <button onClick={() => {
           if (!nome.trim() || !preco) { toast('Preencha nome e preço de venda'); return }
-          onSave({ ...produto, nome: nome.trim(), unidade: un, preco: parseFloat(preco), precoCusto: precoCusto ? parseFloat(precoCusto) : null, categoria: cat })
+          const nomeMudou = !produto || produto.nome !== nome.trim()
+          onSave({ ...produto, nome: nome.trim(), unidade: un, preco: parseFloat(preco), precoCusto: precoCusto ? parseFloat(precoCusto) : null, categoria: cat, nomeCustomizado: nomeMudou ? true : (produto?.nomeCustomizado || false) })
         }} className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-lg active:bg-green-800 mt-2">
           {produto ? 'Salvar Alterações' : 'Adicionar Produto'}
         </button>
