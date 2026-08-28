@@ -4,7 +4,7 @@ export const getOrganizacoesGestor = async () => {
   if (!supabase) return []
   const { data, error } = await supabase
     .from('organizacoes')
-    .select('id, slug, nome, ativo, plano, created_at, responsavel_nome, razao_social, documento, documento_tipo')
+    .select('id, slug, nome, ativo, plano, created_at, responsavel_nome, razao_social, documento, documento_tipo, trial_fim, pago_ate')
     .order('created_at', { ascending: false })
   if (error) { console.error(error); return [] }
   return data || []
@@ -22,6 +22,14 @@ export const getPedidosCountPorOrg = async () => {
 export const setOrgAtivo = async (orgId, ativo) => {
   if (!supabase) return { ok: false, error: 'Sem conexão' }
   const { error } = await supabase.rpc('platform_admin_set_org_ativo', { p_org_id: orgId, p_ativo: ativo })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
+// pagoAte = 'YYYY-MM-DD' ou null (limpar/remover pagamento registrado).
+export const setPagoAte = async (orgId, pagoAte) => {
+  if (!supabase) return { ok: false, error: 'Sem conexão' }
+  const { error } = await supabase.rpc('platform_admin_set_pago_ate', { p_org_id: orgId, p_pago_ate: pagoAte })
   if (error) return { ok: false, error: error.message }
   return { ok: true }
 }

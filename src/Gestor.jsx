@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getSession, onAuthChange, signIn, signOut, signUpSemOrganizacao, isPlatformAdmin } from './lib/auth'
-import { getOrganizacoesGestor, getPedidosCountPorOrg, setOrgAtivo } from './lib/platform'
+import { getOrganizacoesGestor, getPedidosCountPorOrg, setOrgAtivo, setPagoAte } from './lib/platform'
 
 const display = { fontFamily: "'Space Grotesk', sans-serif" }
 const mono = { fontFamily: "'JetBrains Mono', monospace" }
@@ -65,6 +65,40 @@ function TelaSemPermissao() {
 }
 
 const fmtData = (iso) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+const hojeISO = () => new Date().toISOString().slice(0, 10)
+
+function StatusPagamento({ org }) {
+  const hoje = hojeISO()
+  const bloqueado = org.trial_fim && hoje > org.trial_fim && (!org.pago_ate || hoje > org.pago_ate)
+  const pago = org.pago_ate && hoje <= org.pago_ate
+  if (bloqueado) return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">🔒 trial atingido</span>
+  if (pago) return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">pago até {fmtData(org.pago_ate)}</span>
+  return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">trial até {fmtData(org.trial_fim)}</span>
+}
+
+function MarcarPago({ org, onSalvo }) {
+  const [data, setData] = useState(org.pago_ate || '')
+  const [salvando, setSalvando] = useState(false)
+
+  const salvar = async () => {
+    if (!data) return
+    setSalvando(true)
+    const r = await setPagoAte(org.id, data)
+    setSalvando(false)
+    if (r.ok) onSalvo(org.id, data)
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <input type="date" value={data} onChange={e => setData(e.target.value)}
+        className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-white/30" />
+      <button onClick={salvar} disabled={salvando || !data}
+        className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-40">
+        {salvando ? '...' : 'Marcar pago'}
+      </button>
+    </div>
+  )
+}
 
 function Dashboard() {
   const [orgs, setOrgs] = useState([])
@@ -141,6 +175,7 @@ function Dashboard() {
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${org.ativo ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
                         {org.ativo ? 'ativa' : 'inativa'}
                       </span>
+                      <StatusPagamento org={org} />
                       {!completo && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">cadastro incompleto</span>
                       )}
@@ -149,6 +184,9 @@ function Dashboard() {
                     <div className="text-xs text-white/50 mt-1">
                       {org.responsavel_nome || '— sem responsável —'}
                       {org.documento && <span className="text-white/30"> · {org.documento}</span>}
+                    </div>
+                    <div className="mt-2">
+                      <MarcarPago org={org} onSalvo={(id, pagoAte) => setOrgs(prev => prev.map(o => o.id === id ? { ...o, pago_ate: pagoAte } : o))} />
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">

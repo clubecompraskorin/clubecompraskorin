@@ -118,6 +118,26 @@ export default function AuthGate({ children }) {
   }
 
   if (status === 'dentro') {
+    if (org?.bloqueado) {
+      return (
+        <div className="flex items-center justify-center min-h-screen bg-stone-50 px-6">
+          <div className="text-center max-w-sm">
+            <div className="text-4xl mb-3">🔒</div>
+            <div className="text-stone-800 font-black text-xl mb-2">Trial Atingido</div>
+            <p className="text-stone-500 text-sm mb-1">
+              O período de teste do <strong>{org?.nome}</strong> terminou em{' '}
+              {new Date(org.trialFim + 'T12:00:00').toLocaleDateString('pt-BR')}.
+            </p>
+            <p className="text-stone-500 text-sm mb-6">Fale com a gente pra liberar de novo.</p>
+            <a href="https://wa.me/5511957737933" target="_blank" rel="noopener noreferrer"
+              className="inline-block px-6 py-3 bg-green-700 text-white rounded-xl font-black text-sm active:bg-green-800">
+              Falar no WhatsApp
+            </a>
+            <button onClick={signOut} className="block w-full text-center text-xs text-stone-400 mt-5 underline">Sair</button>
+          </div>
+        </div>
+      )
+    }
     if (unidadesOk === null) {
       return (
         <div className="flex items-center justify-center min-h-screen bg-stone-50">

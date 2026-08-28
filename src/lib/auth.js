@@ -82,12 +82,14 @@ export const getOrgDoUsuario = async () => {
   if (!supabase) return null
   const { data, error } = await supabase
     .from('org_members')
-    .select('org_id, role, organizacoes ( id, slug, nome, plano, ativo, responsavel_nome, razao_social, documento, documento_tipo )')
+    .select('org_id, role, organizacoes ( id, slug, nome, plano, ativo, responsavel_nome, razao_social, documento, documento_tipo, trial_fim, pago_ate )')
     .limit(1)
     .maybeSingle()
   if (error || !data) return null
   const o = data.organizacoes
   const cadastroCompleto = Boolean(o?.responsavel_nome?.trim() && o?.documento?.trim())
+  const hoje = new Date().toISOString().slice(0, 10)
+  const bloqueado = Boolean(o?.trial_fim && hoje > o.trial_fim && (!o?.pago_ate || hoje > o.pago_ate))
   return {
     orgId: data.org_id,
     role: data.role,
@@ -100,6 +102,9 @@ export const getOrgDoUsuario = async () => {
     documento: o?.documento || '',
     documentoTipo: o?.documento_tipo || '',
     cadastroCompleto,
+    trialFim: o?.trial_fim || null,
+    pagoAte: o?.pago_ate || null,
+    bloqueado,
   }
 }
 

@@ -662,6 +662,7 @@ export default function CatalogoApp() {
       if (!slug) { setTela('org-invalida'); return }
       const orgEncontrada = await resolverOrgPorSlug(slug)
       if (!orgEncontrada || !orgEncontrada.ativo) { setTela('org-invalida'); return }
+      if (orgEncontrada.bloqueado) { setTela('org-bloqueada'); setOrg(orgEncontrada); return }
       setOrg(orgEncontrada)
 
       const unis = await getUnidadesPublicas(orgEncontrada.id)
@@ -842,6 +843,16 @@ export default function CatalogoApp() {
         <div className="text-4xl mb-3">🔗</div>
         <div className="text-stone-700 font-black text-lg mb-1">Link inválido</div>
         <div className="text-stone-500 text-sm">Confira o link com quem administra seu grupo.</div>
+      </div>
+    </div>
+  )
+
+  if (tela === 'org-bloqueada') return (
+    <div className="flex items-center justify-center min-h-screen bg-stone-50 px-6">
+      <div className="text-center">
+        <div className="text-4xl mb-3">⏸️</div>
+        <div className="text-stone-700 font-black text-lg mb-1">Catálogo temporariamente indisponível</div>
+        <div className="text-stone-500 text-sm">Fale com {org?.nome || 'quem administra seu grupo'} pra mais informações.</div>
       </div>
     </div>
   )

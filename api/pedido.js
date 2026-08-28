@@ -68,9 +68,13 @@ export default async function handler(req, res) {
 
   try {
     const { data: org, error: orgError } = await supabaseAdmin
-      .from('organizacoes').select('id, ativo').eq('slug', slug).maybeSingle()
+      .from('organizacoes').select('id, ativo, trial_fim, pago_ate').eq('slug', slug).maybeSingle()
     if (orgError) throw orgError
     if (!org || !org.ativo) return res.status(404).json({ ok: false, error: 'Organização não encontrada ou inativa' })
+    const hoje = new Date().toISOString().slice(0, 10)
+    if (org.trial_fim && hoje > org.trial_fim && (!org.pago_ate || hoje > org.pago_ate)) {
+      return res.status(403).json({ ok: false, error: 'Catálogo temporariamente indisponível' })
+    }
 
     const { data: periodo, error: perError } = await supabaseAdmin
       .from('periodos').select('id, nome, status, catalogo_aberto, data_limite')
