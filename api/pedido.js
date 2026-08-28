@@ -12,12 +12,20 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
+// Nunca deixa a configuração de push derrubar a function inteira — se a
+// chave VAPID vier malformada (espaço/quebra de linha no valor colado no
+// Vercel), a notificação fica desativada, mas o endpoint de pedido continua
+// no ar normalmente.
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(
-    'mailto:gestao.junior.lopes@gmail.com',
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-  )
+  try {
+    webpush.setVapidDetails(
+      'mailto:gestao.junior.lopes@gmail.com',
+      process.env.VAPID_PUBLIC_KEY.trim(),
+      process.env.VAPID_PRIVATE_KEY.trim()
+    )
+  } catch (e) {
+    console.error('VAPID setup falhou — push desativado:', e.message)
+  }
 }
 
 // Avisa a coordenadora (todos os dispositivos inscritos da organização) que
