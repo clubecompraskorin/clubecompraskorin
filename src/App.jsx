@@ -1859,7 +1859,10 @@ function ModalColarPedido({ produtos, unidades = [], orgId, onSave, onClose }) {
       const res = await fetch('/api/interpretar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texto })
+        body: JSON.stringify({
+          texto,
+          catalogo: produtos.map(p => ({ cod: p.cod, nome: p.nome, unidade: p.unidade })),
+        })
       })
       const data = await res.json()
       const raw  = data.content?.[0]?.text || ''
@@ -1872,7 +1875,7 @@ function ModalColarPedido({ produtos, unidades = [], orgId, onSave, onClose }) {
         return acc
       }, [])
 
-      if (!itensResolvidos.length) throw new Error('Nenhum item reconhecido. Verifique os códigos.')
+      if (!itensResolvidos.length) throw new Error('Nenhum item reconhecido. Verifique os códigos ou o nome dos produtos.')
 
       setParsed({ nome: obj.nome || '', itens: itensResolvidos })
       handleNome(obj.nome || '')
