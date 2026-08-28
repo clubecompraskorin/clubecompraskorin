@@ -8,6 +8,6 @@
     { "source": "/:slug/entrega", "destination": "/entrega.html" }
   ],
   "crons": [
-    { "path": "/api/verificar-prazos", "schedule": "0 8 * * *" }
+    { "path": "/api/membros", "schedule": "0 8 * * *" }
   ]
 }

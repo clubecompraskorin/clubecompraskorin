@@ -854,9 +854,9 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
   // se isso falhar (rede, push desativado etc.), é só um efeito colateral.
   const notificarMembros = async (tipo) => {
     try {
-      await fetch('/api/notificar-membros', {
+      await fetch('/api/membros', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgId, tipo, periodoNome: periodoCorrente?.nome, slug: orgSlug }),
+        body: JSON.stringify({ acao: 'notificar', orgId, tipo, periodoNome: periodoCorrente?.nome, slug: orgSlug }),
       })
     } catch {}
   }

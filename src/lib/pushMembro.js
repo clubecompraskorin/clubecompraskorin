@@ -30,9 +30,9 @@ export const ativarPushMembro = async (slug) => {
     if (!reg) return { ok: false, error: 'App ainda não está pronto — recarregue a página e tente de novo' }
     let sub = await reg.pushManager.getSubscription()
     sub ||= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) })
-    const r = await fetch('/api/inscrever-membro', {
+    const r = await fetch('/api/membros', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slug, subscription: sub.toJSON() }),
+      body: JSON.stringify({ acao: 'inscrever', slug, subscription: sub.toJSON() }),
     })
     const json = await r.json()
     if (!r.ok || !json.ok) return { ok: false, error: json.error || 'Falha ao inscrever' }
