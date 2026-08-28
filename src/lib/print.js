@@ -82,6 +82,131 @@ const wrapDocCompact = (title, body) => `<!DOCTYPE html><html><head>
   </style>
 </head><body>${body}</body></html>`
 
+// ═══════════════════════════════════════════════════════════════════════════
+// RELATÓRIOS (Config → 🖨️ Relatórios) — mesmo espírito visual de printTodos
+// (A4, fonte legível, cabe várias por página), com cabeçalho/rodapé padrão
+// e, quando filtrado por unidade, o nome dela aparece no cabeçalho.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const relatorioHeader = (titulo, periodo, unidadeLabel) => `
+  <div style="text-align:center;padding:16px 0 12px;border-bottom:3px solid #2D6A4F;margin-bottom:18px">
+    <div style="font-size:11px;color:#999;letter-spacing:2px;text-transform:uppercase">Clube Unido</div>
+    <div style="font-size:25px;font-weight:900;color:#2D6A4F;margin-top:2px">${titulo}</div>
+    <div style="font-size:14px;color:#666;margin-top:4px;font-weight:600">
+      ${periodo}${unidadeLabel && unidadeLabel !== 'Todas' ? ` · Unidade: ${unidadeLabel}` : ''}
+    </div>
+  </div>`
+
+const relatorioRodape = () => `
+  <div style="margin-top:26px;padding-top:10px;border-top:1px solid #eee;text-align:center">
+    <div style="font-size:9px;color:#aaa">© Todos os Direitos Reservados — Clube Unido · Desenvolvido por Personal Support</div>
+  </div>`
+
+const botaoImprimir = (label) => `
+  <div class="noprint" style="text-align:center;padding:14px;background:#f5f5f5;margin-bottom:4px">
+    <button onclick="window.print()" style="background:#2D6A4F;color:#fff;border:none;padding:12px 36px;border-radius:8px;font-size:16px;cursor:pointer;font-weight:700">🖨️ ${label}</button>
+  </div>`
+
+const wrapRelatorio = (title, body) => `<!DOCTYPE html><html><head>
+  <meta charset="utf-8"><title>${title}</title>
+  <style>
+    @page{size:A4 portrait;margin:12mm}
+    body{font-family:Arial,sans-serif;margin:0;padding:0 6px;color:#333;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    table{width:100%;border-collapse:collapse}
+    @media print{.noprint{display:none!important}}
+  </style>
+</head><body>${body}</body></html>`
+
+// Reaproveita o mesmo bloco compacto (1 cliente por bloco) usado em printTodos.
+const buildBlocosCompactos = (pedidos, produtos) => pedidos
+  .slice()
+  .sort((a, b) => a.clienteNome.localeCompare(b.clienteNome))
+  .map(pedido => {
+    const total = calcTotal(pedido, produtos).toFixed(2).replace('.', ',')
+    const rows = sortByCod(pedido.itens, produtos).map(it => {
+      const p = produtos.find(x => x.id === it.produtoId)
+      if (!p) return ''
+      return `<tr>
+        <td style="padding:6px 9px;border-bottom:1px solid #eee;font-size:13px;color:#999;width:34px;font-weight:700">${p.cod}</td>
+        <td style="padding:6px 9px;border-bottom:1px solid #eee;font-size:14px">${it.qty}× ${p.nome} <span style="font-size:10px;color:#aaa">(${p.unidade})</span></td>
+        <td style="padding:6px 9px;border-bottom:1px solid #eee;font-size:14px;font-weight:700;text-align:right;color:#1a4a35">R$ ${(p.preco * it.qty).toFixed(2).replace('.', ',')}</td>
+      </tr>`
+    }).join('')
+    return `<div style="page-break-inside:avoid;padding:10px 12px;margin-bottom:12px;border-bottom:1px dashed #ddd">
+      ${compactHeader(pedido.clienteNome, pedido.clienteTel)}
+      <table>${rows}</table>
+      ${compactTotal(total, pedido.pagamento)}
+    </div>`
+  }).join('')
+
+// ── Relatório de Pedidos (Pendentes ou Entregues) ───────────────────────────
+export const printRelatorioPedidos = (pedidos, produtos, periodo, status, unidadeLabel) => {
+  const titulo = status === 'entregue' ? 'Pedidos Entregues' : 'Pedidos Pendentes'
+  const lista = pedidos.filter(p => p.status === status)
+  const blocos = lista.length
+    ? buildBlocosCompactos(lista, produtos)
+    : `<div style="text-align:center;padding:50px 20px;color:#aaa;font-size:15px">Nenhum pedido ${status === 'entregue' ? 'entregue' : 'pendente'} neste filtro.</div>`
+
+  const w = window.open('', '_blank')
+  w.document.write(wrapRelatorio(`${titulo} — ${periodo}`, `
+    ${botaoImprimir(`Imprimir (${lista.length})`)}
+    ${relatorioHeader(titulo, periodo, unidadeLabel)}
+    ${blocos}
+    ${relatorioRodape()}`))
+  w.document.close()
+}
+
+// ── Relatório de Estoque (Produto × Saldo atual, org inteira) ───────────────
+// linhas: [{ cod, nome, unidade, saldo: number|null }] — saldo null = produto
+// sem controle de estoque configurado ainda (sem compra confirmada).
+export const printRelatorioEstoque = (linhas, periodo) => {
+  const rows = [...linhas].sort((a, b) => a.cod - b.cod).map(l => `<tr>
+      <td style="padding:9px 12px;border-bottom:1px solid #eee;font-size:13px;color:#999;width:50px;font-weight:700">${l.cod}</td>
+      <td style="padding:9px 12px;border-bottom:1px solid #eee;font-size:15px">${l.nome}${l.unidade ? ` <span style="font-size:11px;color:#aaa">(${l.unidade})</span>` : ''}</td>
+      <td style="padding:9px 12px;border-bottom:1px solid #eee;font-size:17px;font-weight:900;text-align:right;color:${l.saldo == null ? '#ccc' : l.saldo < 0 ? '#c0392b' : '#1a4a35'}">${l.saldo == null ? '—' : l.saldo}</td>
+    </tr>`).join('')
+
+  const w = window.open('', '_blank')
+  w.document.write(wrapRelatorio(`Estoque — ${periodo}`, `
+    ${botaoImprimir('Imprimir')}
+    ${relatorioHeader('Relatório de Estoque', periodo)}
+    <table>
+      <thead><tr>
+        <th style="padding:8px 12px;border-bottom:2px solid #2D6A4F;font-size:11px;text-align:left;color:#2D6A4F;text-transform:uppercase;letter-spacing:0.5px">Cód</th>
+        <th style="padding:8px 12px;border-bottom:2px solid #2D6A4F;font-size:11px;text-align:left;color:#2D6A4F;text-transform:uppercase;letter-spacing:0.5px">Produto</th>
+        <th style="padding:8px 12px;border-bottom:2px solid #2D6A4F;font-size:11px;text-align:right;color:#2D6A4F;text-transform:uppercase;letter-spacing:0.5px">Saldo Atual</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${relatorioRodape()}`))
+  w.document.close()
+}
+
+// ── Relatório de Fechamento (resumo financeiro) ─────────────────────────────
+// dados: { valorVenda, valorCusto, qtdePedidos, qtdeItens, margem } — valorCusto
+// e margem podem vir null (nenhum produto com custo cadastrado no período).
+export const printRelatorioFechamento = (dados, periodo, unidadeLabel) => {
+  const linha = (label, valor) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #eee">
+      <span style="font-size:15px;color:#666;font-weight:600">${label}</span>
+      <span style="font-size:20px;font-weight:900;color:#1a4a35">${valor}</span>
+    </div>`
+
+  const w = window.open('', '_blank')
+  w.document.write(wrapRelatorio(`Fechamento — ${periodo}`, `
+    ${botaoImprimir('Imprimir')}
+    ${relatorioHeader('Relatório de Fechamento', periodo, unidadeLabel)}
+    <div style="border:1px solid #eee;border-radius:14px;overflow:hidden;max-width:480px;margin:0 auto">
+      ${linha('Valor Total Venda', `R$ ${dados.valorVenda}`)}
+      ${linha('Valor Total Custo', dados.valorCusto != null ? `R$ ${dados.valorCusto}` : '—')}
+      ${linha('Qtde. Pedidos', dados.qtdePedidos)}
+      ${linha('Qtde. Itens', dados.qtdeItens)}
+      ${linha('Margem', dados.margem != null ? `${dados.margem}%` : '—')}
+    </div>
+    ${relatorioRodape()}`))
+  w.document.close()
+}
+
 export const printTodos = (pedidos, produtos, periodo) => {
   const pendentes = pedidos
     .filter(p => p.status === 'pendente')

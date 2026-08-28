@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import * as XLSX from 'xlsx'
 import { getPedidos, getTotaisPorProduto, getEntreguesPorProduto } from './lib/store'
-import { calcEstoque, alertaCaixa } from './lib/helpers'
+import { calcEstoque, alertaCaixa, calcTotal, sortByCod } from './lib/helpers'
 import { atualizarDadosOrganizacao } from './lib/auth'
 import {
   listarPeriodos, atualizarPeriodo, criarPeriodoComCopia,
@@ -13,6 +14,7 @@ import { CAT_COR, CATS_ORDEM } from './lib/catalog'
 import { toast, confirmar } from './lib/dialog'
 import { getUnidades } from './lib/unidades'
 import { ehPlanilha, parseTabelaKorin } from './lib/importarPlanilha'
+import { printRelatorioPedidos, printRelatorioEstoque, printRelatorioFechamento } from './lib/print'
 import UnidadesManager from './UnidadesManager'
 import ClientesManager from './ClientesManager'
 
@@ -747,6 +749,208 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
   )
 }
 
+// ── SUB-ABA: RELATÓRIOS ───────────────────────────────────────────────────
+// Hub central de tudo que se imprime/exporta (Config → 🖨️ Relatórios).
+// Filtro de unidade vale pra Pedidos e Fechamento; Estoque é sempre da
+// organização inteira (não existe mais estoque por unidade — ver
+// calcEstoque em lib/helpers.js). Filtro de período é o seletor de período
+// já existente no topo da aba Config (produtos/pedidos aqui já vêm
+// escopados pra ele).
+function TabRelatorios({ produtos, pedidos, periodo, unidades, sobraAnterior = {}, comprasConfirmadas = [] }) {
+  const [filtroUnidade, setFiltroUnidade] = useState('Todas')
+  const [unidadesExport, setUnidadesExport] = useState(new Set(unidades))
+  useEffect(() => { setUnidadesExport(new Set(unidades)) }, [unidades.join('|')])
+
+  const pedidosFiltrados = pedidos.filter(p => filtroUnidade === 'Todas' || (p.unidade || 'Não informada') === filtroUnidade)
+  const unidadeLabel = filtroUnidade === 'Todas' ? null : filtroUnidade
+
+  const toggleUnidadeExport = (u) => {
+    setUnidadesExport(prev => {
+      const next = new Set(prev)
+      if (next.has(u)) next.delete(u); else next.add(u)
+      return next
+    })
+  }
+
+  // ── Planilha pra Korin (movida de Fechamento pra cá) ──────────────────
+  const montarLinhasExport = (pedidosDoGrupo) => {
+    const mp = {}
+    pedidosDoGrupo.forEach(p => {
+      p.itens.forEach(it => {
+        const prod = produtos.find(x => x.id === it.produtoId)
+        if (!prod) return
+        if (!mp[prod.cod]) mp[prod.cod] = { cod: prod.cod, nome: prod.nome, qty: 0, precoCusto: prod.precoCusto ?? null, preco: prod.preco ?? null, qtdCaixa: prod.qtdCaixa > 0 ? prod.qtdCaixa : null }
+        mp[prod.cod].qty += Number(it.qty)
+      })
+    })
+    return Object.values(mp).sort((a, b) => a.cod - b.cod).map(item => {
+      const qtdCaixa  = item.qtdCaixa
+      const caixas    = qtdCaixa ? Math.ceil(item.qty / qtdCaixa) : null
+      const qtdCompra = qtdCaixa ? caixas * qtdCaixa : item.qty
+      const temCusto  = item.precoCusto != null
+      const temVenda  = item.preco != null
+      return {
+        'Cód':                  item.cod,
+        'Descrição':            item.nome,
+        'Qtd. Pedida':          item.qty,
+        'Qtd./Embalagem':       qtdCaixa ?? '',
+        'Embalagens p/ Korin':  caixas ?? '',
+        'Preço Unit. Custo':    temCusto ? item.precoCusto : '',
+        'Preço Total Custo':    temCusto ? Number((qtdCompra * item.precoCusto).toFixed(2)) : '',
+        'Preço Unit. Venda':    temVenda ? item.preco : '',
+        'Preço Total Venda':    temVenda ? Number((item.qty * item.preco).toFixed(2)) : '',
+      }
+    })
+  }
+  const colsExport = [{wch:6},{wch:35},{wch:11},{wch:14},{wch:16},{wch:14},{wch:15},{wch:14},{wch:15}]
+
+  const exportarSeparado = () => {
+    if (unidadesExport.size === 0) { toast('Selecione ao menos uma unidade'); return }
+    const wb = XLSX.utils.book_new()
+    let abasGeradas = 0
+    unidades.filter(u => unidadesExport.has(u)).forEach(u => {
+      const pedidosUnidade = pedidos.filter(p => (p.unidade || 'Não informada') === u)
+      const rows = montarLinhasExport(pedidosUnidade)
+      if (rows.length === 0) return
+      const ws = XLSX.utils.json_to_sheet(rows)
+      ws['!cols'] = colsExport
+      XLSX.utils.book_append_sheet(wb, ws, u.slice(0, 31))
+      abasGeradas++
+    })
+    if (abasGeradas === 0) { toast('Nenhum pedido encontrado para as unidades selecionadas'); return }
+    XLSX.writeFile(wb, `pedido-korin-${periodo.replace('/','-')}.xlsx`)
+  }
+
+  const exportarConsolidado = () => {
+    if (unidadesExport.size === 0) { toast('Selecione ao menos uma unidade'); return }
+    const pedidosDoGrupo = pedidos.filter(p => unidadesExport.has(p.unidade || 'Não informada'))
+    const rows = montarLinhasExport(pedidosDoGrupo)
+    if (rows.length === 0) { toast('Nenhum pedido encontrado para as unidades selecionadas'); return }
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(rows)
+    ws['!cols'] = colsExport
+    XLSX.utils.book_append_sheet(wb, ws, 'Consolidado')
+    XLSX.writeFile(wb, `pedido-korin-consolidado-${periodo.replace('/','-')}.xlsx`)
+  }
+
+  // ── Relatório de Estoque ─────────────────────────────────────────────
+  const totaisTodos = getTotaisPorProduto(pedidos)
+  const totaisEntregues = getEntreguesPorProduto(pedidos)
+  const confirmadoPorProdutoId = {}
+  comprasConfirmadas.forEach(c => { confirmadoPorProdutoId[c.periodoProdutoId] = (confirmadoPorProdutoId[c.periodoProdutoId] || 0) + c.quantidadeUnd })
+
+  const gerarEstoque = () => {
+    const linhas = produtos.map(p => {
+      const totalPedido = totaisTodos[p.id] || 0
+      const sobra = sobraAnterior[p.cod] || 0
+      const confirmado = confirmadoPorProdutoId[p.id] ?? null
+      const { restante } = calcEstoque(p, totalPedido, sobra, confirmado, totaisEntregues[p.id] || 0)
+      return { cod: p.cod, nome: p.nome, unidade: p.unidade, saldo: restante }
+    })
+    printRelatorioEstoque(linhas, periodo)
+  }
+
+  // ── Relatório de Fechamento (resumo financeiro) ─────────────────────
+  const gerarFechamento = () => {
+    const getV = p => calcTotal(p, produtos)
+    const getCusto = p => p.itens.reduce((s, it) => { const pr = produtos.find(x => x.id === it.produtoId); return s + (pr?.precoCusto || 0) * it.qty }, 0)
+    const valorVenda   = pedidosFiltrados.reduce((s, p) => s + getV(p), 0)
+    const valorCustoN  = pedidosFiltrados.reduce((s, p) => s + getCusto(p), 0)
+    const temCusto     = valorCustoN > 0
+    const qtdeItens    = pedidosFiltrados.reduce((s, p) => s + p.itens.reduce((a, i) => a + i.qty, 0), 0)
+    const margem       = temCusto && valorVenda > 0 ? (((valorVenda - valorCustoN) / valorVenda) * 100).toFixed(1) : null
+    printRelatorioFechamento({
+      valorVenda: valorVenda.toFixed(2).replace('.', ','),
+      valorCusto: temCusto ? valorCustoN.toFixed(2).replace('.', ',') : null,
+      qtdePedidos: pedidosFiltrados.length,
+      qtdeItens,
+      margem,
+    }, periodo, unidadeLabel)
+  }
+
+  const qtdPendentes = pedidosFiltrados.filter(p => p.status === 'pendente').length
+  const qtdEntregues = pedidosFiltrados.filter(p => p.status === 'entregue').length
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm">
+        <label className="block text-xs font-bold text-stone-500 mb-1.5">Filtrar por unidade</label>
+        <select value={filtroUnidade} onChange={e => setFiltroUnidade(e.target.value)}
+          className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-green-500 bg-white">
+          <option value="Todas">Todas as unidades</option>
+          {unidades.map(u => <option key={u}>{u}</option>)}
+        </select>
+        <div className="text-xs text-stone-400 mt-1.5">Vale pros relatórios de Pedidos e de Fechamento. Estoque é sempre da organização inteira.</div>
+      </div>
+
+      <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm space-y-2">
+        <div className="text-sm font-black text-stone-700">📋 Pedidos Pendentes</div>
+        <div className="text-xs text-stone-400">{qtdPendentes} pedido{qtdPendentes !== 1 ? 's' : ''} nesse filtro</div>
+        <button onClick={() => printRelatorioPedidos(pedidosFiltrados, produtos, periodo, 'pendente', unidadeLabel)}
+          className="w-full py-3 bg-stone-800 text-white rounded-xl font-black text-sm active:bg-stone-900">
+          🖨️ Gerar relatório
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm space-y-2">
+        <div className="text-sm font-black text-stone-700">✅ Pedidos Entregues</div>
+        <div className="text-xs text-stone-400">{qtdEntregues} pedido{qtdEntregues !== 1 ? 's' : ''} nesse filtro</div>
+        <button onClick={() => printRelatorioPedidos(pedidosFiltrados, produtos, periodo, 'entregue', unidadeLabel)}
+          className="w-full py-3 bg-stone-800 text-white rounded-xl font-black text-sm active:bg-stone-900">
+          🖨️ Gerar relatório
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm space-y-2">
+        <div className="text-sm font-black text-stone-700">📦 Estoque</div>
+        <div className="text-xs text-stone-400">Produto × saldo atual — organização inteira, sem filtro de unidade</div>
+        <button onClick={gerarEstoque}
+          className="w-full py-3 bg-stone-800 text-white rounded-xl font-black text-sm active:bg-stone-900">
+          🖨️ Gerar relatório
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm space-y-2">
+        <div className="text-sm font-black text-stone-700">💰 Fechamento</div>
+        <div className="text-xs text-stone-400">Venda, custo, margem e quantidades desse filtro</div>
+        <button onClick={gerarFechamento}
+          className="w-full py-3 bg-stone-800 text-white rounded-xl font-black text-sm active:bg-stone-900">
+          🖨️ Gerar relatório
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm space-y-3">
+        <div className="text-sm font-black text-stone-700">📊 Planilha pra Korin</div>
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-black text-stone-500 uppercase tracking-widest">Unidades na exportação</div>
+          <button onClick={() => setUnidadesExport(unidadesExport.size === unidades.length ? new Set() : new Set(unidades))}
+            className="text-xs font-bold text-green-700">
+            {unidadesExport.size === unidades.length ? 'Limpar' : 'Selecionar todas'}
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {unidades.map(u => (
+            <button key={u} onClick={() => toggleUnidadeExport(u)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-colors ${unidadesExport.has(u) ? 'bg-green-700 text-white border-green-700' : 'bg-white text-stone-500 border-stone-200'}`}>
+              {u}
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 gap-2">
+          <button onClick={exportarConsolidado}
+            className="w-full py-3.5 bg-green-700 text-white rounded-xl font-black text-sm active:bg-green-800">
+            📦 Pedido único (soma as unidades marcadas)
+          </button>
+          <button onClick={exportarSeparado}
+            className="w-full py-3.5 bg-white text-green-700 border-2 border-green-700 rounded-xl font-black text-sm active:bg-green-50">
+            📄 Separado por unidade (uma aba cada)
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
 export default function WebScreen({ produtos: produtosCorrente, periodo: periodoCorrente, org, onUnidadesChange, onRecarregar, abrirEm, onAbrirEmConsumido, onOrgRefresh }) {
   const orgId = org?.orgId
@@ -911,6 +1115,7 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
   const TABS = [
     { id: 'controles', label: '⚙️ Config' },
     { id: 'produtos',  label: '📦 Estoque' },
+    { id: 'relatorios', label: '🖨️ Relatórios' },
     { id: 'unidades',  label: '📍 Unidades' },
     { id: 'clientes',  label: '👥 Clientes' },
     { id: 'dados',     label: org?.cadastroCompleto ? '🏢 Dados' : '🏢 Dados ⚠️' },
@@ -968,6 +1173,11 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
         <TabProdutos produtos={produtosWeb} pedidos={pedidos} onChange={setProdutosWeb} onSave={handleSaveProdutos} salvando={salvando} somenteLeitura={somenteLeitura}
           sobraAnterior={visualizandoCorrente ? sobraAnterior : {}}
           comprasConfirmadas={comprasConfirmadas} onComprasChange={recarregarComprasConfirmadas} />
+      )}
+      {subTab === 'relatorios' && (
+        <TabRelatorios produtos={produtosWeb} pedidos={pedidos} periodo={periodoSelecionado?.nome || periodoCorrente.nome} unidades={nomesUnidades}
+          sobraAnterior={visualizandoCorrente ? sobraAnterior : {}}
+          comprasConfirmadas={comprasConfirmadas} />
       )}
       {subTab === 'unidades' && (
         <UnidadesManager orgId={orgId} orgSlug={orgSlug} modo="settings" onChange={lista => { setUnidades(lista); onUnidadesChange?.(lista) }} />
