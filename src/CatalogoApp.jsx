@@ -617,12 +617,14 @@ function TelaConfirmacao({ pedido, periodo, org, isEdicao, onEditar }) {
         {/* Info */}
         <div className="bg-green-50 border border-green-100 rounded-2xl px-4 py-4 text-center mb-4">
           <div className="text-base font-bold text-green-700">
-            Você recebe um aviso quando estiver pronto para retirada! 🌿
+            {pedido.status === 'entregue'
+              ? 'Pedido já entregue! ✅'
+              : 'Você recebe um aviso quando estiver pronto para retirada! 🌿'}
           </div>
         </div>
 
-        {/* Botão editar */}
-        {!fechado && (
+        {/* Botão editar — some depois de entregue, pedido já foi separado/registrado */}
+        {!fechado && pedido.status !== 'entregue' && (
           <button onClick={onEditar}
             className="w-full py-4 border-2 border-green-600 text-green-700 rounded-2xl font-black text-lg active:bg-green-50">
             ✏️ Alterar pedido

@@ -90,6 +90,20 @@ export default async function handler(req, res) {
       if (new Date() > limite) return res.status(403).json({ ok: false, error: 'Pedidos encerrados para este período' })
     }
 
+    // Pedido já entregue não pode mais ser alterado pelo catálogo público —
+    // a Dedicante já separou/registrou o que saiu de verdade (ModoEntrega
+    // pode ter ajustado os itens); o membro editando por cima reverteria
+    // isso silenciosamente. A Dedicante continua podendo editar pelo painel
+    // normalmente (não passa por este endpoint).
+    if (pedido.id) {
+      const { data: pedidoAtual, error: pedidoAtualError } = await supabaseAdmin
+        .from('korin_pedidos').select('status').eq('id', pedido.id).eq('org_id', org.id).maybeSingle()
+      if (pedidoAtualError) throw pedidoAtualError
+      if (pedidoAtual?.status === 'entregue') {
+        return res.status(403).json({ ok: false, error: 'Pedido já foi entregue e não pode mais ser alterado' })
+      }
+    }
+
     // "Encerrar pedidos" da unidade bloqueia só pedido NOVO — editar um
     // pedido que já existia antes de encerrar continua permitido (é o
     // próprio cliente ajustando algo que a coordenadora ainda vai entregar).
