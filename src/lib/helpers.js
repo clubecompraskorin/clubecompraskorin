@@ -18,16 +18,18 @@ export const sortByCod = (itens, produtos) =>
 // saber "quanto ainda dá pra vender": aba Estoque, cadastro de Produtos e
 // PDV, pro mesmo produto valer o mesmo saldo em qualquer canal.
 //
-// Só existe depois que pelo menos uma compra foi confirmada — antes disso
-// não há "estoque real" ainda, só demanda (ver alertaCaixa, que cobre essa
-// fase anterior). `totalPedido` soma pedido de qualquer origem/status não
-// cancelado (catálogo, WhatsApp, manual, PDV); `totalEntregue` é o mesmo
-// filtrado só pra status='entregue'. `compraConfirmada` é a soma do
-// histórico de compras desse produto (ver getComprasConfirmadas em
-// lib/periodos.js), incluindo ajustes negativos (perda/quebra).
+// Só retorna "nada" quando não existe NENHUMA informação física real (nem
+// compra confirmada este mês, nem sobra do mês anterior) — sobra sozinha já
+// é estoque físico na mão dela, então já deve aparecer, mesmo antes de
+// confirmar a compra do mês corrente (ver alertaCaixa pra fase anterior a
+// isso). `totalPedido` soma pedido de qualquer origem/status não cancelado
+// (catálogo, WhatsApp, manual, PDV); `totalEntregue` é o mesmo filtrado só
+// pra status='entregue' (PDV já nasce como 'entregue', venda na hora).
+// `compraConfirmada` é a soma do histórico de compras desse produto (ver
+// getComprasConfirmadas em lib/periodos.js), incluindo ajustes negativos.
 export const calcEstoque = (produto, totalPedido, sobra = 0, compraConfirmada = null, totalEntregue = 0) => {
-  if (compraConfirmada == null) return { disponivel: null, restante: null, entregue: 0, reservado: 0 }
-  const disponivel = compraConfirmada + sobra
+  if (compraConfirmada == null && !sobra) return { disponivel: null, restante: null, entregue: 0, reservado: 0 }
+  const disponivel = (compraConfirmada ?? 0) + sobra
   return {
     disponivel,
     restante: disponivel - totalPedido,

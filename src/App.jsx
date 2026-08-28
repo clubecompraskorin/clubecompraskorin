@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { getPedidos, salvarPedido, removerPedido, cancelarPedido, getTotaisPorProduto } from './lib/store'
+import { getPedidos, salvarPedido, removerPedido, cancelarPedido, getTotaisPorProduto, getEntreguesPorProduto } from './lib/store'
 import { useInstallPrompt } from './lib/pwa'
 import { fmt, calcTotal, sortByCod, calcEstoque } from './lib/helpers'
 import { printPedido, printTodos } from './lib/print'
@@ -826,6 +826,7 @@ function ModoEntrega({ pedido, produtos, onCancelar, onFinalizar }) {
 function ProdutosScreen({ produtos, pedidos = [], sobraAnterior = {}, comprasConfirmadas = [], onAdd, onEdit, onDelete }) {
   const cats = [...new Set([...CATS_ORDEM, ...produtos.map(p => p.categoria)])]
   const totais = getTotaisPorProduto(pedidos)
+  const totaisEntregues = getEntreguesPorProduto(pedidos)
   const confirmadoPorProdutoId = {}
   comprasConfirmadas.forEach(c => {
     confirmadoPorProdutoId[c.periodoProdutoId] = (confirmadoPorProdutoId[c.periodoProdutoId] || 0) + c.quantidadeUnd
@@ -847,9 +848,10 @@ function ProdutosScreen({ produtos, pedidos = [], sobraAnterior = {}, comprasCon
             <div className="space-y-2">
               {list.map(prod => {
                 const totalPedido = totais[prod.id] || 0
+                const totalEntregue = totaisEntregues[prod.id] || 0
                 const sobra = sobraAnterior[prod.cod] || 0
                 const confirmado = confirmadoPorProdutoId[prod.id] ?? null
-                const { restante } = calcEstoque(prod, totalPedido, sobra, confirmado)
+                const { restante, entregue, reservado } = calcEstoque(prod, totalPedido, sobra, confirmado, totalEntregue)
                 return (
                 <div key={prod.id} className={`bg-white rounded-2xl border px-3 py-3 flex items-center gap-3 shadow-sm ${prod.foraDaTabela ? 'border-amber-300' : 'border-stone-100'}`}>
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0" style={{ background: CAT_COR[prod.categoria] || '#888' }}>
@@ -865,9 +867,14 @@ function ProdutosScreen({ produtos, pedidos = [], sobraAnterior = {}, comprasCon
                   <div className="flex-shrink-0 text-right">
                     <div className="text-base font-black text-green-700">{fmt(prod.preco)}</div>
                     {restante != null && (
-                      <div className={`text-xs font-bold ${restante < 0 ? 'text-red-600' : restante === 0 ? 'text-amber-600' : 'text-stone-400'}`}>
-                        Restam {restante}
-                      </div>
+                      <>
+                        <div className="text-[11px] text-stone-400 font-semibold whitespace-nowrap">
+                          Entregue: {entregue} · Reservado: {reservado}
+                        </div>
+                        <div className={`text-xs font-black ${restante < 0 ? 'text-red-600' : restante === 0 ? 'text-amber-600' : 'text-stone-500'}`}>
+                          → Saldo: {restante}
+                        </div>
+                      </>
                     )}
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">

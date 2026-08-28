@@ -259,7 +259,7 @@ function TabProdutos({ produtos, pedidos, onChange, onSave, salvando, somenteLei
                     {disponivel != null && (
                       <div className="bg-stone-50 rounded-xl px-3 py-2.5 space-y-1">
                         <div className="text-xs text-stone-500 font-semibold">
-                          Comprado: <b className="text-stone-700">{disponivel}</b>
+                          {confirmado != null ? 'Comprado' : 'Disponível'}: <b className="text-stone-700">{disponivel}</b>
                           {sobra > 0 && <span className="text-teal-700"> (inclui {sobra} de sobra do mês anterior)</span>}
                         </div>
                         <div className="text-xs text-stone-500 font-semibold">
