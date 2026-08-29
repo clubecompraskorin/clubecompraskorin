@@ -348,6 +348,7 @@ export default function Home() {
             <div className="text-xs font-semibold tracking-widest uppercase text-[#14241B]/45">Configuração Guiada</div>
             <div className="mt-3 text-4xl font-semibold text-[#14241B]" style={display}>R$ 150</div>
             <div className="mt-1 text-sm text-[#14241B]/55">única, no cadastro</div>
+            <div className="mt-2 text-xs text-[#14241B]/45">Opcional — contrate só se preferir não configurar por conta própria.</div>
           </div>
           <div className="bg-white rounded-[24px] shadow-xl shadow-[#0F3D24]/10 p-8 text-center">
             <div className="text-xs font-semibold tracking-widest uppercase text-[#14241B]/45">Mensalidade</div>
