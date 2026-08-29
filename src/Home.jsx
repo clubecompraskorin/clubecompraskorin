@@ -345,7 +345,7 @@ export default function Home() {
 
         <div className="mt-10 grid md:grid-cols-2 gap-5 max-w-3xl mx-auto">
           <div className="bg-white rounded-[24px] shadow-xl shadow-[#0F3D24]/10 p-8 text-center">
-            <div className="text-xs font-semibold tracking-widest uppercase text-[#14241B]/45">Taxa de adesão</div>
+            <div className="text-xs font-semibold tracking-widest uppercase text-[#14241B]/45">Configuração Guiada</div>
             <div className="mt-3 text-4xl font-semibold text-[#14241B]" style={display}>R$ 150</div>
             <div className="mt-1 text-sm text-[#14241B]/55">única, no cadastro</div>
           </div>
