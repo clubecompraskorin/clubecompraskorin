@@ -1198,6 +1198,27 @@ de fetch usadas pra popular só disparam GET simples).
 
 ---
 
+## Ideia registrada (não implementada): usar a planilha exata da Korin como molde no export de Fechamento
+
+**Trazida pelo Junior**: em vez do export pra Korin (Config → Relatórios → "Planilha pra Korin") gerar um
+`.xlsx` novo do zero (como faz hoje via `json_to_sheet`), usar o arquivo real que a Korin manda como
+molde — só preencher a quantidade em caixa fechada nele — e abrir uma aba por unidade dentro desse
+mesmo arquivo (mesmo padrão separado/consolidado que já existe hoje). A Dedicante só conferiria e
+mandaria de volta pra Korin, sem estranhar o layout.
+
+**As regras de cálculo continuam as mesmas** (arredondar pra caixa fechada, somar por produto,
+separado vs. consolidado por unidade) — só mudaria o "papel" onde o resultado é escrito.
+
+**Trade-off identificado, ainda sem decisão**: hoje o sistema só guarda os *dados* da planilha
+importada, não o arquivo original — essa ideia exigiria passar a armazenar o `.xlsx` real da Korin e
+escrever de volta em células específicas dele (parecido com o parser de importação, só que na
+direção inversa). Funciona bem enquanto o layout da Korin não mudar, mas cria mais um ponto pra
+manter sincronizado se ela alterar o modelo num mês futuro.
+
+**Status: só ideia, aguardando o Junior decidir se quer seguir.** Nada implementado.
+
+---
+
 ## Pendente / próximos passos
 
 1. ✅ **Comparativo do Dashboard — confirmado pelo Junior em teste real, tudo certo.**
