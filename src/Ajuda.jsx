@@ -1,59 +1,8 @@
 import SiteFooter from './lib/SiteFooter'
+import { PASSOS_GUIA as PASSOS } from './lib/onboardingSteps'
 
 const display = { fontFamily: "'Space Grotesk', sans-serif" }
 const mono = { fontFamily: "'JetBrains Mono', monospace" }
-
-const PASSOS = [
-  {
-    n: '01',
-    titulo: 'Crie sua conta',
-    texto: 'Na tela de entrada, toque em "Ainda não tem conta? Criar agora". Informe o nome do seu clube/grupo, escolha o link do catálogo (ex: meu-clube), e seu email e senha.',
-    img: '/screenshot-criar-conta.jpg',
-    alt: 'Tela de criar conta, com nome do grupo, link do catálogo, email e senha',
-  },
-  {
-    n: '02',
-    titulo: 'Cadastre suas unidades de retirada',
-    texto: 'Logo após criar a conta, o sistema pede pra cadastrar pelo menos um local de retirada — nome e endereço. É obrigatório só nesse primeiro momento; depois você edita quando quiser.',
-    img: '/screenshot-onboarding-unidades.jpg',
-    alt: 'Tela de cadastro das unidades de retirada, logo após criar a conta',
-  },
-  {
-    n: '03',
-    titulo: 'Importe a primeira tabela de preços',
-    texto: 'Na aba Config, toque em "Importar catálogo da Korin" e tire uma foto da tabela de preços, ou suba a planilha oficial da Korin (.xlsx) direto. O sistema lê os produtos e cria o período automaticamente — sem digitar nada.',
-    img: '/screenshot-embalagens.jpg',
-    alt: 'Catálogo importado, com as embalagens de cada produto já configuradas',
-  },
-  {
-    n: '04',
-    titulo: 'Compartilhe o link do catálogo',
-    texto: 'Ainda na aba Config tem um link pronto pra copiar e enviar pros seus membros. Eles pedem direto por ali, sem precisar instalar nada.',
-    img: '/screenshot-link-catalogo.jpg',
-    alt: 'Link do catálogo pronto pra copiar e enviar pros membros',
-  },
-  {
-    n: '05',
-    titulo: 'Acompanhe os pedidos',
-    texto: 'Na aba Pedidos você vê tudo que chegou, pode editar, marcar como entregue ou colar um pedido recebido por WhatsApp.',
-    img: '/screenshot-pedidos-lista.jpg',
-    alt: 'Lista de pedidos recebidos, com total e itens de cada um',
-  },
-  {
-    n: '06',
-    titulo: 'Se tiver representante numa unidade, gere o link de entrega dele',
-    texto: 'Em Config → Unidades, gere o link de entrega daquela unidade (com PIN). O representante abre pelo celular, sem precisar de login completo, separa e confirma a entrega direto por ali — você acompanha tudo em tempo real.',
-    img: '/screenshot-link-entrega-gerar.jpg',
-    alt: 'Link de entrega com PIN gerado pra uma unidade',
-  },
-  {
-    n: '07',
-    titulo: 'Feche a compra do mês',
-    texto: 'Na aba Fechamento, o sistema soma tudo e mostra quantas caixas comprar de cada produto. Dá pra exportar em planilha pra levar direto pra Korin — ou, depois de comprar, reimportar a mesma planilha já preenchida pra confirmar a quantidade real.',
-    img: '/screenshot-resumo.jpg',
-    alt: 'Tela de fechamento mostrando quantas caixas comprar de cada produto',
-  },
-]
 
 const FAQ = [
   {
