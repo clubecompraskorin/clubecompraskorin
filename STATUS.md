@@ -4,7 +4,7 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
-> Última atualização: 28/08/2026. Resumo das entregas recentes (detalhes em cada seção abaixo):
+> Última atualização: 30/08/2026. Resumo das entregas recentes (detalhes em cada seção abaixo):
 > **sessão de lançamento de 28/08 — confirmada OK pelo Junior em teste real**: estoque
 > redesenhado (Alerta de caixa + Comprado/Entregue/Reservado→Sobra, sem mais "caixas abertas"
 > travando o catálogo público); push pro membro avisando abertura/fechamento do catálogo (com
@@ -50,6 +50,10 @@
 > padrão do produto esgotado); e o **artefato técnico publicado foi atualizado** com a
 > importação por planilha (implementada), o gap de integridade produto↔pedido, o link de
 > entrega por PIN e a sobra/compra confirmada.
+>
+> **30/08**: **material comercial publicado** — apresentação em slides (`/apresentacao.html`) e
+> cartões de estudo interativos (`/cartoes.html`), pra divulgar o Clube Unido e ensinar o uso na
+> prática; ver seção dedicada abaixo.
 
 ---
 
@@ -1216,6 +1220,61 @@ direção inversa). Funciona bem enquanto o layout da Korin não mudar, mas cria
 manter sincronizado se ela alterar o modelo num mês futuro.
 
 **Status: só ideia, aguardando o Junior decidir se quer seguir.** Nada implementado.
+
+---
+
+## Material comercial: apresentação em slides e cartões de estudo interativos — publicado
+
+**Pedido do Junior**: material pra divulgar o Clube Unido num grupo de WhatsApp de interessados, e
+conteúdo-base pra gerar material com o NotebookLM (áudio/vídeo overview, apresentação, cartões de
+estudo) sem a IA "viajar" ou inventar informação.
+
+**Trabalho conversacional, sem código**: ajudei a montar os prompts de personalização pro
+NotebookLM pra cada uma dessas ferramentas (cada uma tem campos de customização diferentes —
+Video Overview tem prompt livre; a tela de cartões de estudo não tem, só quantidade/dificuldade).
+Isso não gera artefato de repositório — fica registrado só aqui como contexto, caso o Junior peça
+de novo numa sessão nova.
+
+**O que virou artefato de verdade** — a pedido dele, "sem mexer em nada que já existe":
+
+1. **Apresentação em slides** (`/apresentacao.html`) — 10 slides navegáveis (clique na tela, setas
+   na tela, teclado ← →), contando o fluxo real do sistema: o problema → a solução → a jornada do
+   mês em 4 passos → estoque unificado → histórico de compras → PDV → fechamento → pra quem é.
+   Identidade visual própria (verde-floresta/mostarda sobre papel, tipografia Fraunces + Public
+   Sans + IBM Plex Mono) — página estática isolada, não usa nenhum componente do app.
+2. **Cartões de estudo interativos** (`/cartoes.html`) — 30 cartões (pergunta na frente, resposta
+   ao virar, toque ou clique), organizados em 7 seções na ordem real de uso do app: Primeiros
+   passos (cadastro/criação do período) → Pedidos → Entregas → PDV → Fechamento → Config→Estoque →
+   Config→outras configurações. Conteúdo conferido direto no código-fonte (nomes exatos de
+   botão/aba/tela — ex.: "📥 Confirmar o que foi realmente comprado", "🎪 Iniciar venda no local"),
+   não é texto genérico.
+
+Ambos com tags Open Graph (`og:title`/`og:description`/`og:image`, reaproveitando o `/og-image.png`
+que já existia no projeto) pra aparecer com preview — título, descrição comercial e a marca — ao
+colar o link no WhatsApp; testados em viewport de celular (390px, sem estouro horizontal) e com
+Playwright pra pegar bug de interação antes de publicar. Dois problemas reais encontrados e
+corrigidos nesse teste: a animação de entrada dos slides travava invisível se a pessoa clicasse
+rápido demais entre eles (removida — a troca de slide já tem transição própria, suficiente); e as
+zonas de clique esquerda/direita da apresentação cobriam só 45%+45% da tela, deixando 10% sem
+reação bem no centro (agora 50%/50%).
+
+**Arquivos novos, nada existente tocado** — só `public/apresentacao.html` e `public/cartoes.html`
+(confirmado via `git status`/`git diff` antes de cada commit; nenhuma rota, componente ou config do
+app principal foi alterada).
+
+- `npx vite build` validado a cada mudança.
+- **Status no GitHub**: `b4b951a` (publicação inicial) e `b051578` (documento HTML completo —
+  faltava DOCTYPE/head/body — + tags Open Graph, favicon e o fix da zona de clique), ambos direto
+  na `main`.
+- URLs em produção: `https://clubecompraskorin.vercel.app/apresentacao.html` e
+  `https://clubecompraskorin.vercel.app/cartoes.html`.
+- **Nota**: entre o commit anterior desta sessão (`a2aa42f`) e este trabalho, ~20 commits de uma
+  sessão paralela chegaram na `main` (trava de trial, estoque redesenhado, aba Relatórios, etc. —
+  ver "Sessão de lançamento (28/08)" acima). Rebaseei em cima sem conflito; nada dessa sessão foi
+  alterado.
+- **Ainda não testado pelo Junior**: preview real do link no WhatsApp (as tags foram validadas
+  tecnicamente, mas não visualmente dentro do app do WhatsApp) e navegação num celular de verdade
+  (só testado em viewport simulado).
 
 ---
 
