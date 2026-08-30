@@ -1,0 +1,419 @@
+<title>Clube Unido em Ação</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,600;0,700;1,500;1,600&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --paper:#F0F2E9;
+    --paper-card:#FBFBF5;
+    --paper-line:rgba(24,38,32,.1);
+    --ink:#182620;
+    --ink-soft:#4B5C51;
+    --ink-faint:#7C8A80;
+    --green:#1E4D36;
+    --green-bright:#2F6E4C;
+    --green-deep:#12241B;
+    --paper-on-dark:#EEEFE4;
+    --paper-on-dark-soft:#B9C4B9;
+    --mustard:#C9821F;
+    --mustard-bright:#E0A23E;
+    --shadow:rgba(18,36,27,.16);
+    --radius:18px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Public Sans',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    background-image:
+      linear-gradient(var(--paper-line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--paper-line) 1px,transparent 1px);
+    background-size:36px 36px;
+  }
+  h1,h2,h3{font-family:'Fraunces',Georgia,serif;font-weight:700;margin:0;text-wrap:balance;}
+  p{margin:0;}
+  .mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums;}
+  button{font-family:inherit;}
+
+  .page{max-width:880px;margin:0 auto;padding:clamp(1.25rem,4vw,2.5rem) clamp(1.1rem,4vw,1.75rem) 4rem;}
+
+  /* ---------- header ---------- */
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:1rem;
+    flex-wrap:wrap;
+    margin-bottom:clamp(1.5rem,4vw,2.25rem);
+  }
+  .brand{display:flex;align-items:center;gap:.6rem;}
+  .brand svg{width:26px;height:26px;flex:none;}
+  .brand-text h1{font-size:clamp(1.4rem,3.4vw,1.9rem);line-height:1.1;}
+  .brand-text p{font-family:'IBM Plex Mono';font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin-top:.3rem;}
+  .overall{
+    font-family:'IBM Plex Mono';
+    font-size:.75rem;
+    color:var(--ink-soft);
+    text-align:right;
+  }
+  .overall b{color:var(--ink);}
+
+  /* ---------- section chips ---------- */
+  .sections{
+    display:flex;
+    gap:.6rem;
+    overflow-x:auto;
+    padding-bottom:.35rem;
+    margin-bottom:clamp(1.5rem,4vw,2.25rem);
+    scrollbar-width:thin;
+  }
+  .chip{
+    flex:none;
+    display:flex;
+    align-items:center;
+    gap:.5rem;
+    padding:.6rem 1rem;
+    border-radius:999px;
+    border:1.5px solid var(--paper-line);
+    background:var(--paper-card);
+    color:var(--ink-soft);
+    font-size:.86rem;
+    font-weight:600;
+    cursor:pointer;
+    white-space:nowrap;
+    transition:background .2s,border-color .2s,color .2s,transform .15s;
+  }
+  .chip .n{
+    font-family:'IBM Plex Mono';
+    font-weight:400;
+    font-size:.7rem;
+    opacity:.65;
+  }
+  .chip:hover{border-color:var(--green-bright);color:var(--ink);}
+  .chip:active{transform:scale(.97);}
+  .chip.active{background:var(--green);border-color:var(--green);color:var(--paper-on-dark);}
+  .chip.active .n{color:var(--mustard-bright);opacity:1;}
+  .chip:focus-visible{outline:2px solid var(--mustard);outline-offset:2px;}
+
+  /* ---------- stage ---------- */
+  .stage{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  .stack{
+    position:relative;
+    width:100%;
+    max-width:560px;
+  }
+  .stack::before,.stack::after{
+    content:"";
+    position:absolute;
+    left:50%;
+    bottom:-10px;
+    height:16px;
+    border-radius:0 0 var(--radius) var(--radius);
+    background:var(--paper-card);
+    border:1px solid var(--paper-line);
+    z-index:-1;
+  }
+  .stack::before{width:92%;transform:translateX(-50%);bottom:-8px;}
+  .stack::after{width:84%;transform:translateX(-50%);bottom:-16px;opacity:.7;}
+
+  .flip-zone{
+    perspective:1800px;
+    width:100%;
+  }
+  .card{
+    position:relative;
+    width:100%;
+    min-height:clamp(300px,42vw,360px);
+    cursor:pointer;
+    transform-style:preserve-3d;
+    transition:transform .5s cubic-bezier(.3,.1,.2,1);
+  }
+  .card.flipped{transform:rotateY(180deg);}
+  .face{
+    position:absolute;
+    inset:0;
+    border-radius:var(--radius);
+    backface-visibility:hidden;
+    display:flex;
+    flex-direction:column;
+    padding:clamp(1.75rem,5vw,2.75rem);
+    box-shadow:0 18px 40px -20px var(--shadow);
+  }
+  .face-front{
+    background:var(--paper-card);
+    border:1.5px solid var(--paper-line);
+    color:var(--ink);
+    justify-content:center;
+  }
+  .face-back{
+    background:var(--green);
+    color:var(--paper-on-dark);
+    transform:rotateY(180deg);
+    justify-content:center;
+  }
+  .face .eyebrow{
+    font-family:'IBM Plex Mono';
+    font-size:.72rem;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    margin-bottom:1rem;
+    display:flex;
+    align-items:center;
+    gap:.5rem;
+  }
+  .face-front .eyebrow{color:var(--green-bright);}
+  .face-back .eyebrow{color:var(--mustard-bright);}
+  .face-front .eyebrow::before{content:"?";display:inline-flex;align-items:center;justify-content:center;width:1.3em;height:1.3em;border-radius:50%;border:1.5px solid var(--green-bright);font-family:'Fraunces';font-style:italic;font-size:.85em;}
+  .face-back .eyebrow::before{content:"✓";display:inline-flex;align-items:center;justify-content:center;width:1.3em;height:1.3em;border-radius:50%;background:var(--mustard-bright);color:var(--green-deep);font-size:.75em;font-weight:700;}
+  .face-text{
+    font-size:clamp(1.1rem,2.6vw,1.45rem);
+    line-height:1.42;
+  }
+  .face-front .face-text{font-family:'Fraunces';font-weight:600;text-wrap:balance;}
+  .face-back .face-text{font-family:'Public Sans';font-weight:400;}
+  .face-back .face-text b{font-family:'IBM Plex Mono';font-weight:600;background:rgba(240,242,233,.12);padding:.05em .35em;border-radius:4px;}
+  .tap-hint{
+    position:absolute;
+    bottom:1.1rem;left:0;right:0;
+    text-align:center;
+    font-family:'IBM Plex Mono';
+    font-size:.68rem;
+    letter-spacing:.06em;
+    opacity:.55;
+  }
+
+  /* ---------- nav ---------- */
+  .cardnav{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:1.1rem;
+    margin-top:1.6rem;
+    width:100%;
+    max-width:560px;
+  }
+  .navbtn{
+    width:2.75rem;height:2.75rem;
+    border-radius:50%;
+    border:1.5px solid var(--ink);
+    background:var(--paper-card);
+    color:var(--ink);
+    font-size:1.1rem;
+    cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 8px 18px -12px var(--shadow);
+    transition:background .2s,color .2s,opacity .2s,transform .15s;
+  }
+  .navbtn:hover:not(:disabled){background:var(--mustard);border-color:var(--mustard);color:var(--paper-on-dark);}
+  .navbtn:disabled{opacity:.25;cursor:default;}
+  .navbtn:active:not(:disabled){transform:scale(.93);}
+  .navbtn:focus-visible{outline:2px solid var(--mustard);outline-offset:2px;}
+  .counter{
+    font-family:'IBM Plex Mono';
+    font-size:.82rem;
+    color:var(--ink-soft);
+    min-width:6rem;
+    text-align:center;
+  }
+
+  .dots{
+    display:flex;
+    gap:.4rem;
+    justify-content:center;
+    margin-top:1.1rem;
+  }
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--paper-line);transition:background .2s,transform .2s;}
+  .dot.on{background:var(--green-bright);transform:scale(1.3);}
+
+  footer{
+    text-align:center;
+    margin-top:2.5rem;
+    font-family:'IBM Plex Mono';
+    font-size:.72rem;
+    color:var(--ink-faint);
+    letter-spacing:.03em;
+  }
+
+  @media (max-width:520px){
+    .card{min-height:380px;}
+    header{flex-direction:column;align-items:flex-start;}
+    .overall{text-align:left;}
+  }
+</style>
+
+<div class="page">
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 40 40"><circle cx="16" cy="20" r="12" fill="none" stroke="#C9821F" stroke-width="2"/><circle cx="24" cy="20" r="12" fill="none" stroke="#1E4D36" stroke-width="2"/></svg>
+      <div class="brand-text">
+        <h1>Clube Unido em Ação</h1>
+        <p>Guia de uso, do cadastro ao fechamento</p>
+      </div>
+    </div>
+    <div class="overall mono" id="overall">Seção 1 de 7</div>
+  </header>
+
+  <div class="sections" id="sections"></div>
+
+  <div class="stage">
+    <div class="stack">
+      <div class="flip-zone">
+        <div class="card" id="card" role="button" tabindex="0" aria-label="Cartão de estudo, toque para virar">
+          <div class="face face-front">
+            <span class="eyebrow">Pergunta</span>
+            <p class="face-text" id="frontText"></p>
+            <span class="tap-hint">toque no cartão para ver a resposta</span>
+          </div>
+          <div class="face face-back">
+            <span class="eyebrow">Resposta</span>
+            <p class="face-text" id="backText"></p>
+            <span class="tap-hint">toque para voltar</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cardnav">
+      <button class="navbtn" id="prevBtn" aria-label="Cartão anterior">←</button>
+      <span class="counter mono" id="cardCounter">1 / 5</span>
+      <button class="navbtn" id="nextBtn" aria-label="Próximo cartão">→</button>
+    </div>
+    <div class="dots" id="dots"></div>
+  </div>
+
+  <footer>← → move entre os cartões · espaço ou enter vira o cartão</footer>
+</div>
+
+<script>
+(function(){
+  const DATA = [
+    { id:'inicio', icon:'🗂️', label:'Primeiros passos', cards:[
+      { q:"O sistema ainda não tem nenhum período criado. Por onde eu começo?", a:"Na aba <b>Config</b> aparece o botão <b>📥 Importar primeiro catálogo</b>. É ali que tudo começa: você sobe a planilha (ou foto) de preços da Korin e o sistema monta o catálogo do mês." },
+      { q:"Como faço pra subir a planilha (ou foto) da Korin todo mês?", a:"Aba <b>Config</b> → sub-aba <b>Config</b> → botão <b>📥 Importar catálogo da Korin</b>. Dá pra usar a planilha .xlsx ou tirar foto da tabela impressa — a IA reconhece os produtos." },
+      { q:"Subi a planilha de um mês diferente do período que está aberto agora. O que acontece?", a:"Se o nome do mês não bate com o período atual, o sistema entende que é um mês novo: cria um <b>período novo</b> automaticamente e guarda o mês anterior intacto no histórico." },
+      { q:"Quero adicionar só um produto novo, sem subir a planilha inteira de novo. Dá?", a:"Dá. Na aba <b>Produtos</b>, toque no botão <b>+</b> e preencha nome, preço e embalagem. Isso ajusta só o período atual — não substitui a importação da planilha." },
+      { q:"O sistema encontrou um código de produto que já existia, mas com nome diferente. O que eu faço?", a:"Ele avisa com <b>⚠️ conflito de código</b> na tela de revisão da importação. Você confirma manualmente antes de salvar, pra garantir que não é engano." },
+    ]},
+    { id:'pedidos', icon:'🛒', label:'Pedidos', cards:[
+      { q:"Onde ficam registrados os pedidos dos membros do clube?", a:"Na aba <b>Pedidos 🛒</b>, no menu de baixo." },
+      { q:"Um membro me mandou o pedido pelo WhatsApp. Tem um jeito rápido de lançar isso?", a:"Sim — botão <b>📋 Colar</b> na aba Pedidos. Cola o texto da mensagem, toca em <b>🤖 Interpretar Pedido</b> e a inteligência artificial identifica os itens e quantidades." },
+      { q:"Quero lançar um pedido manualmente, escolhendo item por item.", a:"Botão <b>+</b> (verde) na aba Pedidos. Abre um formulário: nome do membro, unidade de retirada, forma de pagamento — depois você navega pelo catálogo somando os itens." },
+      { q:"Como vejo só os pedidos que os membros fizeram sozinhos pelo link do catálogo, sem contar os que eu lancei?", a:"Ativa o filtro <b>🌐 Só catálogo</b> na aba Pedidos." },
+      { q:"Qual a diferença entre 'Cancelar' e 'Excluir' um pedido?", a:"Pedido que veio do catálogo só pode ser <b>Cancelado</b> (fica no histórico, marcado como cancelado). Pedido manual ou de WhatsApp pode ser <b>Excluído</b> de vez." },
+    ]},
+    { id:'entregas', icon:'🚚', label:'Entregas', cards:[
+      { q:"Onde acompanho o que ainda falta entregar?", a:"Aba <b>Entregas 🚚</b> — separada em duas listas: <b>⏰ Pendentes</b> e <b>✅ Entregues</b>." },
+      { q:"Quantas etapas tem o processo de confirmar uma entrega?", a:"Três: <b>1)</b> Conferir e ajustar os itens, <b>2)</b> Escolher a forma de pagamento, <b>3)</b> Confirmação final com o botão <b>✅ Confirmar Entrega e Recebimento</b>." },
+      { q:"O cliente pagou em dinheiro e vou dar troco. Onde calculo isso?", a:"Na etapa 2 (Pagamento), escolhendo <b>Dinheiro</b> — você digita o valor recebido e o troco é calculado sozinho." },
+      { q:"Posso adicionar um item que o cliente não tinha pedido, na hora da entrega?", a:"Sim — na etapa 1 (Conferir e Ajustar Itens) dá pra buscar e adicionar um item extra, além de ajustar quantidades." },
+    ]},
+    { id:'pdv', icon:'🎪', label:'PDV — venda direta', cards:[
+      { q:"Como eu inicio uma venda direta no balcão, fora do fluxo normal de pedido?", a:"Botão <b>🎪 Iniciar venda no local (PDV)</b>, no topo da aba Pedidos." },
+      { q:"Quais são os passos de uma venda no PDV?", a:"Escolher a <b>unidade</b> → escolher os <b>produtos</b> → informar o <b>membro</b> → escolher a <b>forma de pagamento</b> → confirmar a venda." },
+      { q:"A venda feita no PDV desconta de qual estoque?", a:"Do <b>mesmo estoque geral</b> do Dedicante — não existe estoque separado por unidade. A venda no PDV conta junto com todos os outros pedidos." },
+      { q:"Depois de confirmar uma venda no PDV, ela já entra como entregue?", a:"Sim — diferente do pedido normal, a venda do PDV é registrada como <b>já entregue e paga</b> na hora, sem passar pela etapa de entrega." },
+    ]},
+    { id:'fechamento', icon:'📊', label:'Fechamento', cards:[
+      { q:"Onde gero a planilha pra mandar o pedido consolidado pra Korin?", a:"Aba <b>Fechamento</b> → Resumo → exportação: escolha as unidades e gere em <b>📦 Pedido único</b> (tudo somado) ou <b>📄 Separado por unidade</b>." },
+      { q:"A Korin entregou a mercadoria. O que eu faço no sistema pra atualizar o estoque de verdade?", a:"Aba <b>Fechamento</b> → botão <b>📥 Confirmar o que foi realmente comprado</b>. Sobe a mesma planilha, agora com a quantidade que você realmente comprou." },
+      { q:"Esse passo de 'confirmar compra' muda alguma coisa além do estoque?", a:"É exatamente esse passo que troca o estoque de <b>estimativa</b> (quantas caixas você acha que abriu) pro número <b>real e confirmado</b>." },
+      { q:"Como arquivo um período antigo, pra não editar mais sem querer?", a:"Navega até esse período no seletor do topo e usa o botão <b>📦 Arquivar</b>. Um período arquivado pode ser reaberto depois com <b>🔓 Desarquivar</b>." },
+      { q:"Onde vejo comparações e estatísticas com o mês anterior?", a:"Aba Fechamento → sub-aba <b>Dashboard</b>: ticket médio, membros atendidos, produtos mais vendidos e comparação com o período anterior." },
+    ]},
+    { id:'estoque', icon:'📦', label:'Config → Estoque', cards:[
+      { q:"Onde configuro quantas unidades vêm em cada caixa de um produto?", a:"Aba <b>Config</b> → sub-aba <b>Estoque</b> → campo <b>Un./embalagem</b> de cada produto." },
+      { q:"Fiz uma segunda compra no meio do mês (por causa do PDV). Como registro sem perder a primeira compra?", a:"Abre <b>📋 Histórico de compras</b> do produto e usa <b>Registrar compra extra</b>. Cada registro soma ao estoque — nunca substitui o anterior." },
+      { q:"Lancei um valor errado no histórico de compras. Como corrijo?", a:"Abre o histórico do produto e apaga a linha errada com o <b>🗑️</b> — depois é só registrar de novo, certinho." },
+    ]},
+    { id:'config', icon:'⚙️', label:'Config → outras', cards:[
+      { q:"Como fecho os pedidos de uma unidade específica, sem mexer nas outras?", a:"Config → <b>Unidades</b> → botão <b>🔒 Encerrar pedidos desta unidade</b>, na unidade desejada." },
+      { q:"Onde fica o link que os membros usam pra fazer pedido sozinhos?", a:"Config → sub-aba Config, seção <b>Configuração avulsa</b> → <b>Link para membros</b>." },
+      { q:"Como fecho o catálogo do mês inteiro, pra ninguém mais conseguir pedir?", a:"Config → sub-aba Config → card <b>Status do período</b> → botão <b>Fechar</b>." },
+      { q:"Pra que serve a aba Dados?", a:"Guarda a identificação do responsável (CPF/CNPJ) — não aparece pros membros. É só um cadastro pra caso o sistema passe a ter cobrança ou integração no futuro." },
+    ]},
+  ];
+
+  const sectionsEl = document.getElementById('sections');
+  const overallEl = document.getElementById('overall');
+  const cardEl = document.getElementById('card');
+  const frontText = document.getElementById('frontText');
+  const backText = document.getElementById('backText');
+  const cardCounter = document.getElementById('cardCounter');
+  const dotsEl = document.getElementById('dots');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+
+  let sIdx = 0, cIdx = 0, flipped = false;
+
+  DATA.forEach((s, i) => {
+    const chip = document.createElement('button');
+    chip.className = 'chip';
+    chip.innerHTML = s.icon + ' ' + s.label + ' <span class="n">' + s.cards.length + '</span>';
+    chip.addEventListener('click', () => { sIdx = i; cIdx = 0; flipped = false; render(); chip.blur(); });
+    sectionsEl.appendChild(chip);
+  });
+  const chips = Array.from(sectionsEl.children);
+
+  function renderDots(){
+    dotsEl.innerHTML = '';
+    DATA[sIdx].cards.forEach((_, i) => {
+      const d = document.createElement('span');
+      d.className = 'dot' + (i === cIdx ? ' on' : '');
+      dotsEl.appendChild(d);
+    });
+  }
+
+  function render(){
+    const section = DATA[sIdx];
+    const card = section.cards[cIdx];
+    chips.forEach((c, i) => c.classList.toggle('active', i === sIdx));
+    overallEl.textContent = 'Seção ' + (sIdx + 1) + ' de ' + DATA.length;
+    frontText.textContent = card.q;
+    backText.innerHTML = card.a;
+    cardCounter.textContent = (cIdx + 1) + ' / ' + section.cards.length;
+    cardEl.classList.toggle('flipped', flipped);
+    prevBtn.disabled = (sIdx === 0 && cIdx === 0);
+    nextBtn.disabled = (sIdx === DATA.length - 1 && cIdx === section.cards.length - 1);
+    renderDots();
+  }
+
+  function flip(){ flipped = !flipped; cardEl.classList.toggle('flipped', flipped); }
+
+  function goNext(){
+    flipped = false;
+    const section = DATA[sIdx];
+    if(cIdx < section.cards.length - 1){ cIdx++; }
+    else if(sIdx < DATA.length - 1){ sIdx++; cIdx = 0; }
+    else return;
+    render();
+  }
+  function goPrev(){
+    flipped = false;
+    if(cIdx > 0){ cIdx--; }
+    else if(sIdx > 0){ sIdx--; cIdx = DATA[sIdx].cards.length - 1; }
+    else return;
+    render();
+  }
+
+  cardEl.addEventListener('click', flip);
+  prevBtn.addEventListener('click', () => { goPrev(); prevBtn.blur(); });
+  nextBtn.addEventListener('click', () => { goNext(); nextBtn.blur(); });
+  window.addEventListener('keydown', (e) => {
+    if(e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    if(e.key === 'ArrowRight'){ e.preventDefault(); goNext(); return; }
+    if(e.key === 'ArrowLeft'){ e.preventDefault(); goPrev(); return; }
+    if(e.key === ' ' || e.key === 'Enter'){
+      // a focused nav button/chip handles its own space/enter activation natively
+      if(e.target && e.target.closest && e.target.closest('button')) return;
+      e.preventDefault();
+      flip();
+    }
+  });
+
+  render();
+})();
+</script>
