@@ -47,27 +47,28 @@ export default function GuiaTour({ aberto, onFechar }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#14241B]/60 backdrop-blur-sm px-4 py-6"
+      className="fixed inset-0 z-50 overflow-y-auto bg-[#14241B]/60 backdrop-blur-sm"
       onClick={onFechar}
       role="dialog"
       aria-modal="true"
       aria-label="Guia passo a passo do Clube Unido"
     >
-      <div
-        className="relative w-full max-w-3xl bg-[#F6F2EA] rounded-[28px] shadow-2xl shadow-[#0F3D24]/30 overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={onFechar}
-          aria-label="Fechar guia"
-          className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-white/80 hover:bg-white text-[#14241B]/60 hover:text-[#14241B] flex items-center justify-center transition-colors"
+      <div className="min-h-full flex items-center justify-center px-4 py-6">
+        <div
+          className="relative w-full max-w-3xl bg-[#F6F2EA] rounded-[28px] shadow-2xl shadow-[#0F3D24]/30 overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
         >
-          ✕
-        </button>
+          <button
+            onClick={onFechar}
+            aria-label="Fechar guia"
+            className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-white/80 hover:bg-white text-[#14241B]/60 hover:text-[#14241B] flex items-center justify-center transition-colors"
+          >
+            ✕
+          </button>
 
-        <div className="grid md:grid-cols-2 gap-0">
+          <div className="grid md:grid-cols-2 gap-0">
           {/* AVATAR + CHAT */}
-          <div className="p-7 md:p-9 flex flex-col">
+          <div className="p-5 sm:p-7 md:p-9 flex flex-col">
             <div className="flex items-center gap-3 mb-1">
               <div
                 className="w-11 h-11 rounded-full bg-[#1A5C38] text-white flex items-center justify-center font-semibold flex-shrink-0"
@@ -81,7 +82,7 @@ export default function GuiaTour({ aberto, onFechar }) {
               </div>
             </div>
 
-            <div className="mt-5 bg-white rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm border border-[#14241B]/5 min-h-[132px]">
+            <div className="mt-5 bg-white rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm border border-[#14241B]/5 min-h-[100px] sm:min-h-[132px]">
               <div className="font-semibold text-[#14241B]" style={display}>{p.titulo}</div>
               <p className="mt-2 text-[0.95rem] text-[#14241B]/75 leading-relaxed">
                 {textoVisivel}
@@ -130,8 +131,8 @@ export default function GuiaTour({ aberto, onFechar }) {
           </div>
 
           {/* TELA MOCKADA */}
-          <div className="bg-[#EFEAE0] flex items-center justify-center p-7 md:p-9">
-            <div className="w-full max-w-[280px] bg-white rounded-2xl shadow-xl shadow-[#0F3D24]/15 overflow-hidden border border-[#14241B]/5">
+          <div className="bg-[#EFEAE0] flex items-center justify-center p-5 sm:p-7 md:p-9">
+            <div className="w-full max-w-[200px] sm:max-w-[280px] bg-white rounded-2xl shadow-xl shadow-[#0F3D24]/15 overflow-hidden border border-[#14241B]/5">
               <div className="flex items-center gap-1.5 px-3 py-2.5 bg-[#F6F2EA] border-b border-[#14241B]/5">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#14241B]/15" />
                 <span className="w-2.5 h-2.5 rounded-full bg-[#14241B]/15" />
@@ -144,6 +145,7 @@ export default function GuiaTour({ aberto, onFechar }) {
                 className={`w-full h-auto block ${REDUZIR_MOVIMENTO ? '' : 'animate-[fadeIn_.35s_ease]'}`}
               />
             </div>
+          </div>
           </div>
         </div>
       </div>
