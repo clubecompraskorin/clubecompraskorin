@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getSession, onAuthChange, signIn, signOut, signUpSemOrganizacao, isPlatformAdmin } from './lib/auth'
-import { getOrganizacoesGestor, getPedidosCountPorOrg, setOrgAtivo, setPagoAte } from './lib/platform'
+import { getOrganizacoesGestor, getPedidosCountPorOrg, setOrgAtivo, setPagoAte, getCobrancasGestor, processarCancelamento, descartarCancelamento } from './lib/platform'
 
 const display = { fontFamily: "'Space Grotesk', sans-serif" }
 const mono = { fontFamily: "'JetBrains Mono', monospace" }
@@ -76,6 +76,60 @@ function StatusPagamento({ org }) {
   return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">trial até {fmtData(org.trial_fim)}</span>
 }
 
+function AssinaturaBadge({ status }) {
+  if (status === 'ativa') return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">assinatura ativa</span>
+  if (status === 'cancelada') return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">assinatura cancelada</span>
+  return null
+}
+
+function CobrancasResumo({ lista }) {
+  if (!lista?.length) return <div className="text-xs text-white/30 mt-1">Nenhuma cobrança gerada ainda</div>
+  const ultima = lista[0]
+  const rotuloStatus = { pago: '✅ paga', pendente: '⏳ pendente', vencido: '🔴 vencida', cancelado: '⚪ cancelada' }
+  const rotuloTipo = { mensalidade: 'Mensalidade', configuracao_guiada: 'Config. Guiada' }
+  return (
+    <div className="text-xs text-white/40 mt-1">
+      {lista.length} cobrança{lista.length > 1 ? 's' : ''} · última: {rotuloTipo[ultima.tipo]} R$ {Number(ultima.valor).toFixed(2).replace('.', ',')} {rotuloStatus[ultima.status]}
+    </div>
+  )
+}
+
+function PedidoCancelamento({ org, onResolvido }) {
+  const [processando, setProcessando] = useState(null) // 'efetivar' | 'ignorar' | null
+
+  const efetivar = async () => {
+    setProcessando('efetivar')
+    const r = await processarCancelamento(org.id)
+    setProcessando(null)
+    if (r.ok) onResolvido(org.id, { assinatura_status: 'cancelada', cancelamento_solicitado_em: null })
+  }
+
+  const ignorar = async () => {
+    setProcessando('ignorar')
+    const r = await descartarCancelamento(org.id)
+    setProcessando(null)
+    if (r.ok) onResolvido(org.id, { cancelamento_solicitado_em: null })
+  }
+
+  return (
+    <div className="mt-2 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 flex flex-col sm:flex-row sm:items-center gap-2">
+      <div className="text-xs text-amber-400 flex-1">
+        🟠 Cancelamento pedido em {fmtData(org.cancelamento_solicitado_em)}
+      </div>
+      <div className="flex gap-1.5 flex-shrink-0">
+        <button onClick={ignorar} disabled={processando}
+          className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-white/5 text-white/50 hover:bg-white/10 disabled:opacity-40">
+          {processando === 'ignorar' ? '...' : 'Ignorar'}
+        </button>
+        <button onClick={efetivar} disabled={processando}
+          className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-40">
+          {processando === 'efetivar' ? '...' : 'Efetivar cancelamento'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function MarcarPago({ org, onSalvo }) {
   const [data, setData] = useState(org.pago_ate || '')
   const [salvando, setSalvando] = useState(false)
@@ -103,16 +157,19 @@ function MarcarPago({ org, onSalvo }) {
 function Dashboard() {
   const [orgs, setOrgs] = useState([])
   const [contagem, setContagem] = useState({})
+  const [cobrancas, setCobrancas] = useState({})
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [togglingId, setTogglingId] = useState(null)
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [lista, ped] = await Promise.all([getOrganizacoesGestor(), getPedidosCountPorOrg()])
-    setOrgs(lista); setContagem(ped)
+    const [lista, ped, cob] = await Promise.all([getOrganizacoesGestor(), getPedidosCountPorOrg(), getCobrancasGestor()])
+    setOrgs(lista); setContagem(ped); setCobrancas(cob)
     setLoading(false)
   }, [])
+
+  const atualizarOrg = (id, patch) => setOrgs(prev => prev.map(o => o.id === id ? { ...o, ...patch } : o))
 
   useEffect(() => { carregar() }, [carregar])
 
@@ -176,6 +233,7 @@ function Dashboard() {
                         {org.ativo ? 'ativa' : 'inativa'}
                       </span>
                       <StatusPagamento org={org} />
+                      <AssinaturaBadge status={org.assinatura_status} />
                       {!completo && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">cadastro incompleto</span>
                       )}
@@ -188,6 +246,10 @@ function Dashboard() {
                     <div className="mt-2">
                       <MarcarPago org={org} onSalvo={(id, pagoAte) => setOrgs(prev => prev.map(o => o.id === id ? { ...o, pago_ate: pagoAte } : o))} />
                     </div>
+                    <CobrancasResumo lista={cobrancas[org.id]} />
+                    {org.cancelamento_solicitado_em && (
+                      <PedidoCancelamento org={org} onResolvido={atualizarOrg} />
+                    )}
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div className="text-xs text-white/30" style={mono}>{fmtData(org.created_at)}</div>

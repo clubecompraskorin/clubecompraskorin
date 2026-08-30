@@ -5,7 +5,11 @@
     { "source": "/ajuda", "destination": "/ajuda.html" },
     { "source": "/pedido", "destination": "/pedido.html" },
     { "source": "/:slug/pedido", "destination": "/pedido.html" },
-    { "source": "/:slug/entrega", "destination": "/entrega.html" }
+    { "source": "/:slug/entrega", "destination": "/entrega.html" },
+    { "source": "/api/manifest-catalogo", "destination": "/api/manifest?tipo=catalogo" },
+    { "source": "/api/manifest-entrega", "destination": "/api/manifest?tipo=entrega" },
+    { "source": "/api/asaas-cobranca", "destination": "/api/asaas?mode=cobranca" },
+    { "source": "/api/asaas-webhook", "destination": "/api/asaas?mode=webhook" }
   ],
   "crons": [
     { "path": "/api/membros", "schedule": "0 8 * * *" }
