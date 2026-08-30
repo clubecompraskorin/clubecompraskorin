@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import { getPedidos, getTotaisPorProduto, getEntreguesPorProduto } from './lib/store'
 import { calcEstoque, alertaCaixa, calcTotal, sortByCod } from './lib/helpers'
-import { atualizarDadosOrganizacao } from './lib/auth'
+import { atualizarDadosOrganizacao, solicitarCancelamentoAssinatura } from './lib/auth'
+import { criarCobranca, listarCobrancas } from './lib/asaas'
 import {
   listarPeriodos, atualizarPeriodo, criarPeriodoComCopia,
   getProdutosDoPeriodo, salvarProdutoNoPeriodo, substituirProdutosDoPeriodo,
@@ -400,6 +401,139 @@ function ModalHistoricoCompra({ produto, entradas, somenteLeitura, onClose, onCh
               {salvando ? '⟳ Salvando…' : '+ Lançar'}
             </button>
           </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── SUB-ABA: FINANCEIRO ──────────────────────────────────────────────────────
+// Configuração Guiada (pagamento único) e Mensalidade (assinatura recorrente)
+// via Asaas. Trava atrás do cadastro completo — servidor confere de novo em
+// api/asaas-cobranca.js, isso aqui é só a experiência, não a segurança.
+function TabFinanceiro({ org, unidadesCount, onIrParaDados, onSalvo }) {
+  const [cobrancas, setCobrancas] = useState([])
+  const [carregando, setCarregando] = useState(true)
+  const [processando, setProcessando] = useState(null) // 'configuracao_guiada' | 'mensalidade' | 'cancelar' | null
+
+  useEffect(() => {
+    if (!org?.orgId || !org?.cadastroCompleto) { setCarregando(false); return }
+    listarCobrancas(org.orgId).then(lista => { setCobrancas(lista); setCarregando(false) })
+  }, [org?.orgId, org?.cadastroCompleto])
+
+  if (!org?.cadastroCompleto) {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-6 text-center">
+        <div className="text-3xl mb-2">📋</div>
+        <div className="font-black text-amber-800 mb-1">Complete seu cadastro primeiro</div>
+        <p className="text-sm text-amber-700 mb-4">
+          Pra contratar a Configuração Guiada ou assinar a mensalidade, precisamos do seu nome e CPF/CNPJ.
+        </p>
+        <button onClick={onIrParaDados}
+          className="px-5 py-3 bg-amber-600 text-white rounded-xl font-black text-sm active:bg-amber-700">
+          Completar cadastro
+        </button>
+      </div>
+    )
+  }
+
+  if (carregando) return <div className="text-center py-12 text-stone-400 text-sm">Carregando…</div>
+
+  const valorMensalidade = 49.90 + Math.max(0, (unidadesCount || 1) - 1) * 9.90
+  const cobrancaPendente = (tipo) => cobrancas.find(c => c.tipo === tipo && c.status === 'pendente')
+  const cobrancaPaga = (tipo) => cobrancas.find(c => c.tipo === tipo && c.status === 'pago')
+
+  const contratar = async (tipo) => {
+    setProcessando(tipo)
+    const r = await criarCobranca(tipo)
+    setProcessando(null)
+    if (!r.ok) { toast(r.error); return }
+    window.open(r.link, '_blank')
+    listarCobrancas(org.orgId).then(setCobrancas)
+  }
+
+  const pedirCancelamento = async () => {
+    const ok = await confirmar(`Sua assinatura continua ativa até ${fmtData(org.pagoAte)}. Depois disso, o acesso é bloqueado até você reativar.\n\nConfirma o pedido de cancelamento?`)
+    if (!ok) return
+    setProcessando('cancelar')
+    const r = await solicitarCancelamentoAssinatura(org.orgId)
+    setProcessando(null)
+    if (r.ok) { toast('Pedido de cancelamento enviado'); onSalvo?.() }
+    else toast('Erro: ' + r.error)
+  }
+
+  const hoje = new Date().toISOString().slice(0, 10)
+  const trialAtivo = org.trialFim && hoje <= org.trialFim
+  const vencidoSemPagar = org.trialFim && hoje > org.trialFim && (!org.pagoAte || hoje > org.pagoAte)
+  const cgPaga = cobrancaPaga('configuracao_guiada')
+  const cgPendente = cobrancaPendente('configuracao_guiada')
+  const mensPendente = cobrancaPendente('mensalidade')
+
+  return (
+    <div className="space-y-4">
+      {/* CONFIGURAÇÃO GUIADA */}
+      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+        <div className="text-xs font-black tracking-widest uppercase text-stone-400 mb-1">Configuração Guiada</div>
+        <div className="flex items-baseline gap-2 mb-2">
+          <span className="text-2xl font-black text-stone-800">{fmt(150)}</span>
+          <span className="text-sm text-stone-400">pagamento único</span>
+        </div>
+        <p className="text-sm text-stone-500 mb-4">A gente configura o catálogo e as unidades pra você, do zero.</p>
+
+        {cgPaga ? (
+          <div className="text-sm font-bold text-green-700">✅ Contratada em {fmtData(cgPaga.pago_em?.slice(0, 10))}</div>
+        ) : cgPendente ? (
+          <a href={cgPendente.link_pagamento} target="_blank" rel="noopener noreferrer"
+            className="block text-center w-full py-3 bg-amber-100 text-amber-800 rounded-xl font-black text-sm">
+            Pagamento pendente — continuar
+          </a>
+        ) : (
+          <button onClick={() => contratar('configuracao_guiada')} disabled={processando === 'configuracao_guiada'}
+            className="w-full py-3 bg-stone-800 text-white rounded-xl font-black text-sm active:bg-stone-900 disabled:opacity-50">
+            {processando === 'configuracao_guiada' ? '⟳ Gerando...' : 'Contratar'}
+          </button>
+        )}
+      </div>
+
+      {/* MENSALIDADE */}
+      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+        <div className="text-xs font-black tracking-widest uppercase text-stone-400 mb-1">Mensalidade</div>
+        <div className="flex items-baseline gap-2 mb-2">
+          <span className="text-2xl font-black text-stone-800">{fmt(valorMensalidade)}</span>
+          <span className="text-sm text-stone-400">por mês · {unidadesCount || 1} {unidadesCount === 1 ? 'unidade' : 'unidades'}</span>
+        </div>
+
+        {org.assinaturaStatus === 'ativa' ? (
+          <>
+            <div className="text-sm font-bold text-green-700 mb-3">✅ Ativa até {fmtData(org.pagoAte)}</div>
+            {org.cancelamentoSolicitadoEm ? (
+              <div className="text-xs text-stone-500 bg-stone-50 rounded-xl px-3 py-2.5">
+                Cancelamento solicitado — acesso continua até {fmtData(org.pagoAte)}.
+              </div>
+            ) : (
+              <button onClick={pedirCancelamento} disabled={processando === 'cancelar'}
+                className="text-xs text-stone-400 underline active:text-stone-600">
+                Quero cancelar minha assinatura
+              </button>
+            )}
+          </>
+        ) : mensPendente ? (
+          <a href={mensPendente.link_pagamento} target="_blank" rel="noopener noreferrer"
+            className="block text-center w-full py-3 bg-amber-100 text-amber-800 rounded-xl font-black text-sm">
+            Pagamento pendente — continuar
+          </a>
+        ) : (
+          <>
+            <div className="text-sm mb-3">
+              {org.assinaturaStatus === 'cancelada' && <span className="text-stone-500">Assinatura cancelada — acesso até {fmtData(org.pagoAte)}.</span>}
+              {org.assinaturaStatus === 'nunca_assinou' && trialAtivo && <span className="text-amber-600 font-semibold">Teste grátis até {fmtData(org.trialFim)}.</span>}
+              {org.assinaturaStatus === 'nunca_assinou' && vencidoSemPagar && <span className="text-red-600 font-semibold">Teste encerrado — assine pra continuar.</span>}
+            </div>
+            <button onClick={() => contratar('mensalidade')} disabled={processando === 'mensalidade'}
+              className="w-full py-3 bg-green-700 text-white rounded-xl font-black text-sm active:bg-green-800 disabled:opacity-50">
+              {processando === 'mensalidade' ? '⟳ Gerando...' : org.assinaturaStatus === 'cancelada' ? 'Reativar assinatura' : 'Assinar mensalidade'}
+            </button>
+          </>
         )}
       </div>
     </div>
@@ -1136,6 +1270,7 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
     { id: 'unidades',  label: '📍 Unidades' },
     { id: 'clientes',  label: '👥 Clientes' },
     { id: 'dados',     label: org?.cadastroCompleto ? '🏢 Dados' : '🏢 Dados ⚠️' },
+    { id: 'financeiro', label: '💳 Financeiro' },
   ]
 
   return (
@@ -1204,6 +1339,9 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
       )}
       {subTab === 'dados' && (
         <TabDados org={org} onSalvo={() => onOrgRefresh?.()} />
+      )}
+      {subTab === 'financeiro' && (
+        <TabFinanceiro org={org} unidadesCount={unidades.length} onIrParaDados={() => setSubTab('dados')} onSalvo={() => onOrgRefresh?.()} />
       )}
 
       {modalImportar && (

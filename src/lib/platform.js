@@ -4,10 +4,34 @@ export const getOrganizacoesGestor = async () => {
   if (!supabase) return []
   const { data, error } = await supabase
     .from('organizacoes')
-    .select('id, slug, nome, ativo, plano, created_at, responsavel_nome, razao_social, documento, documento_tipo, trial_fim, pago_ate')
+    .select('id, slug, nome, ativo, plano, created_at, responsavel_nome, razao_social, documento, documento_tipo, trial_fim, pago_ate, assinatura_status, cancelamento_solicitado_em')
     .order('created_at', { ascending: false })
   if (error) { console.error(error); return [] }
   return data || []
+}
+
+// Todas as cobranças (Configuração Guiada + mensalidade) de todas as
+// organizações — RLS de platform_admin já libera a leitura, igual korin_pedidos.
+export const getCobrancasGestor = async () => {
+  if (!supabase) return {}
+  const { data } = await supabase.from('cobrancas').select('*').order('created_at', { ascending: false })
+  const porOrg = {}
+  ;(data || []).forEach(c => { (porOrg[c.org_id] ||= []).push(c) })
+  return porOrg
+}
+
+export const processarCancelamento = async (orgId) => {
+  if (!supabase) return { ok: false, error: 'Sem conexão' }
+  const { error } = await supabase.rpc('platform_admin_processar_cancelamento', { p_org_id: orgId })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
+export const descartarCancelamento = async (orgId) => {
+  if (!supabase) return { ok: false, error: 'Sem conexão' }
+  const { error } = await supabase.rpc('platform_admin_descartar_cancelamento', { p_org_id: orgId })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
 }
 
 // Conta pedidos por organização — RLS de platform_admin já libera a leitura.

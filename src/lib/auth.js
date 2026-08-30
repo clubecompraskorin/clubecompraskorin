@@ -82,7 +82,7 @@ export const getOrgDoUsuario = async () => {
   if (!supabase) return null
   const { data, error } = await supabase
     .from('org_members')
-    .select('org_id, role, organizacoes ( id, slug, nome, plano, ativo, responsavel_nome, razao_social, documento, documento_tipo, trial_fim, pago_ate )')
+    .select('org_id, role, organizacoes ( id, slug, nome, plano, ativo, responsavel_nome, razao_social, documento, documento_tipo, trial_fim, pago_ate, assinatura_status, cancelamento_solicitado_em )')
     .limit(1)
     .maybeSingle()
   if (error || !data) return null
@@ -105,7 +105,19 @@ export const getOrgDoUsuario = async () => {
     trialFim: o?.trial_fim || null,
     pagoAte: o?.pago_ate || null,
     bloqueado,
+    assinaturaStatus: o?.assinatura_status || 'nunca_assinou',
+    cancelamentoSolicitadoEm: o?.cancelamento_solicitado_em || null,
   }
+}
+
+// Sinaliza que a Dedicante quer cancelar a mensalidade — não cancela na hora,
+// só registra o pedido. O acesso continua normal até pago_ate; quem efetiva
+// o cancelamento é o gestor da plataforma, em /gestor.
+export const solicitarCancelamentoAssinatura = async (orgId) => {
+  if (!supabase) return { ok: false, error: 'Sem conexão' }
+  const { error } = await supabase.rpc('solicitar_cancelamento_assinatura', { p_org_id: orgId })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
 }
 
 // Salva nome do responsável / razão social / CPF-CNPJ — não bloqueia nada,
