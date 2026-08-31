@@ -4,7 +4,7 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
-> Última atualização: 30/08/2026. Resumo das entregas recentes (detalhes em cada seção abaixo):
+> Última atualização: 31/08/2026. Resumo das entregas recentes (detalhes em cada seção abaixo):
 > **sessão de lançamento de 28/08 — confirmada OK pelo Junior em teste real**: estoque
 > redesenhado (Alerta de caixa + Comprado/Entregue/Reservado→Sobra, sem mais "caixas abertas"
 > travando o catálogo público); push pro membro avisando abertura/fechamento do catálogo (com
@@ -54,6 +54,30 @@
 > **30/08**: **material comercial publicado** — apresentação em slides (`/apresentacao.html`) e
 > cartões de estudo interativos (`/cartoes.html`), pra divulgar o Clube Unido e ensinar o uso na
 > prática; ver seção dedicada abaixo.
+>
+> **30-31/08 (sessão seguinte)**: **guia interativo (avatar + tour) na Home implementado e
+> mesclado** — botão "Como funciona" abre modal com avatar narrando os 7 passos (efeito de
+> digitação) ao lado de mockup de navegador com print real de cada tela, em vez de navegar pra
+> `/ajuda`; bug de responsividade (modal mais alto que a viewport, sem scroll) encontrado e
+> corrigido logo em seguida; **integração com Asaas implementada e mesclada** — módulo
+> Financeiro no painel (Configuração Guiada R$150 avulsa, Mensalidade recorrente por unidade,
+> pedido de cancelamento que só sinaliza pro gestor efetivar), webhook idempotente que confirma
+> pagamento e libera acesso sozinho, migração de banco (colunas em `organizacoes` + tabela
+> `cobrancas` + RPCs) e visibilidade completa no `/gestor` — **no processo, descoberto e corrigido
+> um limite real do Vercel Hobby (máx. 12 Serverless Functions por deploy)**, resolvido
+> consolidando endpoints relacionados num arquivo só com `vercel.json` fazendo rewrite das URLs
+> antigas (ver seção dedicada — **importante pra qualquer sessão futura que for criar um novo
+> arquivo em `api/`**); Junior configurou `ASAAS_API_KEY`/`ASAAS_WEBHOOK_TOKEN` e reativou o
+> webhook no Asaas, mas **o Pix não apareceu no primeiro teste real — ainda não confirmado se
+> resolveu** (ver Pendente); **proposta comercial de Entrega em Domicílio** planejada e
+> precificada com o Junior (R$499 único pro primeiro Dedicante, R$9,90/unidade/mês recorrente
+> pros próximos) — publicada como artifact e como página real do produto (`/proposta_001.html`),
+> mas **ainda não implementada em código**; e, puxado por uma reflexão sobre o sistema depender
+> indiretamente da Korin, **apresentação dedicada pra Korin Alimentos publicada**
+> (`/apresentacao-korin.html`) contando a origem real do sistema (Valéria/Lattuga Orgânicos,
+> validado na Jornada Korin 2026) e uma ideia de "portal" pra Korin em duas fases — só a Fase 1
+> (painel de leitura com o pedido consolidado da rede) ficou de fato planejada em detalhe, **nada
+> disso foi implementado**; ver seções dedicadas abaixo pra tudo isso.
 
 ---
 
@@ -1278,6 +1302,227 @@ app principal foi alterada).
 
 ---
 
+## Guia interativo (avatar + tour) na Home — implementado
+
+**Pedido do Junior**: um "chatbot/avatar" na página inicial mostrando o passo a passo com telas,
+só na primeira página (antes do login). Decidido em conversa (trade-off registrado): scriptado
+(sem IA de verdade respondendo perguntas livres) em vez de chat com IA real — evita custo de API,
+latência e resposta fora do tom, e entrega a mesma sensação de "avatar te guiando".
+
+- `src/lib/onboardingSteps.js` — os 7 passos (com screenshot real de cada tela) que antes estavam
+  hardcoded só em `Ajuda.jsx`, extraídos pra um arquivo compartilhado.
+- `src/GuiaTour.jsx` (novo) — modal com avatar "Guia do Clube Unido", balão de chat com efeito de
+  digitação (respeita `prefers-reduced-motion`), mockup de navegador com o screenshot do passo ao
+  lado, progresso por bolinhas clicáveis, Voltar/Próximo, fecha com X/clique fora/Esc; no último
+  passo o botão vira "Criar minha conta →".
+- `src/Home.jsx` — botão "Como funciona" do herói abre o modal em vez de navegar pra `/ajuda`
+  (que continua existindo como página estática de apoio).
+- **Bug de responsividade encontrado depois de mesclado, corrigido em seguida**: em telas
+  pequenas o modal ficava mais alto que a viewport e o overlay usava `items-center` sem
+  `overflow-y-auto` — não dava pra rolar, então o topo (avatar/fechar) e o rodapé
+  (Voltar/Próximo) ficavam inacessíveis. Corrigido com overlay scrollável de verdade (`overflow-
+  y-auto` + wrapper `min-h-full flex items-center` pra centralizar sem cortar) e mockup menor em
+  telas estreitas. Testado com emulação de dispositivo real do Playwright (iPhone 13, Pixel 7,
+  iPhone SE) — toque real, 7 passos completos, fecha certo, zero erro de JS.
+- **Status no GitHub**: PR #5 mesclado (`ad8e25b`), fix de responsividade PR #6 mesclado
+  (`570b32b`), ambos direto na `main`.
+- URL em produção: `https://clubecompraskorin.vercel.app/` (botão "Como funciona" no herói).
+
+---
+
+## Limite de 12 Serverless Functions no Vercel Hobby — restrição operacional importante
+
+**Descoberto ao implementar a integração com Asaas**: o deploy do PR falhou com
+`exceeded_serverless_functions_per_deployment` — o plano Hobby do Vercel só libera **12
+Serverless Functions por deploy**, e o projeto já estava exatamente nesse limite (12 arquivos em
+`api/`) antes de qualquer arquivo novo. Os 2 arquivos novos do Asaas (`asaas-cobranca.js` +
+`asaas-webhook.js`) empurraram de 12 pra 14.
+
+**Solução aplicada** (sem quebrar nada que já chamava essas rotas): consolidar endpoints
+relacionados num arquivo só, com dispatch por query param, e usar `vercel.json` (`rewrites`) pra
+manter as URLs antigas funcionando exatamente como antes — o cliente e o webhook já configurado
+no painel do Asaas não precisaram mudar nada.
+
+- `api/manifest-catalogo.js` + `api/manifest-entrega.js` → `api/manifest.js`
+  (`?tipo=catalogo|entrega`).
+- `api/asaas-cobranca.js` + `api/asaas-webhook.js` → `api/asaas.js` (`?mode=cobranca|webhook`).
+- Volta pra 12 arquivos em `api/` — exatamente no limite de novo.
+
+**Regra pra qualquer sessão futura**: antes de criar um arquivo novo em `api/`, rodar
+`ls api/ | wc -l`. Se já estiver em 12, **precisa consolidar algum par existente num rewrite
+antes de adicionar** — senão o deploy falha (o build local/`npx vite build` passa normal, o erro
+só aparece no deploy real do Vercel, então é fácil não perceber até já ter mesclado).
+
+- **Status no GitHub**: commit `7ee5c4e` (na branch do PR #7, antes do merge).
+
+---
+
+## Integração com Asaas: Configuração Guiada, Mensalidade e cancelamento — implementado
+
+**Contexto**: o Junior abriu conta no Asaas (gateway de pagamento) e pediu pra planejar e depois
+implementar cobrança real pra dois produtos que hoje são manuais — a Configuração Guiada (R$150,
+setup opcional) e a Mensalidade (hoje só controlada na mão com "Marcar pago" em `/gestor`) —
+incluindo fluxo de cancelamento. Requisitos explícitos: não pode quebrar nada existente, o
+`/gestor` precisa mostrar tudo (status de assinatura, cobranças, cancelamentos pendentes), e o
+Dedicante precisa ter o cadastro completo (nome + CPF/CNPJ) antes de conseguir contratar
+qualquer um dos dois — validado tanto na tela quanto no servidor.
+
+**Banco (migração aditiva, aplicada via Supabase MCP)**:
+- `organizacoes` ganhou `asaas_customer_id`, `asaas_subscription_id`, `assinatura_status`
+  (`nunca_assinou`/`ativa`/`cancelada`, default `nunca_assinou`), `cancelamento_solicitado_em`.
+- Tabela nova `cobrancas` (uma linha por cobrança do Asaas, avulsa ou de assinatura) — RLS:
+  leitura por `is_org_member`/`is_platform_admin`, escrita só por `service_role` (nenhuma policy
+  de INSERT/UPDATE pro cliente — só as serverless functions escrevem).
+- RPCs novas: `solicitar_cancelamento_assinatura` (Dedicante só sinaliza, não cancela na hora),
+  `platform_admin_processar_cancelamento` (gestor efetiva), `platform_admin_descartar_cancelamento`
+  (gestor ignora o pedido, ex.: já resolveu por fora).
+- Nada disso mudou a lógica de `trial_fim`/`pago_ate` que já estava em produção.
+
+**`api/asaas.js`** (ver seção do limite de 12 functions acima pro motivo de estar num arquivo só):
+- `?mode=cobranca` — cria/reaproveita o cliente no Asaas e gera cobrança avulsa (Configuração
+  Guiada) ou assinatura (Mensalidade, `R$49,90 + R$9,90 × unidades extras`, mesmo cálculo já
+  usado no preço público). Autenticado por `Authorization: Bearer` (access_token da sessão do
+  Supabase) — busca a org do usuário, confere `ativo` e cadastro completo **no servidor**
+  (defesa em profundidade, não confia só na UI), e responde com erro claro (sem derrubar o
+  endpoint) se `ASAAS_API_KEY` ainda não estiver configurada — mesmo padrão já usado pro VAPID
+  em `api/pedido.js`.
+- `?mode=webhook` — recebe os eventos de pagamento do Asaas, valida o token
+  (`ASAAS_WEBHOOK_TOKEN` contra o header `asaas-access-token`), é **idempotente por
+  `asaas_charge_id`** (upsert — reprocessar o mesmo evento nunca duplica nem soma `pago_ate`
+  duas vezes), e empurra `pago_ate` (a partir da maior data entre hoje e o `pago_ate` atual — quem
+  paga em dia estende do vencimento anterior, quem paga atrasado estende de hoje) e
+  `assinatura_status = 'ativa'` quando a mensalidade confirma. Responde 500 (não 200) em erro
+  interno de propósito, pro Asaas reenviar o evento em vez de perdê-lo.
+
+**`src/lib/asaas.js`** (client) — `criarCobranca(tipo)` chama o endpoint com o token da sessão;
+`listarCobrancas(orgId)` lê direto via RLS (sem passar pelo endpoint, é só leitura).
+
+**`WebScreen.jsx`** — nova aba "💳 Financeiro" ao lado de Config/Dados:
+- Se o cadastro não estiver completo, bloqueia com atalho direto pra aba Dados (reaproveita o
+  mecanismo `abrirEm`/`webAbrirEm` que já existia pro mesmo propósito).
+- Card Configuração Guiada e card Mensalidade, cada um com status real (pendente/paga/ativa/
+  cancelada) puxado de `cobrancas` + `assinatura_status`.
+- "Quero cancelar minha assinatura" — confirma com `confirmar()` (dialog já existente), mostra
+  até quando o acesso continua (`pago_ate`), e só sinaliza — quem efetiva é o gestor.
+
+**`Gestor.jsx`** — badge de `assinatura_status`, resumo de cobranças por organização
+(`CobrancasResumo`), e a fila de cancelamento pendente (`PedidoCancelamento`, botões
+Efetivar/Ignorar).
+
+**Configuração feita pelo Junior no Vercel/Asaas**: `ASAAS_API_KEY` (gerada no Asaas, colada nas
+env vars do Vercel) e `ASAAS_WEBHOOK_TOKEN` (gerado nesta sessão, colado nas env vars do Vercel
+**e** no campo de token do webhook no painel do Asaas); webhook do Asaas apontando pra
+`https://clubecompraskorin.vercel.app/api/asaas-webhook` (funciona via o rewrite pro
+`api/asaas.js` — não precisou mudar depois da consolidação de functions), reativado depois de
+ter sido pausado automaticamente (tentativas de entrega anteriores à configuração falharam e o
+Asaas pausa a fila sozinho depois de várias falhas).
+
+**Teste real feito pelo Junior (sandbox)**: gerou uma cobrança de Configuração Guiada — criada
+certa no banco (`cobrancas`, R$150, link `sandbox.asaas.com/i/...`), cliente criado com CPF
+válido, `billingType: 'UNDEFINED'` (deveria liberar Pix/boleto/cartão) — **mas o Pix não
+apareceu na tela de pagamento do Asaas**. Não é bug identificado do nosso lado (dado e request
+conferidos). Hipóteses não confirmadas: geração assíncrona do QR Pix (pode aparecer só alguns
+segundos depois, precisa recarregar a mesma URL) ou uma configuração de conta separada de só ter
+uma chave Pix cadastrada ("Pix habilitado pra cobranças" em Configurações → Meios de
+Recebimento). **Ainda não resolvido/confirmado** — ver Pendente.
+
+- **Status no GitHub**: PR #7 mesclado (`3cd8477`), fix do limite de functions (`7ee5c4e`, já
+  incluído no merge).
+
+---
+
+## Proposta comercial: Entrega em Domicílio — planejada e precificada, não implementada
+
+**Origem**: um Dedicante sugeriu ao Junior algumas ideias; ele quis tratar como diferencial pago
+específico, não recurso geral pra todos. Decisão de negócio fechada em conversa:
+
+- **R$499, pagamento único**, cobrado só do primeiro Dedicante que contratar (financia o
+  desenvolvimento).
+- **R$9,90/unidade/mês, recorrente**, pros próximos Dedicantes que ativarem depois (a feature já
+  vai estar pronta, então não cobra setup de novo) — reaproveita o mesmo valor já usado na
+  mensalidade padrão por unidade extra, fácil de explicar.
+- O Dedicante escolhe **quais unidades** têm entrega ativa (flag por unidade, não por
+  organização inteira).
+
+**Modelo técnico planejado (nada implementado ainda)**: Dedicante cadastra os bairros atendidos
+por unidade e a taxa de cada um; ao digitar um bairro, o sistema calcula a distância a partir do
+endereço da unidade e ordena a lista automaticamente (do mais perto pro mais longe) — decisão
+consciente de **não** tentar "descobrir" todos os bairros de uma cidade por raio em km, porque a
+base de dados geográfica necessária não é confiável pra cidades menores (público majoritário do
+produto). Opção "receber em casa" no catálogo público, endereço e status no painel de pedidos,
+taxa somada automaticamente no fechamento.
+
+- Proposta publicada como artifact:
+  `https://claude.ai/code/artifact/543ff7bd-b20e-4204-971d-7e9e3962a82c`.
+- Publicada também como página real do produto, pra enviar por WhatsApp com logo e identidade do
+  Clube Unido: `public/proposta_001.html` — commit `f70b189`, direto na `main` (adição pura,
+  nada existente tocado).
+- **Nada disso foi implementado em código** — nem a tabela de bairros/taxa, nem a opção no
+  checkout, nem o ajuste do fechamento. É só a proposta comercial e o plano técnico registrados,
+  aguardando decisão do Junior de seguir.
+
+---
+
+## Aproximação com a Korin Alimentos — apresentação publicada, portal ainda só planejado
+
+**Contexto de negócio registrado**: em conversa, ficou claro que o sistema inteiro depende, de
+forma indireta, da Korin — nome nas colunas do banco (`korin_pedidos`, `korin_data`), a
+importação de catálogo lê especificamente a planilha oficial da Korin, o marketing na Home
+menciona a Korin abertamente. Isso é risco (marca/dependência de um fornecedor sem relação
+formal) e oportunidade (o sistema já funciona como uma espécie de CRM não-oficial da rede de
+distribuidores deles) ao mesmo tempo.
+
+**A pedido do Junior**, publicada uma apresentação em slides voltada especificamente pra Korin —
+mesmo motor de `apresentacao.html` (clique lateral/teclado/swipe), conteúdo todo novo:
+
+- `public/apresentacao-korin.html` — 12 slides: origem real do sistema (criado originalmente pra
+  Valéria, coordenadora de um clube de compras da Korin, Lattuga Orgânicos, que passou mais de 4
+  anos controlando tudo num caderno à mão — o mesmo depoimento dela que já existe na Home),
+  validado na **Jornada Korin 2026** (evento oficial da Korin, onde o Junior conversou com
+  dezenas de coordenadoras de várias regiões e confirmou que o padrão se repetia em escala), o
+  que o sistema já faz hoje, benefícios pra Dedicante e pra membro, os 4 processos que hoje
+  passam por e-mail entre Korin e Dedicante (planilha inicial, planilha final, rupturas,
+  atualizações), um slide de gancho ("E se nada disso precisasse passar por e-mail?") antes das
+  ideias de evolução de curto prazo, uma visão de mais longo prazo de integração com os sistemas
+  internos da Korin (**sem citar o ERP — TOTVS Protheus — explicitamente no material**, por
+  pedido direto do Junior), prova de tração real, e fecha com contato (WhatsApp, e-mail, site)
+  como botões clicáveis. Menciona também a experiência mais ampla do Junior — consultoria
+  J.Lopes Personal Support, outros sistemas já construídos (Celebrai, BarberOS) — não só esse
+  projeto, a pedido dele ("minha experiência não é só o app").
+- **Bug real de responsividade mobile encontrado e corrigido depois de publicado**: a "zona de
+  clique" (invisível, cobre a tela inteira pra navegar entre slides no desktop) ficava por cima
+  do slide no mobile e **bloqueava o toque de rolar** quando o conteúdo empilhado (1 coluna)
+  ficava mais alto que a viewport; as setas fixas no rodapé também cobriam texto rolando por
+  baixo. Corrigido com `pointer-events:none` na zona de clique no mobile (o swipe continua
+  funcionando — é ouvido direto no `#deck`, não depende da zona de clique) e as setas movidas pro
+  topo, ao lado da marca. **Testado com toque real via CDP** (`Input.dispatchTouchEvent`, não só
+  `scrollTo()` programático) — `scrollTop` ficava travado em 0 antes da correção, mudou pra 182
+  depois, confirmando que resolveu de verdade.
+- **Status no GitHub**: publicação inicial `f972dba`, ajuste de responsivo/gancho/contatos
+  `2529fb3`, correção de verdade da rolagem + nome certo do evento + bio `f03e250` — tudo direto
+  na `main`.
+- URL em produção: `https://clubecompraskorin.vercel.app/apresentacao-korin.html`.
+- **Ainda não confirmado pelo Junior num celular real** depois do último fix (só testado com
+  emulação/CDP nesta sessão).
+
+**Ideia registrada em conversa, não implementada**: um "portal" pra Korin, em duas fases
+possíveis.
+- **Fase 1 (recomendada primeiro, mais simples)**: painel só-leitura mostrando o pedido
+  consolidado de toda a rede de Dedicantes que usam o Clube Unido — resolve a dor da "planilha
+  final por e-mail" sem depender de nada do lado da Korin (os dados já existem no sistema).
+  Precisaria de um papel de acesso novo (nem `platform_admins`/gestor, nem `org_members`/
+  Dedicante — um terceiro nível, só leitura, vendo a rede agregada).
+- **Fase 2 (mais complexa, fica pra depois)**: catálogo oficial compartilhado que a Korin
+  atualiza uma vez (reaproveitando o parser de planilha que já existe em
+  `src/lib/importarPlanilha.js`), virando fonte de verdade que os Dedicantes puxam — resolveria
+  as outras 3 dores (planilha inicial, ruptura, atualização), mas exige decidir como isso convive
+  com cada Dedicante já podendo customizar nome/preço no catálogo próprio (não é substituição
+  1:1 trivial).
+- **Nada disso foi implementado** — fica registrado como direção de produto pra quando o Junior
+  decidir seguir.
+
+---
+
 ## Pendente / próximos passos
 
 1. ✅ **Comparativo do Dashboard — confirmado pelo Junior em teste real, tudo certo.**
@@ -1321,6 +1566,24 @@ app principal foi alterada).
    real: ícone atualizando sozinho pra quem já tem o PWA instalado (versão do cache subiu de
    propósito pra isso), instalar do zero num Android e num iPhone, preview de compartilhamento
    no WhatsApp, e uma notificação push de verdade.
+16. **Asaas — Pix não apareceu no primeiro teste real do Junior (sandbox).** Não é bug
+   identificado do nosso lado (`billingType: 'UNDEFINED'` correto, cliente com CPF válido).
+   Falta confirmar se foi geração assíncrona do QR (recarregar a mesma URL resolve) ou
+   configuração de conta separada ("Pix habilitado pra cobranças" x só ter chave Pix
+   cadastrada) — ver seção dedicada "Integração com Asaas" acima.
+17. **Asaas — fluxo ponta a ponta ainda não validado com pagamento confirmado de verdade.**
+   Testar: webhook realmente chega e atualiza `pago_ate`/`assinatura_status`/`cobrancas` quando
+   uma cobrança sandbox é paga; pedido de cancelamento aparecendo certo em `/gestor`; bloqueio
+   de cadastro incompleto impedindo contratar (tela e servidor).
+18. **Apresentação pra Korin (`/apresentacao-korin.html`) — corrigida e testada com toque real
+   via CDP nesta sessão, mas ainda não confirmada pelo Junior num celular de verdade** depois do
+   último fix de rolagem mobile.
+19. **Entrega em Domicílio — só proposta comercial e plano técnico, nada implementado.** Decisão
+   de seguir ou não é do Junior; ver seção dedicada acima pro escopo já fechado (preço, regra de
+   bairro/distância, o que entra no R$499).
+20. **Portal pra Korin — só ideia registrada, nada implementado.** Se o Junior quiser seguir, a
+   Fase 1 (painel de leitura com pedido consolidado da rede) é o ponto de partida recomendado —
+   ver seção dedicada acima.
 
 ---
 
