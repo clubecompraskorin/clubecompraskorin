@@ -397,11 +397,31 @@
       -webkit-overflow-scrolling:touch;
       justify-content:flex-start;
       padding-top:5rem;
-      padding-bottom:6.5rem;
+      padding-bottom:2.5rem;
     }
     .brandmark{top:1rem;left:1.25rem;}
     .headline{max-width:100%;}
     .lede{max-width:100%;}
+
+    /* A zona de clique cobre a tela inteira (é irmã do .slide, não filha) —
+       no desktop isso é ótimo (clica em qualquer lugar pra avançar), mas no
+       mobile ela fica por cima do conteúdo que agora rola, e bloqueia o
+       gesto de arrastar pra rolar. Desliga só o clique/toque; o swipe
+       (ouvido direto no #deck) continua funcionando normalmente. */
+    .clickzone{pointer-events:none;}
+    .hint{display:none;}
+
+    /* Setas saem do rodapé (onde cobririam texto rolando por baixo) e vão
+       pro topo, ao lado da marca — fora da área que rola. */
+    .navbar{
+      top:.7rem; bottom:auto;
+      left:auto; right:1rem;
+      justify-content:flex-end;
+      gap:.5rem;
+    }
+    .navbtn{width:2.5rem;height:2.5rem;font-size:1.05rem;}
+    .counter{display:none;}
+    .progress{z-index:11;}
   }
 </style>
 </head>
@@ -431,7 +451,7 @@
       <div class="inner">
         <span class="eyebrow rise">01 — Quem eu sou</span>
         <h2 class="headline rise">Não comecei querendo <em>vender software</em></h2>
-        <p class="lede rise">Sou Junior Lopes, da J.Lopes Personal Support. Comecei resolvendo o problema de uma pessoa só: a Valéria, coordenadora de um clube de compras da Korin (Lattuga Orgânicos), que organizava tudo — pedido, estoque, fechamento — num caderno, à mão.</p>
+        <p class="lede rise">Sou Junior Lopes, à frente da J.Lopes Personal Support — consultoria em tecnologia estratégica, onde já construí outros sistemas do zero (como o Celebrai e o BarberOS). O Clube Unido nasceu do mesmo jeito: resolvendo o problema de uma pessoa só, a Valéria, coordenadora de um clube de compras da Korin (Lattuga Orgânicos), que organizava tudo — pedido, estoque, fechamento — num caderno, à mão.</p>
         <div class="quote rise">
           <p>"Eu passei mais de 4 anos controlando tudo no caderno, à mão. O que antes me tomava horas, hoje eu faço em minutos."</p>
           <span>Valéria — Dedicante, Lattuga Orgânicos</span>
@@ -444,8 +464,8 @@
       <div class="brandmark"><svg viewBox="0 0 40 40"><circle cx="16" cy="20" r="12" fill="none" stroke="#C9821F" stroke-width="2"/><circle cx="24" cy="20" r="12" fill="none" stroke="#1E4D36" stroke-width="2"/></svg><span>Clube Unido</span></div>
       <div class="inner">
         <span class="eyebrow rise">02 — Validação de campo</span>
-        <h2 class="headline rise">Fui até a <em>própria Korin</em> confirmar que não era só a Valéria</h2>
-        <p class="lede rise" style="max-width:50ch">Num evento da Korin, conversei com dezenas de coordenadoras de clube de compras de várias regiões do país. O padrão se repetia: a planilha da Korin repassada por e-mail, controle manual, pouca familiaridade com tecnologia — a mesma dor da Valéria, em escala nacional.</p>
+        <h2 class="headline rise">Fui até a <em>Jornada Korin 2026</em> confirmar que não era só a Valéria</h2>
+        <p class="lede rise" style="max-width:50ch">Na Jornada Korin 2026, conversei com dezenas de coordenadoras de clube de compras de várias regiões do país. O padrão se repetia: a planilha da Korin repassada por e-mail, controle manual, pouca familiaridade com tecnologia — a mesma dor da Valéria, em escala nacional.</p>
         <div class="tags rise">
           <span class="tag">Fonte é sempre planilha Excel/Sheets</span>
           <span class="tag">Pouca familiaridade com tecnologia</span>
