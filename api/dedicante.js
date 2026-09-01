@@ -42,9 +42,11 @@ function gerarSenha(tamanho = 10) {
 // que o cliente mande sem checar contra o banco.
 async function autenticarOrgAdmin(req, orgId) {
   const token = req.headers.authorization?.replace('Bearer ', '')
-  if (!token) return { erro: 'Não autenticado' }
+  // DIAGNÓSTICO TEMPORÁRIO — remover depois de confirmar a causa real.
+  const diag = `[authHeaderPresente=${Boolean(req.headers.authorization)} tokenLen=${token?.length || 0} anonKeyPresente=${Boolean(process.env.VITE_SUPABASE_ANON_KEY)} urlPresente=${Boolean(process.env.VITE_SUPABASE_URL)}]`
+  if (!token) return { erro: 'Não autenticado ' + diag }
   const { data: userData, error: userError } = await supabaseAuth.auth.getUser(token)
-  if (userError || !userData?.user) return { erro: 'Sessão inválida' + (userError?.message ? ` (${userError.message})` : '') }
+  if (userError || !userData?.user) return { erro: 'Sessão inválida' + (userError?.message ? ` (${userError.message})` : '') + ' ' + diag }
 
   const { data: membro, error: membroError } = await supabaseAdmin
     .from('org_members')
