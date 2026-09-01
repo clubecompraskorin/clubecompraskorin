@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import SiteFooter from './lib/SiteFooter'
+import GuiaTour from './GuiaTour'
 
 const display = { fontFamily: "'Space Grotesk', sans-serif" }
 const mono = { fontFamily: "'JetBrains Mono', monospace" }
@@ -51,6 +52,7 @@ function Hook({ eyebrow, titulo, corpo, img, alt, filhos, invertido = false }) {
 
 export default function Home() {
   const [pronto, setPronto] = useState(false)
+  const [tourAberto, setTourAberto] = useState(false)
   useEffect(() => { const t = setTimeout(() => setPronto(true), 50); return () => clearTimeout(t) }, [])
 
   return (
@@ -79,9 +81,9 @@ export default function Home() {
             <a href="/painel" className="px-6 py-3.5 rounded-xl bg-[#1A5C38] text-white font-semibold text-sm hover:bg-[#0F3D24] transition-colors">
               Sou Dedicante →
             </a>
-            <a href="/ajuda" className="px-6 py-3.5 rounded-xl border border-[#1A5C38]/25 text-[#1A5C38] font-semibold text-sm hover:bg-[#1A5C38]/5 transition-colors">
+            <button onClick={() => setTourAberto(true)} className="px-6 py-3.5 rounded-xl border border-[#1A5C38]/25 text-[#1A5C38] font-semibold text-sm hover:bg-[#1A5C38]/5 transition-colors">
               Como funciona
-            </a>
+            </button>
           </div>
         </div>
         <div className={`flex justify-center md:justify-end transition-all duration-700 delay-150 ${pronto ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
@@ -396,6 +398,7 @@ export default function Home() {
       </section>
 
       <SiteFooter />
+      <GuiaTour aberto={tourAberto} onFechar={() => setTourAberto(false)} />
     </div>
   )
 }
