@@ -9,9 +9,14 @@
 
 import { createClient } from '@supabase/supabase-js'
 
+// auth.getUser(jwt) — usado abaixo pra validar o token de quem chama — precisa
+// dessas duas flags desligadas: sem elas o client tenta persistir/renovar sessão
+// via localStorage, que não existe neste ambiente (function serverless, sem
+// navegador), e a chamada falha sempre, mesmo com um token válido de verdade.
 const supabaseAdmin = createClient(
   process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
 // Sem caracteres ambíguos (0/O, 1/l/I) -- vai ser digitada num celular, repassada
@@ -30,7 +35,7 @@ async function autenticarOrgAdmin(req, orgId) {
   const token = req.headers.authorization?.replace('Bearer ', '')
   if (!token) return { erro: 'Não autenticado' }
   const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token)
-  if (userError || !userData?.user) return { erro: 'Sessão inválida' }
+  if (userError || !userData?.user) return { erro: 'Sessão inválida' + (userError?.message ? ` (${userError.message})` : '') }
 
   const { data: membro, error: membroError } = await supabaseAdmin
     .from('org_members')

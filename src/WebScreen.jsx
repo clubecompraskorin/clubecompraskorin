@@ -567,6 +567,12 @@ function TabDedicantes({ orgId, unidades }) {
   }, [orgId])
   useEffect(() => { recarregar() }, [recarregar])
 
+  // Só tem 1 unidade pra escolher — marca sozinha, sem exigir o clique extra
+  // (a caixa vazia parecia já selecionada quando só havia uma opção na lista).
+  useEffect(() => {
+    if (unidades.length === 1) setUnidadeIds([unidades[0].id])
+  }, [unidades])
+
   const toggleUnidade = (id) => {
     setUnidadeIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
