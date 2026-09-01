@@ -636,12 +636,21 @@ function TabDedicantes({ orgId, unidades }) {
         <div className="space-y-1.5">
           <div className="text-xs font-bold text-stone-500">Unidades que ele representa</div>
           {unidades.length === 0 && <div className="text-xs text-stone-400">Cadastre uma unidade primeiro, na aba Unidades.</div>}
-          {unidades.map(u => (
-            <label key={u.id} className="flex items-center gap-2 text-sm font-semibold text-stone-700">
-              <input type="checkbox" checked={unidadeIds.includes(u.id)} onChange={() => toggleUnidade(u.id)} className="w-4 h-4 accent-green-700" />
-              {u.nome}
-            </label>
-          ))}
+          {unidades.map(u => {
+            const marcado = unidadeIds.includes(u.id)
+            return (
+              <label key={u.id} className="flex items-center gap-2 text-sm font-semibold text-stone-700 cursor-pointer select-none">
+                {/* checkbox nativo fica só pra semântica/teclado — some visualmente
+                    (o desenho padrão do navegador não aparecia neste projeto, por
+                    causa do reset de CSS global); quem mostra o estado é o span. */}
+                <input type="checkbox" checked={marcado} onChange={() => toggleUnidade(u.id)} className="sr-only" />
+                <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${marcado ? 'bg-green-700 border-green-700' : 'bg-white border-stone-300'}`}>
+                  {marcado && <span className="text-white text-xs leading-none">✓</span>}
+                </span>
+                {u.nome}
+              </label>
+            )
+          })}
         </div>
         {erro && <div className="text-sm text-red-600 font-semibold">{erro}</div>}
         <button onClick={handleCriar} disabled={criando}
