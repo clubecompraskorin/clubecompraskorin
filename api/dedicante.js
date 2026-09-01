@@ -9,13 +9,22 @@
 
 import { createClient } from '@supabase/supabase-js'
 
-// auth.getUser(jwt) — usado abaixo pra validar o token de quem chama — precisa
-// dessas duas flags desligadas: sem elas o client tenta persistir/renovar sessão
-// via localStorage, que não existe neste ambiente (function serverless, sem
-// navegador), e a chamada falha sempre, mesmo com um token válido de verdade.
+// service_role -- bypassa RLS, usado pra tudo que grava/lê sem restrição.
 const supabaseAdmin = createClient(
   process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+)
+
+// Client separado, com a chave pública (anon) -- só pra validar o token de
+// quem chamou (auth.getUser(jwt)). O client de service_role, mesmo sem
+// localStorage/sessão nenhuma, ainda dá "Auth session missing!" nessa
+// chamada (o supabase-js espera uma sessão de usuário de verdade por trás,
+// não uma chave de admin) -- com a chave anon ele valida o jwt direto contra
+// o servidor de auth, sem depender de sessão local nenhuma.
+const supabaseAuth = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.VITE_SUPABASE_ANON_KEY,
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
@@ -34,7 +43,7 @@ function gerarSenha(tamanho = 10) {
 async function autenticarOrgAdmin(req, orgId) {
   const token = req.headers.authorization?.replace('Bearer ', '')
   if (!token) return { erro: 'Não autenticado' }
-  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token)
+  const { data: userData, error: userError } = await supabaseAuth.auth.getUser(token)
   if (userError || !userData?.user) return { erro: 'Sessão inválida' + (userError?.message ? ` (${userError.message})` : '') }
 
   const { data: membro, error: membroError } = await supabaseAdmin
