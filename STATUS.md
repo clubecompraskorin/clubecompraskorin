@@ -4,7 +4,14 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
-> Última atualização: 31/08/2026. Resumo das entregas recentes (detalhes em cada seção abaixo):
+> Última atualização: 01/09/2026. Resumo das entregas recentes (detalhes em cada seção abaixo):
+> **Dedicante de unidade — implementado, testado e confirmado pelo Junior em produção com o
+> primeiro cliente real** (organização "parati"): login restrito por unidade, sem custo, sem
+> editar produto/estoque/planilha, sem abrir/fechar mês — feature isolada por organização (só
+> liga quem o Junior habilitar no `/gestor`). Levou 4 correções reais no meio do teste (client de
+> auth em ambiente serverless, validação de token via API REST em vez do SDK, checkbox
+> invisível) — tudo documentado na seção dedicada abaixo. Pendência anotada pro Junior: dar ao
+> dedicante acesso aos links de catálogo público e de entrega por PIN da própria unidade.
 > **sessão de lançamento de 28/08 — confirmada OK pelo Junior em teste real**: estoque
 > redesenhado (Alerta de caixa + Comprado/Entregue/Reservado→Sobra, sem mais "caixas abertas"
 > travando o catálogo público); push pro membro avisando abertura/fechamento do catálogo (com
@@ -1572,9 +1579,25 @@ funcionando, nada mudou pra quem chama.
   publicadas, guia interativo) após resolver conflitos em `api/manifest.js`, `vercel.json`,
   `src/Gestor.jsx`, `src/lib/auth.js`, `src/lib/platform.js` — todos por sobreposição de área
   (os dois lados mexendo no mesmo trecho pra coisas diferentes), sem perda de nada dos dois lados.
-- **Não testado ainda**: fluxo real ponta a ponta com um dedicante de verdade (criar, logar,
-  confirmar as restrições, remover). Recomendo testar com e-mail descartável antes de usar com o
-  cliente real.
+- **Testado ponta a ponta pelo Junior em produção (org "parati", cliente real)** — 3 bugs reais
+  encontrados e corrigidos no processo, todos em `api/dedicante.js` e na tela de cadastro:
+  1. `7133ccd`: o client de service_role tentava persistir sessão via `localStorage`
+     (não existe em function serverless) ao validar o token de quem chama — sempre falhava,
+     mesmo com sessão real. E, na tela: com só 1 unidade cadastrada, ela não vinha pré-marcada.
+  2. `6a0f744`: trocar pra um client separado com a chave anon pra validar o token ainda dava
+     `"Auth session missing!"` mesmo com token de 936 caracteres, não-vazio, e env vars presentes
+     (confirmado com diagnóstico temporário em produção — commit `c285927`, já removido depois).
+  3. `eca815b`: causa real era o próprio `supabase-js`/`.auth.getUser(jwt)` — troquei por uma
+     chamada direta (`fetch`) em `/auth/v1/user` da API REST do GoTrue, sem o SDK no meio. Isso
+     resolveu a validação do token.
+  4. `d7dc0ef`: com o login funcionando, apareceu um bug separado — o `<input type="checkbox">`
+     nativo das unidades era **literalmente invisível** neste projeto (conflito com o reset de
+     CSS global), embora o estado por trás estivesse sempre certo. Reproduzido isolado com um
+     harness descartável (Playwright, fora do Supabase) antes de corrigir — confirmado visualmente
+     com 1 e com 2 unidades. Trocado por checkbox custom (input real `sr-only`, `<span>` estilado
+     mostra o estado) que não depende de aparência nativa de navegador nenhuma.
+  - **Confirmado funcionando pelo Junior depois do fix 4.** Fluxo completo (criar dedicante, gerar
+    senha, logar como ele, restrições) validado em produção com cliente real.
 
 ---
 
@@ -1639,6 +1662,12 @@ funcionando, nada mudou pra quem chama.
 20. **Portal pra Korin — só ideia registrada, nada implementado.** Se o Junior quiser seguir, a
    Fase 1 (painel de leitura com pedido consolidado da rede) é o ponto de partida recomendado —
    ver seção dedicada acima.
+21. **Dedicante de unidade — falta dar acesso a 2 links que hoje só ficam em Config → Unidades**
+   (aba que o dedicante não vê): o link do catálogo público (pra ele repassar pros membros da
+   unidade dele) e o link de entrega por PIN (pra ele mesmo separar/confirmar entrega, se for o
+   caso). Pedido do Junior, explicitamente pra depois — nada implementado ainda. Provavelmente
+   um card simples na própria tela de Pedidos ou Entregas do dedicante, mostrando só o(s) link(s)
+   da(s) unidade(s) dele (não a lista inteira de unidades da organização).
 
 ---
 
