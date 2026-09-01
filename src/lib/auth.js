@@ -132,6 +132,23 @@ export const getMinhasUnidades = async () => {
   return data.map(r => r.org_unidades).filter(Boolean).sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
 }
 
+/**
+ * Mesma lista de getMinhasUnidades(), só que com pin_entrega incluído — usada
+ * só pelo card "Meus links" (Pedidos) que mostra o link de entrega por PIN da
+ * própria unidade pro dedicante repassar. Continua batendo só nas unidades
+ * dele (via org_member_unidades), nunca nas outras da organização — e ele não
+ * consegue gerar/trocar o PIN por aqui, só ver o que a coordenadora já gerou
+ * em Config → Unidades.
+ */
+export const getMinhasUnidadesComPin = async () => {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('org_member_unidades')
+    .select('unidade_id, org_unidades ( id, nome, ordem, pin_entrega )')
+  if (error || !data) return []
+  return data.map(r => r.org_unidades).filter(Boolean).sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
+}
+
 // Sinaliza que a Dedicante quer cancelar a mensalidade — não cancela na hora,
 // só registra o pedido. O acesso continua normal até pago_ate; quem efetiva
 // o cancelamento é o gestor da plataforma, em /gestor.

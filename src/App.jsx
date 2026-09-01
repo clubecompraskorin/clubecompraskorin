@@ -20,6 +20,7 @@ import UnidadesManager from './UnidadesManager'
 import ModoPdv from './Pdv'
 import { getMapaFotos, fotoDoProduto } from './lib/fotos'
 import PlanilhaKorinCard from './PlanilhaKorinCard'
+import MeusLinksCard from './MeusLinksCard'
 
 
 // ── SYNC BADGE ────────────────────────────────────────────────────────────────
@@ -310,6 +311,7 @@ export default function App({ org, onOrgRefresh }) {
             </button>
           </div>
         )}
+        {tab === 'pedidos' && isDedicanteUnidade && <MeusLinksCard org={org} />}
         {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} onIniciarPdv={() => setModoPdv(true)} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} unidades={nomesUnidades} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} />}
         {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} unidades={nomesUnidades} />}
         {tab === 'produtos' && !isDedicanteUnidade && <ProdutosScreen  produtos={produtos} pedidos={pedidos} sobraAnterior={sobraAnterior} comprasConfirmadas={comprasConfirmadas} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} />}
