@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getSession, onAuthChange, signIn, signOut, signUpSemOrganizacao, isPlatformAdmin } from './lib/auth'
-import { getOrganizacoesGestor, getPedidosCountPorOrg, setOrgAtivo, setPagoAte } from './lib/platform'
+import { getOrganizacoesGestor, getPedidosCountPorOrg, setOrgAtivo, setPagoAte, setPermiteDedicanteUnidade } from './lib/platform'
 
 const display = { fontFamily: "'Space Grotesk', sans-serif" }
 const mono = { fontFamily: "'JetBrains Mono', monospace" }
@@ -100,6 +100,25 @@ function MarcarPago({ org, onSalvo }) {
   )
 }
 
+function ToggleDedicanteUnidade({ org, onSalvo }) {
+  const [salvando, setSalvando] = useState(false)
+  const ligado = Boolean(org.permite_dedicante_unidade)
+
+  const toggle = async () => {
+    setSalvando(true)
+    const r = await setPermiteDedicanteUnidade(org.id, !ligado)
+    setSalvando(false)
+    if (r.ok) onSalvo(org.id, !ligado)
+  }
+
+  return (
+    <button onClick={toggle} disabled={salvando}
+      className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors disabled:opacity-40 ${ligado ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-white/10 text-white/40 hover:bg-white/20'}`}>
+      {salvando ? '...' : ligado ? '🧑‍💼 dedicantes liberado' : '🧑‍💼 dedicantes bloqueado'}
+    </button>
+  )
+}
+
 function Dashboard() {
   const [orgs, setOrgs] = useState([])
   const [contagem, setContagem] = useState({})
@@ -176,6 +195,7 @@ function Dashboard() {
                         {org.ativo ? 'ativa' : 'inativa'}
                       </span>
                       <StatusPagamento org={org} />
+                      <ToggleDedicanteUnidade org={org} onSalvo={(id, permite) => setOrgs(prev => prev.map(o => o.id === id ? { ...o, permite_dedicante_unidade: permite } : o))} />
                       {!completo && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">cadastro incompleto</span>
                       )}

@@ -17,7 +17,10 @@ const produtoFromDb = (row) => ({
   cod: row.cod,
   nome: row.nome,
   preco: Number(row.preco) || 0,
-  precoCusto: row.preco_custo != null ? Number(row.preco_custo) : null,
+  // precoCusto NÃO vem dessa linha — mora em periodo_produtos_custo, tabela à
+  // parte com RLS restrita a quem tem acesso total (periodo_produtos é pública,
+  // pro catálogo do cliente funcionar sem login). Ver mergeCustos abaixo.
+  precoCusto: null,
   unidade: row.unidade || '',
   categoria: row.categoria || '',
   qtdCaixa: row.qtd_caixa || 0,
@@ -32,7 +35,8 @@ const produtoToDb = (periodoId, p) => ({
   cod: p.cod,
   nome: p.nome,
   preco: p.preco,
-  preco_custo: p.precoCusto ?? null,
+  // precoCusto não vai nessa linha (ver produtoFromDb) — quem grava chama
+  // sincronizarCusto separadamente, depois de saber o id da linha salva.
   unidade: p.unidade || null,
   categoria: p.categoria || null,
   qtd_caixa: p.qtdCaixa || null,
@@ -107,12 +111,43 @@ export async function atualizarPeriodo(periodoId, campos) {
 }
 
 // ── PRODUTOS DO PERÍODO ───────────────────────────────────────────────────────
+
+/**
+ * Busca o custo (periodo_produtos_custo) dos ids informados e devolve um mapa
+ * { periodoProdutoId: precoCusto }. Quem chama com um login sem acesso total
+ * (dedicante de unidade) simplesmente recebe um mapa vazio — RLS bloqueia a
+ * leitura dessa tabela pra esse papel, não precisa de checagem nenhuma aqui.
+ */
+async function buscarCustos(periodoProdutoIds) {
+  if (!periodoProdutoIds.length) return {}
+  const { data } = await supabase
+    .from('periodo_produtos_custo').select('periodo_produto_id, preco_custo').in('periodo_produto_id', periodoProdutoIds)
+  const mapa = {}
+  ;(data || []).forEach(c => { mapa[c.periodo_produto_id] = c.preco_custo != null ? Number(c.preco_custo) : null })
+  return mapa
+}
+
+/** Grava (ou apaga, se null) o custo de um produto já salvo em periodo_produtos_custo. */
+async function sincronizarCusto(periodoProdutoId, precoCusto) {
+  if (precoCusto != null) {
+    const { error } = await supabase.from('periodo_produtos_custo')
+      .upsert({ periodo_produto_id: periodoProdutoId, preco_custo: precoCusto, updated_at: new Date().toISOString() }, { onConflict: 'periodo_produto_id' })
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('periodo_produtos_custo').delete().eq('periodo_produto_id', periodoProdutoId)
+    if (error) throw error
+  }
+}
+
 export async function getProdutosDoPeriodo(periodoId) {
   if (!supabase || !periodoId) return []
   const { data, error } = await supabase
     .from('periodo_produtos').select('*').eq('periodo_id', periodoId).order('cod', { ascending: true })
   if (error) { console.error(error); return [] }
-  return (data || []).map(produtoFromDb)
+  const produtos = (data || []).map(produtoFromDb)
+  const custos = await buscarCustos(produtos.map(p => p.id))
+  produtos.forEach(p => { p.precoCusto = custos[p.id] ?? null })
+  return produtos
 }
 
 /** Cria ou atualiza um único produto (ajuste avulso dentro do período corrente). */
@@ -125,7 +160,10 @@ export async function salvarProdutoNoPeriodo(periodoId, produtoApp) {
       .from('periodo_produtos').upsert(payload, { onConflict: produtoApp.id ? 'id' : 'periodo_id,cod' })
       .select().maybeSingle()
     if (error) throw error
-    return { ok: true, produto: produtoFromDb(data) }
+    await sincronizarCusto(data.id, produtoApp.precoCusto ?? null)
+    const produto = produtoFromDb(data)
+    produto.precoCusto = produtoApp.precoCusto ?? null
+    return { ok: true, produto }
   } catch (e) { return { ok: false, error: e.message } }
 }
 
@@ -202,7 +240,32 @@ export async function substituirProdutosDoPeriodo(periodoId, produtosApp) {
       .from('periodo_produtos').upsert(payload, { onConflict: 'periodo_id,cod' }).select()
     if (e3) throw e3
 
-    return { ok: true, produtos: (data || []).map(produtoFromDb), mantidosPorPedido }
+    const idPorCod = {}
+    ;(data || []).forEach(row => { idPorCod[row.cod] = row.id })
+    const custosUpsert = produtosApp
+      .filter(p => p.precoCusto != null && idPorCod[p.cod])
+      .map(p => ({ periodo_produto_id: idPorCod[p.cod], preco_custo: p.precoCusto, updated_at: new Date().toISOString() }))
+    const custosDeletar = produtosApp
+      .filter(p => p.precoCusto == null && idPorCod[p.cod])
+      .map(p => idPorCod[p.cod])
+    if (custosUpsert.length) {
+      const { error: e4 } = await supabase.from('periodo_produtos_custo').upsert(custosUpsert, { onConflict: 'periodo_produto_id' })
+      if (e4) throw e4
+    }
+    if (custosDeletar.length) {
+      const { error: e5 } = await supabase.from('periodo_produtos_custo').delete().in('periodo_produto_id', custosDeletar)
+      if (e5) throw e5
+    }
+
+    const custoPorCod = {}
+    produtosApp.forEach(p => { custoPorCod[p.cod] = p.precoCusto ?? null })
+    const produtosFinal = (data || []).map(row => {
+      const produto = produtoFromDb(row)
+      produto.precoCusto = custoPorCod[row.cod] ?? null
+      return produto
+    })
+
+    return { ok: true, produtos: produtosFinal, mantidosPorPedido }
   } catch (e) { return { ok: false, error: e.message } }
 }
 

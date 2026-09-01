@@ -82,7 +82,7 @@ export const getOrgDoUsuario = async () => {
   if (!supabase) return null
   const { data, error } = await supabase
     .from('org_members')
-    .select('org_id, role, organizacoes ( id, slug, nome, plano, ativo, responsavel_nome, razao_social, documento, documento_tipo, trial_fim, pago_ate )')
+    .select('org_id, role, organizacoes ( id, slug, nome, plano, ativo, responsavel_nome, razao_social, documento, documento_tipo, trial_fim, pago_ate, permite_dedicante_unidade )')
     .limit(1)
     .maybeSingle()
   if (error || !data) return null
@@ -93,6 +93,9 @@ export const getOrgDoUsuario = async () => {
   return {
     orgId: data.org_id,
     role: data.role,
+    // "Dedicante de unidade" é o único papel restrito hoje — qualquer outro
+    // role (ex: 'admin', o da representante) tem acesso total, sem exceção.
+    isDedicanteUnidade: data.role === 'dedicante_unidade',
     slug: o?.slug,
     nome: o?.nome,
     plano: o?.plano,
@@ -105,7 +108,26 @@ export const getOrgDoUsuario = async () => {
     trialFim: o?.trial_fim || null,
     pagoAte: o?.pago_ate || null,
     bloqueado,
+    permiteDedicanteUnidade: o?.permite_dedicante_unidade || false,
   }
+}
+
+/**
+ * Unidades que o usuário logado representa — só relevante pra quem tem
+ * role='dedicante_unidade'; pra role de acesso total, volta vazio (esse
+ * papel enxerga todas as unidades, não precisa de lista nenhuma).
+ */
+export const getMinhasUnidades = async () => {
+  if (!supabase) return []
+  // Mesmas colunas que getUnidades() devolve pra representante (menos
+  // pin_entrega — link de entrega por PIN não é algo que este papel restrito
+  // deva enxergar), pra ModoPdv/PedidosScreen/EntregasScreen funcionarem
+  // idêntico com qualquer uma das duas listas.
+  const { data, error } = await supabase
+    .from('org_member_unidades')
+    .select('unidade_id, org_unidades ( id, nome, endereco, ordem, aberto )')
+  if (error || !data) return []
+  return data.map(r => r.org_unidades).filter(Boolean).sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
 }
 
 // Salva nome do responsável / razão social / CPF-CNPJ — não bloqueia nada,

@@ -17,6 +17,7 @@ import { ehPlanilha, parseTabelaKorin } from './lib/importarPlanilha'
 import { printRelatorioPedidos, printRelatorioEstoque, printRelatorioFechamento } from './lib/print'
 import UnidadesManager from './UnidadesManager'
 import ClientesManager from './ClientesManager'
+import { listarDedicantesUnidade, criarDedicanteUnidade, removerDedicanteUnidade } from './lib/dedicantes'
 
 const fmt = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',')
 const fmtData = iso => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR') : ''
@@ -409,6 +410,130 @@ function ModalHistoricoCompra({ produto, entradas, somenteLeitura, onClose, onCh
 // ── SUB-ABA: DADOS CADASTRAIS ────────────────────────────────────────────────
 // Não bloqueia nada — só guarda quem é o responsável e o documento, pra
 // eventual cobrança ou integração futura. Pode ficar incompleto indefinidamente.
+// ── SUB-ABA: DEDICANTES DE UNIDADE ──────────────────────────────────────────
+// Só aparece quando org.permiteDedicanteUnidade está ligado (Junior liga
+// manualmente por organização, ver /gestor). Cada dedicante criado aqui só
+// enxerga as unidades marcadas — não vê custo, não edita produto/estoque,
+// não sobe planilha, não abre/fecha o mês (tudo isso é reforçado no banco,
+// esta tela é só a gestão de quem tem acesso).
+function TabDedicantes({ orgId, unidades }) {
+  const [lista, setLista]         = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [nome, setNome]           = useState('')
+  const [email, setEmail]         = useState('')
+  const [unidadeIds, setUnidadeIds] = useState([])
+  const [criando, setCriando]     = useState(false)
+  const [erro, setErro]           = useState('')
+  const [senhaGerada, setSenhaGerada] = useState(null)
+
+  const recarregar = useCallback(() => {
+    if (!orgId) return
+    setLoading(true)
+    listarDedicantesUnidade(orgId).then(l => { setLista(l); setLoading(false) })
+  }, [orgId])
+  useEffect(() => { recarregar() }, [recarregar])
+
+  const toggleUnidade = (id) => {
+    setUnidadeIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  const handleCriar = async () => {
+    if (!nome.trim() || !email.trim() || !unidadeIds.length) {
+      setErro('Preencha nome, e-mail e marque ao menos 1 unidade'); return
+    }
+    setErro('')
+    setCriando(true)
+    const r = await criarDedicanteUnidade(orgId, { nome, email, unidadeIds })
+    setCriando(false)
+    if (!r.ok) { setErro(r.error); return }
+    setSenhaGerada({ nome: r.nome, email: r.email, senha: r.senha })
+    setNome(''); setEmail(''); setUnidadeIds([])
+    recarregar()
+  }
+
+  const handleRemover = async (membro) => {
+    if (!await confirmar(`Remover o acesso de ${membro.nome || membro.email}? Ele não vai mais conseguir entrar.`)) return
+    const r = await removerDedicanteUnidade(orgId, membro.id)
+    if (!r.ok) { toast('Erro ao remover: ' + r.error); return }
+    recarregar()
+  }
+
+  if (loading) return <div className="px-4 py-12 text-center text-stone-400 font-bold animate-pulse">Carregando…</div>
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 space-y-1.5">
+        <div className="text-xs font-black text-stone-400 uppercase tracking-widest">O que um dedicante enxerga</div>
+        <p className="text-sm text-stone-500">Só as unidades marcadas abaixo. Ele não vê valores de custo, não edita produto/estoque, não sobe planilha e não abre/fecha o mês.</p>
+      </div>
+
+      {lista.length > 0 && (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm divide-y divide-stone-50">
+          {lista.map(m => (
+            <div key={m.id} className="p-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-bold text-stone-800 truncate">{m.nome || '(sem nome)'}</div>
+                <div className="text-xs text-stone-400 truncate">{m.email}</div>
+                <div className="text-xs text-green-700 font-semibold mt-0.5">
+                  {m.unidades.length ? m.unidades.map(u => u.nome).join(', ') : 'nenhuma unidade'}
+                </div>
+              </div>
+              <button onClick={() => handleRemover(m)}
+                className="text-red-500 text-xs font-black flex-shrink-0 px-2.5 py-1.5 active:bg-red-50 rounded-lg">
+                🗑️ Remover
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 space-y-3">
+        <div className="text-xs font-black text-stone-400 uppercase tracking-widest">+ Cadastrar dedicante</div>
+        <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome"
+          className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-green-500" />
+        <input value={email} onChange={e => setEmail(e.target.value)} placeholder="E-mail" type="email"
+          className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-green-500" />
+        <div className="space-y-1.5">
+          <div className="text-xs font-bold text-stone-500">Unidades que ele representa</div>
+          {unidades.length === 0 && <div className="text-xs text-stone-400">Cadastre uma unidade primeiro, na aba Unidades.</div>}
+          {unidades.map(u => (
+            <label key={u.id} className="flex items-center gap-2 text-sm font-semibold text-stone-700">
+              <input type="checkbox" checked={unidadeIds.includes(u.id)} onChange={() => toggleUnidade(u.id)} className="w-4 h-4 accent-green-700" />
+              {u.nome}
+            </label>
+          ))}
+        </div>
+        {erro && <div className="text-sm text-red-600 font-semibold">{erro}</div>}
+        <button onClick={handleCriar} disabled={criando}
+          className="w-full py-3 bg-green-700 text-white rounded-xl font-black text-sm active:bg-green-800 disabled:opacity-50">
+          {criando ? 'Criando…' : '+ Criar acesso'}
+        </button>
+      </div>
+
+      {senhaGerada && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4" onClick={() => setSenhaGerada(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="text-lg font-black text-green-800">✅ Acesso criado</div>
+            <p className="text-sm text-stone-500">
+              Copie e envie pra <strong>{senhaGerada.nome}</strong> por WhatsApp — essa senha só aparece agora, não dá pra ver de novo depois.
+            </p>
+            <div className="bg-stone-50 rounded-xl p-3 space-y-1">
+              <div className="text-xs text-stone-400">E-mail (login)</div>
+              <div className="text-sm font-bold text-stone-800 select-all break-all">{senhaGerada.email}</div>
+              <div className="text-xs text-stone-400 mt-2">Senha</div>
+              <div className="text-lg font-black text-green-700 select-all tracking-wide">{senhaGerada.senha}</div>
+            </div>
+            <button onClick={() => setSenhaGerada(null)}
+              className="w-full py-3 bg-green-700 text-white rounded-xl font-black text-sm active:bg-green-800">
+              Já copiei
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function TabDados({ org, onSalvo }) {
   const [nome, setNome]              = useState(org?.responsavelNome || '')
   const [tipo, setTipo]              = useState(org?.documentoTipo || 'cpf')
@@ -1135,6 +1260,7 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
     { id: 'relatorios', label: '🖨️ Relatórios' },
     { id: 'unidades',  label: '📍 Unidades' },
     { id: 'clientes',  label: '👥 Clientes' },
+    ...(org?.permiteDedicanteUnidade ? [{ id: 'dedicantes', label: '🧑‍💼 Dedicantes' }] : []),
     { id: 'dados',     label: org?.cadastroCompleto ? '🏢 Dados' : '🏢 Dados ⚠️' },
   ]
 
@@ -1201,6 +1327,9 @@ export default function WebScreen({ produtos: produtosCorrente, periodo: periodo
       )}
       {subTab === 'clientes' && (
         <ClientesManager orgId={orgId} unidadesNomes={nomesUnidades} />
+      )}
+      {subTab === 'dedicantes' && org?.permiteDedicanteUnidade && (
+        <TabDedicantes orgId={orgId} unidades={unidades} />
       )}
       {subTab === 'dados' && (
         <TabDados org={org} onSalvo={() => onOrgRefresh?.()} />

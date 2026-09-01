@@ -14,6 +14,7 @@ import {
 import { parseTabelaKorin } from './lib/importarPlanilha'
 import { ToastHost, ConfirmHost, toast, confirmar } from './lib/dialog'
 import { getUnidades } from './lib/unidades'
+import { getMinhasUnidades } from './lib/auth'
 import { listarClientes } from './lib/clientes'
 import UnidadesManager from './UnidadesManager'
 import ModoPdv from './Pdv'
@@ -65,7 +66,17 @@ export default function App({ org, onOrgRefresh }) {
   const [unidades, setUnidades] = useState([])
   const recarregarUnidades = useCallback(() => { if (orgId) getUnidades(orgId).then(setUnidades) }, [orgId])
   useEffect(() => { recarregarUnidades() }, [recarregarUnidades])
-  const nomesUnidades = unidades.map(u => u.nome)
+
+  // Dedicante de unidade só enxerga (e só consegue lançar pedido/vender em) as
+  // unidades que ele representa — a lista completa da organização continua
+  // existindo em `unidades`, mas nenhuma tela abaixo usa ela diretamente.
+  const isDedicanteUnidade = Boolean(org?.isDedicanteUnidade)
+  const [minhasUnidades, setMinhasUnidades] = useState([])
+  useEffect(() => {
+    if (isDedicanteUnidade) getMinhasUnidades().then(setMinhasUnidades)
+  }, [isDedicanteUnidade])
+  const unidadesVisiveis = isDedicanteUnidade ? minhasUnidades : unidades
+  const nomesUnidades = unidadesVisiveis.map(u => u.nome)
   const unidadePadrao = nomesUnidades[0] || ''
   const [filtroImpressao, setFiltroImpressao] = useState('Todas')
 
@@ -286,7 +297,7 @@ export default function App({ org, onOrgRefresh }) {
             <button onClick={dismissInstall} className="mt-2 text-xs text-stone-400 underline">Fechar</button>
           </div>
         )}
-        {org && !org.cadastroCompleto && (
+        {org && !org.cadastroCompleto && !isDedicanteUnidade && (
           <div className="mx-4 mt-3 mb-1 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5 flex items-center gap-3">
             <span className="text-xl flex-shrink-0">📋</span>
             <div className="flex-1 min-w-0 text-xs text-amber-700 font-semibold leading-tight">
@@ -300,9 +311,9 @@ export default function App({ org, onOrgRefresh }) {
         )}
         {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} onIniciarPdv={() => setModoPdv(true)} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} unidades={nomesUnidades} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} />}
         {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} unidades={nomesUnidades} />}
-        {tab === 'produtos'   && <ProdutosScreen  produtos={produtos} pedidos={pedidos} sobraAnterior={sobraAnterior} comprasConfirmadas={comprasConfirmadas} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} />}
-        {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} periodoObj={periodoObjAtivo} isCorrente={!isHistorico} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} orgId={orgId} periodoAtualId={periodoObjAtivo?.id} onRecarregar={recarregarTudo} />}
-        {tab === 'web'        && <WebScreen produtos={produtos} periodo={periodoCorrente} org={org} onUnidadesChange={setUnidades} onRecarregar={recarregarTudo} abrirEm={webAbrirEm} onAbrirEmConsumido={() => setWebAbrirEm(null)} onOrgRefresh={onOrgRefresh} />}
+        {tab === 'produtos' && !isDedicanteUnidade && <ProdutosScreen  produtos={produtos} pedidos={pedidos} sobraAnterior={sobraAnterior} comprasConfirmadas={comprasConfirmadas} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} />}
+        {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} periodoObj={periodoObjAtivo} isCorrente={!isHistorico} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} orgId={orgId} periodoAtualId={periodoObjAtivo?.id} onRecarregar={recarregarTudo} isDedicanteUnidade={isDedicanteUnidade} />}
+        {tab === 'web' && !isDedicanteUnidade && <WebScreen produtos={produtos} periodo={periodoCorrente} org={org} onUnidadesChange={setUnidades} onRecarregar={recarregarTudo} abrirEm={webAbrirEm} onAbrirEmConsumido={() => setWebAbrirEm(null)} onOrgRefresh={onOrgRefresh} />}
       </main>
 
       {/* BOTTOM NAV */}
@@ -310,9 +321,9 @@ export default function App({ org, onOrgRefresh }) {
         {[
           { id: 'pedidos',    icon: '🛒', label: 'Pedidos' },
           { id: 'entregas',   icon: '🚚', label: 'Entregas' },
-          { id: 'produtos',   icon: '📦', label: 'Produtos' },
+          ...(isDedicanteUnidade ? [] : [{ id: 'produtos', icon: '📦', label: 'Produtos' }]),
           { id: 'fechamento', icon: '📊', label: 'Fechamento' },
-          { id: 'web',        icon: '⚙️', label: 'Config' },
+          ...(isDedicanteUnidade ? [] : [{ id: 'web', icon: '⚙️', label: 'Config' }]),
         ].map(({ id, icon, label }) => (
           <button key={id} onClick={() => setTab(id)}
             className={`flex-1 flex flex-col items-center py-2.5 relative transition-colors ${tab === id ? 'text-green-700' : 'text-stone-400'}`}>
@@ -333,10 +344,10 @@ export default function App({ org, onOrgRefresh }) {
       </footer>
 
       {/* MODALS */}
-      {modal === 'pedido'   && <ModalPedido   pedido={editPedido}   produtos={produtos} unidades={unidades} orgId={orgId} onSave={savePedidoForm}   onClose={closeModal} />}
+      {modal === 'pedido'   && <ModalPedido   pedido={editPedido}   produtos={produtos} unidades={unidadesVisiveis} orgId={orgId} onSave={savePedidoForm}   onClose={closeModal} />}
       {modal === 'detalhe'  && viewPedido && <ModalDetalhe  pedido={viewPedido}  produtos={produtos} periodo={periodoAtivo} onClose={closeModal} onPrint={() => printPedido(viewPedido, produtos, periodoAtivo)} />}
-      {modal === 'produto'  && <ModalProduto  produto={editProduto}               onSave={saveProduto}  onClose={closeModal} />}
-      {modal === 'colar'    && <ModalColarPedido produtos={produtos} unidades={unidades} orgId={orgId} onSave={savePedidoForm} onClose={closeModal} />}
+      {modal === 'produto'  && !isDedicanteUnidade && <ModalProduto  produto={editProduto}               onSave={saveProduto}  onClose={closeModal} />}
+      {modal === 'colar'    && <ModalColarPedido produtos={produtos} unidades={unidadesVisiveis} orgId={orgId} onSave={savePedidoForm} onClose={closeModal} />}
 
       {/* MODO ENTREGA — overlay global, acessível de qualquer tab */}
       {modoEntrega && (
@@ -356,7 +367,7 @@ export default function App({ org, onOrgRefresh }) {
       {/* MODO PDV — venda no local (feira/culto), overlay global, só no período corrente */}
       {modoPdv && periodoCorrente && (
         <ModoPdv
-          orgId={orgId} org={org} periodo={periodoCorrente} produtos={produtos} unidades={unidades} pedidos={pedidos}
+          orgId={orgId} org={org} periodo={periodoCorrente} produtos={produtos} unidades={unidadesVisiveis} pedidos={pedidos}
           onSalvo={recarregarTudo}
           onSair={() => setModoPdv(false)}
         />
@@ -1147,7 +1158,7 @@ function DashboardScreen({ pedidos, produtos, unidades = [], orgId, periodoAtual
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: FECHAMENTO
 // ═══════════════════════════════════════════════════════════════════════════════
-function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, periodoNav, periodoObj, isCorrente, onArquivar, onDesarquivar, filtroImpressao, setFiltroImpressao, orgId, periodoAtualId, onRecarregar }) {
+function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, periodoNav, periodoObj, isCorrente, onArquivar, onDesarquivar, filtroImpressao, setFiltroImpressao, orgId, periodoAtualId, onRecarregar, isDedicanteUnidade }) {
   const [subTab, setSubTab]   = useState('resumo')
   const [filtroUnidadeResumo, setFiltroUnidadeResumo] = useState('Todas')
   const [mostrarConfirmarCompra, setMostrarConfirmarCompra] = useState(false)
@@ -1180,7 +1191,7 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
   return (
     <div className="px-4 py-4 space-y-4">
       {periodoNav}
-      {!isCorrente && periodoObj && (
+      {!isCorrente && periodoObj && !isDedicanteUnidade && (
         <div className="bg-white border border-stone-100 rounded-2xl px-4 py-3 flex items-center justify-between gap-3 shadow-sm">
           <div className="text-sm text-stone-500 font-semibold">
             {periodoObj.status === 'arquivado' ? '🔒 Período arquivado' : '📂 Período aberto, mas não é o corrente'}
@@ -1302,7 +1313,7 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
         <p className="text-sm text-stone-500">A exportação da planilha do pedido agora fica em <strong>Config → 🖨️ Relatórios</strong>.</p>
       </div>
 
-      {isCorrente && (
+      {isCorrente && !isDedicanteUnidade && (
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 space-y-2">
           <div className="text-xs font-black text-stone-400 uppercase tracking-widest">Depois que a Korin entregar</div>
           <p className="text-sm text-stone-500">Suba a mesma planilha, agora com a quantidade que você realmente comprou. É esse passo que liga o estoque real do período.</p>
