@@ -19,6 +19,7 @@ import { listarClientes } from './lib/clientes'
 import UnidadesManager from './UnidadesManager'
 import ModoPdv from './Pdv'
 import { getMapaFotos, fotoDoProduto } from './lib/fotos'
+import PlanilhaKorinCard from './PlanilhaKorinCard'
 
 
 // ── SYNC BADGE ────────────────────────────────────────────────────────────────
@@ -1308,10 +1309,14 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
         </div>
       )}
 
-      <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm space-y-2">
-        <div className="text-xs font-black text-stone-400 uppercase tracking-widest">Planilha pra Korin</div>
-        <p className="text-sm text-stone-500">A exportação da planilha do pedido agora fica em <strong>Config → 🖨️ Relatórios</strong>.</p>
-      </div>
+      {isDedicanteUnidade ? (
+        <PlanilhaKorinCard produtos={produtos} pedidos={pedidos} periodo={periodo} unidades={unidades} />
+      ) : (
+        <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm space-y-2">
+          <div className="text-xs font-black text-stone-400 uppercase tracking-widest">Planilha pra Korin</div>
+          <p className="text-sm text-stone-500">A exportação da planilha do pedido agora fica em <strong>Config → 🖨️ Relatórios</strong>.</p>
+        </div>
+      )}
 
       {isCorrente && !isDedicanteUnidade && (
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 space-y-2">
