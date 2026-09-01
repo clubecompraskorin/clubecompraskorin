@@ -10,8 +10,11 @@
 > editar produto/estoque/planilha, sem abrir/fechar mês — feature isolada por organização (só
 > liga quem o Junior habilitar no `/gestor`). Levou 4 correções reais no meio do teste (client de
 > auth em ambiente serverless, validação de token via API REST em vez do SDK, checkbox
-> invisível) — tudo documentado na seção dedicada abaixo. Pendência anotada pro Junior: dar ao
-> dedicante acesso aos links de catálogo público e de entrega por PIN da própria unidade.
+> invisível) — tudo documentado na seção dedicada abaixo. **Sessão seguinte (01/09)**: a pendência
+> acima foi fechada — dedicante de unidade ganhou o export "Planilha pra Korin" (soma/separado,
+> sem custo) direto na aba Fechamento, e um card "Meus links" na aba Pedidos com o link do
+> catálogo e o link de entrega por PIN da própria unidade (mesclado na `main`, ainda não testado
+> em uso real — ver seção dedicada abaixo).
 > **sessão de lançamento de 28/08 — confirmada OK pelo Junior em teste real**: estoque
 > redesenhado (Alerta de caixa + Comprado/Entregue/Reservado→Sobra, sem mais "caixas abertas"
 > travando o catálogo público); push pro membro avisando abertura/fechamento do catálogo (com
@@ -1601,6 +1604,48 @@ funcionando, nada mudou pra quem chama.
 
 ---
 
+## Dedicante de unidade: planilha pra Korin + links de catálogo/entrega — implementado, mesclado na `main`
+
+**Contexto trazido pelo Junior**: a gestão do que pedir da Korin não fica só com a coordenadora —
+é responsabilidade maior do próprio dedicante de unidade, porque é ele quem baixa a planilha e
+decide incluir/excluir produto por causa da restrição de caixa fechada da Korin (sem integração
+direta, cada dedicante escolhe o que comprar por fora). Decisão confirmada: manter a forma atual
+de baixar a planilha (não criar edição de quantidade nova), só que pro dedicante o custo já sai
+zerado — controle de compra fica todo na mão dele. Agregador de pedidos entre unidades fica pra
+depois, registrado como ideia.
+
+Separado disso, ficou pendente desde o lançamento do papel (pendência #21 antiga): o dedicante não
+tinha como pegar o link do catálogo público (pra repassar aos membros da própria unidade) nem o
+link de entrega por PIN (pra separar/confirmar entrega ou repassar a quem ajuda nisso) — os dois
+ficavam só em Config → Unidades, aba que esse papel não vê.
+
+**O que foi construído**:
+- **`src/PlanilhaKorinCard.jsx`** (novo): extraído do bloco que já existia em `TabRelatorios`
+  (Config → Relatórios) — export "soma as unidades marcadas" (consolidado) e "separado por
+  unidade" (uma aba cada), mesma lib `xlsx` de sempre. Virou componente compartilhado.
+- **Tela Fechamento** (`FechamentoScreen`, `App.jsx`): pro `dedicante_unidade`, o texto "a
+  exportação fica em Config → Relatórios" (inacessível pra ele) foi trocado pelo card de verdade,
+  renderizado ali mesmo. **Nenhuma trava nova precisou ser escrita**: `precoCusto` já chega `null`
+  pra esse papel (RLS de `periodo_produtos_custo`, feature anterior) e `pedidos`/`unidades` já vêm
+  filtrados só da própria unidade (RLS `pode_ver_pedido_unidade` + `unidadesVisiveis` já usado nessa
+  tela) — a planilha que ele gera já sai sem custo e só com o que é dele, de graça.
+- **`src/MeusLinksCard.jsx`** (novo) + **`getMinhasUnidadesComPin()`** (`lib/auth.js`): card
+  "🔗 Meus links" no topo da aba Pedidos, só pro `dedicante_unidade` — link do catálogo (fixo, da
+  organização inteira) e, por unidade dele, o link de entrega + PIN já gerado pela coordenadora
+  (ou aviso pra pedir a ela, se ainda não existe). A consulta nova reaproveita o mesmo padrão
+  escopado de `getMinhasUnidades()` (via `org_member_unidades`, já comprovado em produção só
+  trazendo as unidades do próprio usuário), só acrescentando a coluna `pin_entrega`. Ele **não**
+  gera/troca PIN por ali — isso continua exclusivo da coordenadora em Config → Unidades.
+- `npx vite build` validado sem erro nas duas rodadas.
+- **Status no GitHub: mesclada na `main`.** Commits: `a205fa8` (planilha) e `3156f2f` (links),
+  branch `claude/catalogo-pin-planilhas-1bw2ek`, fast-forward direto na `main`.
+- **Ainda não testado por ninguém em uso real** — sem credenciais Supabase neste ambiente pra
+  logar como o dedicante da org "parati" e conferir visualmente. Testar: os dois exports geram
+  planilha certa e sem custo; os dois links copiam certo; PIN aparece só da(s) unidade(s) dele;
+  aviso de "ainda não gerado" quando a coordenadora não configurou o PIN daquela unidade.
+
+---
+
 ## Pendente / próximos passos
 
 1. ✅ **Comparativo do Dashboard — confirmado pelo Junior em teste real, tudo certo.**
@@ -1662,12 +1707,9 @@ funcionando, nada mudou pra quem chama.
 20. **Portal pra Korin — só ideia registrada, nada implementado.** Se o Junior quiser seguir, a
    Fase 1 (painel de leitura com pedido consolidado da rede) é o ponto de partida recomendado —
    ver seção dedicada acima.
-21. **Dedicante de unidade — falta dar acesso a 2 links que hoje só ficam em Config → Unidades**
-   (aba que o dedicante não vê): o link do catálogo público (pra ele repassar pros membros da
-   unidade dele) e o link de entrega por PIN (pra ele mesmo separar/confirmar entrega, se for o
-   caso). Pedido do Junior, explicitamente pra depois — nada implementado ainda. Provavelmente
-   um card simples na própria tela de Pedidos ou Entregas do dedicante, mostrando só o(s) link(s)
-   da(s) unidade(s) dele (não a lista inteira de unidades da organização).
+21. ✅ **Dedicante de unidade — links de catálogo e entrega por PIN — implementado, mesclado na
+   `main`.** Ver seção dedicada abaixo ("Dedicante de unidade: planilha pra Korin + links de
+   catálogo/entrega"). **Ainda não testado por ninguém em uso real.**
 
 ---
 
