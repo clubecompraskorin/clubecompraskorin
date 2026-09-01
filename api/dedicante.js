@@ -16,18 +16,6 @@ const supabaseAdmin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
-// Client separado, com a chave pública (anon) -- só pra validar o token de
-// quem chamou (auth.getUser(jwt)). O client de service_role, mesmo sem
-// localStorage/sessão nenhuma, ainda dá "Auth session missing!" nessa
-// chamada (o supabase-js espera uma sessão de usuário de verdade por trás,
-// não uma chave de admin) -- com a chave anon ele valida o jwt direto contra
-// o servidor de auth, sem depender de sessão local nenhuma.
-const supabaseAuth = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.VITE_SUPABASE_ANON_KEY,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
-
 // Sem caracteres ambíguos (0/O, 1/l/I) -- vai ser digitada num celular, repassada
 // por WhatsApp pela representante.
 const ALFABETO_SENHA = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
@@ -42,22 +30,40 @@ function gerarSenha(tamanho = 10) {
 // que o cliente mande sem checar contra o banco.
 async function autenticarOrgAdmin(req, orgId) {
   const token = req.headers.authorization?.replace('Bearer ', '')
-  // DIAGNÓSTICO TEMPORÁRIO — remover depois de confirmar a causa real.
-  const diag = `[authHeaderPresente=${Boolean(req.headers.authorization)} tokenLen=${token?.length || 0} anonKeyPresente=${Boolean(process.env.VITE_SUPABASE_ANON_KEY)} urlPresente=${Boolean(process.env.VITE_SUPABASE_URL)}]`
-  if (!token) return { erro: 'Não autenticado ' + diag }
-  const { data: userData, error: userError } = await supabaseAuth.auth.getUser(token)
-  if (userError || !userData?.user) return { erro: 'Sessão inválida' + (userError?.message ? ` (${userError.message})` : '') + ' ' + diag }
+  if (!token) return { erro: 'Não autenticado' }
+
+  // Valida o token direto na API REST do GoTrue (sem passar pelo
+  // supabase-js/.auth.getUser) -- com um token real e não-vazio, de tamanho
+  // normal, o SDK ainda devolvia "Auth session missing!" (confirmado com o
+  // Junior em produção) -- provável estado interno do client que não dá pra
+  // depurar daqui. Chamando a API direto, sem esse meio de campo, o
+  // resultado é bem mais previsível.
+  let userId
+  try {
+    const resp = await fetch(`${process.env.VITE_SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: process.env.VITE_SUPABASE_ANON_KEY,
+      },
+    })
+    if (!resp.ok) return { erro: `Sessão inválida (HTTP ${resp.status})` }
+    const userData = await resp.json()
+    if (!userData?.id) return { erro: 'Sessão inválida (usuário não encontrado)' }
+    userId = userData.id
+  } catch (e) {
+    return { erro: 'Sessão inválida (falha ao validar: ' + e.message + ')' }
+  }
 
   const { data: membro, error: membroError } = await supabaseAdmin
     .from('org_members')
     .select('role')
     .eq('org_id', orgId)
-    .eq('user_id', userData.user.id)
+    .eq('user_id', userId)
     .maybeSingle()
   if (membroError || !membro || membro.role === 'dedicante_unidade') {
     return { erro: 'Sem permissão para esta organização' }
   }
-  return { userId: userData.user.id }
+  return { userId }
 }
 
 async function criar(req, res) {
