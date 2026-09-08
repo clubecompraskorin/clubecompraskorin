@@ -4,6 +4,20 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
+> **Atualização (mesmo dia, complementar)**: **"Trocar minha senha" self-service — implementado e
+> mesclado na `main`.** Complementa o botão da coordenadora (abaixo): agora qualquer pessoa logada
+> (representante OU dedicante de unidade) troca a própria senha sozinha, sem depender de ninguém —
+> só cobre quem **lembra a senha atual** e quer trocar (não é recuperação de senha esquecida, que
+> continua precisando de alguém com acesso total, por não ter e-mail envolvido pra confirmar
+> identidade de quem está fora do sistema). Botão "🔑 Senha" novo ao lado do "Sair" (flutuante,
+> canto inferior direito, `AuthGate.jsx` — visível pra qualquer papel, é o único lugar em comum
+> entre admin e dedicante). Pede senha atual + nova + confirmação; `trocarSenha()` (`lib/auth.js`)
+> reautentica com a senha atual antes de trocar (`auth.updateUser`), pra não deixar quem pegou o
+> aparelho destravado mudar a senha de outra pessoa. **100% client-side via supabase-js — não
+> criou endpoint novo, não mexe no limite de funções do Hobby.** Validado: `npx vite build` limpo;
+> revisão visual do modal + dos 2 botões lado a lado via harness Playwright descartável (mobile
+> 390px). **Ainda não testado em produção.**
+>
 > **Atualização (mesmo dia)**: **coordenadora pode gerar senha nova pro dedicante direto pelo app
 > — implementado e mesclado na `main`.** Motivo: não existia nenhum jeito de trocar senha (nem
 > "esqueci senha", nem nada) — a única forma era manual, direto no banco. Decisão consciente de
@@ -1810,6 +1824,11 @@ ficavam só em Config → Unidades, aba que esse papel não vê.
    Validado só com `npx vite build` + harness Playwright descartável (visual). Falta clicar de
    verdade num dos 13 acessos reais, confirmar que a senha antiga para de funcionar e a nova
    funciona.
+25. **"Trocar minha senha" self-service — mesclado, sem teste real ainda.** Mesma validação que o
+   item 24 (só build + visual). Falta testar de verdade: senha atual errada bloqueia corretamente,
+   senha nova funciona pra logar de novo, e confirmar que isso não desloga a pessoa sem querer
+   (o `signInWithPassword` de confirmação reautentica o mesmo usuário — não devia remontar o app,
+   já que `AuthGate` ignora evento de auth do mesmo usuário, mas vale confirmar ao vivo).
 
 ---
 
