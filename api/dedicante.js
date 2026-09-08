@@ -6,6 +6,8 @@
 //
 // POST   { orgId, nome, email, unidadeIds } -> cria o login + vínculo, devolve a senha gerada (uma vez só)
 // DELETE { orgId, memberId }                -> remove o login e o vínculo
+// PATCH  { orgId, memberId }                -> gera senha nova, devolve ela (uma vez só) -- dedicante
+//                                              esqueceu a senha, pede pra representante, que clica aqui
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -146,10 +148,32 @@ async function remover(req, res) {
   return res.status(200).json({ ok: true })
 }
 
+async function resetarSenha(req, res) {
+  const { orgId, memberId } = req.body || {}
+  if (!orgId || !memberId) return res.status(400).json({ ok: false, error: 'orgId e memberId são obrigatórios' })
+
+  const auth = await autenticarOrgAdmin(req, orgId)
+  if (auth.erro) return res.status(403).json({ ok: false, error: auth.erro })
+
+  const { data: membro, error: membroError } = await supabaseAdmin
+    .from('org_members').select('user_id, role, nome, email').eq('id', memberId).eq('org_id', orgId).maybeSingle()
+  if (membroError) throw membroError
+  if (!membro || membro.role !== 'dedicante_unidade') {
+    return res.status(400).json({ ok: false, error: 'Dedicante não encontrado' })
+  }
+
+  const senha = gerarSenha()
+  const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(membro.user_id, { password: senha })
+  if (updateError) throw updateError
+
+  return res.status(200).json({ ok: true, senha, nome: membro.nome, email: membro.email })
+}
+
 export default async function handler(req, res) {
   try {
     if (req.method === 'POST') return await criar(req, res)
     if (req.method === 'DELETE') return await remover(req, res)
+    if (req.method === 'PATCH') return await resetarSenha(req, res)
     return res.status(405).end()
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message })

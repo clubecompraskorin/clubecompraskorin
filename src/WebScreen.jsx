@@ -20,7 +20,7 @@ import { parsePlanilhaGenerica } from './lib/importarPlanilhaGenerica'
 import { printRelatorioPedidos, printRelatorioEstoque, printRelatorioFechamento } from './lib/print'
 import UnidadesManager from './UnidadesManager'
 import ClientesManager from './ClientesManager'
-import { listarDedicantesUnidade, criarDedicanteUnidade, removerDedicanteUnidade } from './lib/dedicantes'
+import { listarDedicantesUnidade, criarDedicanteUnidade, removerDedicanteUnidade, resetarSenhaDedicanteUnidade } from './lib/dedicantes'
 import PlanilhaKorinCard from './PlanilhaKorinCard'
 
 const fmt = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',')
@@ -562,6 +562,7 @@ function TabDedicantes({ orgId, unidades }) {
   const [criando, setCriando]     = useState(false)
   const [erro, setErro]           = useState('')
   const [senhaGerada, setSenhaGerada] = useState(null)
+  const [resetandoId, setResetandoId] = useState(null)
 
   const recarregar = useCallback(() => {
     if (!orgId) return
@@ -589,7 +590,7 @@ function TabDedicantes({ orgId, unidades }) {
     const r = await criarDedicanteUnidade(orgId, { nome, email, unidadeIds })
     setCriando(false)
     if (!r.ok) { setErro(r.error); return }
-    setSenhaGerada({ nome: r.nome, email: r.email, senha: r.senha })
+    setSenhaGerada({ nome: r.nome, email: r.email, senha: r.senha, tipo: 'criado' })
     setNome(''); setEmail(''); setUnidadeIds([])
     recarregar()
   }
@@ -599,6 +600,15 @@ function TabDedicantes({ orgId, unidades }) {
     const r = await removerDedicanteUnidade(orgId, membro.id)
     if (!r.ok) { toast('Erro ao remover: ' + r.error); return }
     recarregar()
+  }
+
+  const handleResetarSenha = async (membro) => {
+    if (!await confirmar(`Gerar senha nova pra ${membro.nome || membro.email}? A senha antiga para de funcionar na hora.`)) return
+    setResetandoId(membro.id)
+    const r = await resetarSenhaDedicanteUnidade(orgId, membro.id)
+    setResetandoId(null)
+    if (!r.ok) { toast('Erro ao gerar nova senha: ' + r.error); return }
+    setSenhaGerada({ nome: r.nome, email: r.email, senha: r.senha, tipo: 'resetado' })
   }
 
   if (loading) return <div className="px-4 py-12 text-center text-stone-400 font-bold animate-pulse">Carregando…</div>
@@ -621,10 +631,16 @@ function TabDedicantes({ orgId, unidades }) {
                   {m.unidades.length ? m.unidades.map(u => u.nome).join(', ') : 'nenhuma unidade'}
                 </div>
               </div>
-              <button onClick={() => handleRemover(m)}
-                className="text-red-500 text-xs font-black flex-shrink-0 px-2.5 py-1.5 active:bg-red-50 rounded-lg">
-                🗑️ Remover
-              </button>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button onClick={() => handleResetarSenha(m)} disabled={resetandoId === m.id}
+                  className="text-amber-700 text-xs font-black px-2.5 py-1.5 active:bg-amber-50 rounded-lg disabled:opacity-50 whitespace-nowrap">
+                  {resetandoId === m.id ? '⟳ Gerando…' : '🔑 Nova senha'}
+                </button>
+                <button onClick={() => handleRemover(m)}
+                  className="text-red-500 text-xs font-black px-2.5 py-1.5 active:bg-red-50 rounded-lg">
+                  🗑️ Remover
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -665,7 +681,9 @@ function TabDedicantes({ orgId, unidades }) {
       {senhaGerada && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4" onClick={() => setSenhaGerada(null)}>
           <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
-            <div className="text-lg font-black text-green-800">✅ Acesso criado</div>
+            <div className="text-lg font-black text-green-800">
+              {senhaGerada.tipo === 'resetado' ? '🔑 Senha gerada' : '✅ Acesso criado'}
+            </div>
             <p className="text-sm text-stone-500">
               Copie e envie pra <strong>{senhaGerada.nome}</strong> por WhatsApp — essa senha só aparece agora, não dá pra ver de novo depois.
             </p>

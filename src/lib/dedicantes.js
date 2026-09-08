@@ -51,3 +51,8 @@ export async function criarDedicanteUnidade(orgId, { nome, email, unidadeIds }) 
 export async function removerDedicanteUnidade(orgId, memberId) {
   return chamarEndpoint('DELETE', { orgId, memberId })
 }
+
+/** Gera senha nova pro dedicante (esqueceu a antiga). Devolve ela — só aparece esta vez. */
+export async function resetarSenhaDedicanteUnidade(orgId, memberId) {
+  return chamarEndpoint('PATCH', { orgId, memberId })
+}
