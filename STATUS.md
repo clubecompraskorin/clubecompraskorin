@@ -4,7 +4,39 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
-> Última atualização: 08/09/2026. **Organização "parati" (conta de testes) excluída a pedido do
+> **Atualização (mesmo dia, sessão seguinte)**: **importação de planilha própria da coordenadora +
+> custo em cascata — implementado, branch aberta, aguardando confirmação do Junior pra
+> mergear na `main`.** Motivo: uma coordenadora do Grupo Campo Grande usa o próprio modelo de
+> planilha (não a tabela oficial da Korin, que trava a célula de preço de venda) — mesma lógica da
+> Valéria com foto própria, só que em Excel. Quando a planilha não bate com o layout oficial, cai
+> num parser novo (`src/lib/importarPlanilhaGenerica.js`) que pede pra IA (mesmo endpoint que já
+> classifica categoria, `/api/classificar-categorias`, dispatch por `acao` — sem quebrar o uso
+> existente nem passar de 12/12 funções do Hobby) mapear qual coluna é código/nome/unidade/
+> qtd-por-caixa/preço, em vez de depender de letra fixa. **Achado real testando com uma planilha
+> de coordenadora de verdade** (anexada pelo Junior): o parser oficial "aceitava" o arquivo por
+> coincidência de coluna (B/C/F bateram por acaso com cód/nome/venda) mas lia quantidade por caixa
+> sempre zero — corrigido com uma checagem de plausibilidade (maioria dos produtos com qtd/caixa
+> > 0) antes de confiar no resultado do parser oficial.
+>
+> **Custo em cascata** (pedido do Junior): planilha própria nunca tem coluna de custo separada da
+> venda (igual foto). Quem importa por planilha agora tenta, pra cada produto sem custo: 1) o que
+> já está configurado no período corrente pro mesmo código, 2) senão, o período anterior — mostra
+> **amarelo** quando o valor veio de uma dessas duas fontes (com aviso "mês atual/anterior —
+> confira"), **vermelho** quando não achou em lugar nenhum, e **trava o botão Salvar** enquanto
+> sobrar vermelho (editável ali mesmo na revisão). Só entra em ação em importação de **planilha**
+> — foto continua exatamente como sempre funcionou, sem custo visível nem trava nova, decisão
+> deliberada pra não mudar nada do que já está validado em produção.
+>
+> Validado: `npx vite build` sem erro; testado com Node standalone contra a planilha real anexada
+> (41 produtos extraídos corretamente, parser oficial corretamente rejeitado); revisão visual das
+> 4 cores de custo via harness Playwright descartável (revertido depois). **Não testado ainda**: a
+> chamada real de IA pro mapeamento de coluna (não dá pra testar sem esse ambiente ter
+> `ANTHROPIC_API_KEY` de produção) e o fluxo completo dentro do app de verdade.
+> **Status no GitHub: branch `feat/import-planilha-flexivel`, ainda não mesclada — aguardando
+> confirmação do Junior** (arquivos: `api/classificar-categorias.js`, `src/WebScreen.jsx`,
+> `src/lib/periodos.js`, `src/lib/importarPlanilhaGenerica.js` novo).
+>
+> Última atualização anterior: 08/09/2026. **Organização "parati" (conta de testes) excluída a pedido do
 > Junior** — junto com "Igreja Gloria" (org de teste sem cliente real associado). Só ficou
 > **"Clube de Compras Natural"** como organização preexistente. No lugar da "parati", **o
 > primeiro cliente real foi recadastrado com os dados definitivos**: pessoa jurídica **Produtos
