@@ -4,6 +4,34 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
+> **Atualização (mesmo dia, complementar)**: **foto de produto passa a casar por código da Korin,
+> não só por nome — implementado e mesclado na `main`.** Motivo: investigando por que a planilha
+> própria da coordenadora (ver entrada anterior) achou foto pra só 3 de 40 produtos, achei a causa
+> raiz — o banco de fotos (`fotos_produtos_korin`, 39 linhas, compartilhado entre organizações) era
+> casado 100% por texto do nome normalizado, e esse texto foi catalogado a partir da planilha
+> **oficial** da Korin, que embute a embalagem na própria descrição (ex: "COXA NGMO CONG PCT **CX
+> C/17KG C/17 PCT**"). Planilha caseira de coordenadora não tem esse trecho na célula do nome —
+> mesmo produto real, texto diferente, casamento falhava. Código, por outro lado, é idêntico em
+> qualquer planilha. Mudanças: migração `fotos_produtos_korin_add_cod` (coluna `cod` nullable +
+> índice único parcial); `fotoDoProduto`/`getMapaFotos` (`lib/fotos.js`) tentam casar por código
+> primeiro, nome normalizado só de reserva (não perde cobertura, só ganha via mais forte);
+> `api/gestor-fotos.js` (endpoint que só o Junior usa via `/gestor` pra cadastrar foto nova) passa
+> a aceitar `cod` opcional, upserta por ele quando informado. **Backfill das 39 fotos existentes**:
+> cruzei contra o histórico de `periodo_produtos` de todas as organizações — 38/39 recuperaram o
+> código sozinhas; a última ("LINGUICA FRANGO C/ ERVAS") o Junior resolveu mandando a planilha
+> oficial de Setembro/2026 direto — nesse processo também confirmamos que o código certo dela é
+> **40035**, não 41042 (bate com o bug de código duplicado documentado antes: a coordenadora tinha
+> digitado 41042 por engano pra dois produtos diferentes). **Resultado real comprovado**: o mesmo
+> import que antes achava foto pra 3 de 40 produtos agora acha pra **34 de 40** — os 6 restantes
+> são produtos genuinamente sem foto cadastrada em lugar nenhum (Pescoço, Ovos, Hambúrguer Bovino,
+> as 2 Salsichas "novidade" e Milho Pipoca), não mais um problema de casamento de texto. Nota pro
+> futuro: a Valéria (Sistema 1, projeto Supabase totalmente separado) usa numeração própria em vez
+> do código real da Korin — quando/se ela migrar pra este sistema, precisa decidir como tratar os
+> códigos dela (hoje não tem risco de colisão nenhum, os dois sistemas nem compartilham banco).
+> Validado: `npx vite build` limpo; `get_advisors` (segurança) sem achado novo; resultado do
+> casamento conferido direto no banco (SQL) contra os dados reais do import da coordenadora — não
+> precisou de harness visual, é lógica de dados, sem UI nova.
+>
 > **Atualização (mesmo dia, complementar)**: **"Trocar minha senha" self-service — implementado e
 > mesclado na `main`.** Complementa o botão da coordenadora (abaixo): agora qualquer pessoa logada
 > (representante OU dedicante de unidade) troca a própria senha sozinha, sem depender de ninguém —
