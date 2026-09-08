@@ -127,6 +127,30 @@ async function buscarCustos(periodoProdutoIds) {
   return mapa
 }
 
+/**
+ * Segunda tentativa de achar o custo de um produto quando a importação não
+ * trouxe (foto, ou planilha própria da coordenadora sem coluna de custo) E o
+ * produto também não existia no período corrente com custo já configurado
+ * (esse primeiro caso é resolvido antes de chamar isto, ao mesclar com o que
+ * já estava salvo — ver ModalImportarCatalogo). Casa por `cod` no período
+ * arquivado imediatamente anterior da mesma organização. Devolve um mapa
+ * { cod: precoCusto } só com os códigos que de fato acharam custo lá.
+ */
+export async function buscarCustoPeriodoAnterior(orgId, periodoAtualId, cods) {
+  if (!supabase || !orgId || !cods?.length) return {}
+  try {
+    const anterior = await getPeriodoAnteriorArquivado(orgId, periodoAtualId)
+    if (!anterior) return {}
+    const { data: rows } = await supabase
+      .from('periodo_produtos').select('id, cod').eq('periodo_id', anterior.id).in('cod', cods)
+    if (!rows?.length) return {}
+    const custos = await buscarCustos(rows.map(r => r.id))
+    const mapa = {}
+    rows.forEach(r => { if (custos[r.id] != null) mapa[r.cod] = custos[r.id] })
+    return mapa
+  } catch (e) { console.error(e); return {} }
+}
+
 /** Grava (ou apaga, se null) o custo de um produto já salvo em periodo_produtos_custo. */
 async function sincronizarCusto(periodoProdutoId, precoCusto) {
   if (precoCusto != null) {
