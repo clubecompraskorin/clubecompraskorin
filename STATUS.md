@@ -5,8 +5,8 @@
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
 > **Atualização (mesmo dia, sessão seguinte)**: **importação de planilha própria da coordenadora +
-> custo em cascata — implementado, branch aberta, aguardando confirmação do Junior pra
-> mergear na `main`.** Motivo: uma coordenadora do Grupo Campo Grande usa o próprio modelo de
+> custo em cascata — implementado e mesclado na `main`, confirmado pelo Junior.** Motivo: uma
+> coordenadora do Grupo Campo Grande usa o próprio modelo de
 > planilha (não a tabela oficial da Korin, que trava a célula de preço de venda) — mesma lógica da
 > Valéria com foto própria, só que em Excel. Quando a planilha não bate com o layout oficial, cai
 > num parser novo (`src/lib/importarPlanilhaGenerica.js`) que pede pra IA (mesmo endpoint que já
@@ -31,10 +31,10 @@
 > (41 produtos extraídos corretamente, parser oficial corretamente rejeitado); revisão visual das
 > 4 cores de custo via harness Playwright descartável (revertido depois). **Não testado ainda**: a
 > chamada real de IA pro mapeamento de coluna (não dá pra testar sem esse ambiente ter
-> `ANTHROPIC_API_KEY` de produção) e o fluxo completo dentro do app de verdade.
-> **Status no GitHub: branch `feat/import-planilha-flexivel`, ainda não mesclada — aguardando
-> confirmação do Junior** (arquivos: `api/classificar-categorias.js`, `src/WebScreen.jsx`,
-> `src/lib/periodos.js`, `src/lib/importarPlanilhaGenerica.js` novo).
+> `ANTHROPIC_API_KEY` de produção) e o fluxo completo dentro do app de verdade — ver Pendente.
+> **Status no GitHub: mesclada na `main`.** Commit `6706d30` (branch `feat/import-planilha-
+> flexivel`), merge commit na `main` (`3653a88..` — build revalidado depois do merge, 12/12
+> funções confirmado).
 >
 > Última atualização anterior: 08/09/2026. **Organização "parati" (conta de testes) excluída a pedido do
 > Junior** — junto com "Igreja Gloria" (org de teste sem cliente real associado). Só ficou
@@ -1774,6 +1774,11 @@ ficavam só em Config → Unidades, aba que esse papel não vê.
 22. ✅ **Endereço das 15 unidades do Grupo Campo Grande/Costa Verde — completo.** Junior mandou os
    links/endereços que a busca não tinha achado, incluindo JC Frade por último. Todas as 15
    unidades têm nome + endereço cadastrados agora.
+23. **Importação de planilha própria + custo em cascata — mesclada, mas sem teste real ainda.**
+   Validado só fora do app (Node standalone contra a planilha real, build limpo, QA visual das
+   cores). Falta: testar de verdade dentro do app (upload real de uma planilha caseira de
+   coordenadora, confirmar que a IA mapeia as colunas certas, confirmar que os 3 estados de custo
+   — importado/amarelo/vermelho — aparecem certo e que o Salvar trava mesmo com vermelho pendente).
 
 ---
 
