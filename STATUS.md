@@ -30,8 +30,7 @@
 > neste ambiente, só busca funcionou; 7 unidades ficaram sem endereço na primeira rodada). **Junior
 > mandou os links certos das 7 páginas em seguida** e os endereços foram atualizados: JC Magalhães
 > Bastos, Difusão Bangu, JC Mangaratiba, JC Muriqui, JC Angra dos Reis, JC Parque Mambucaba e
-> JC Ubatuba — todos com endereço completo agora. **Só JC Frade (Costa Verde) ficou sem endereço**
-> (não veio link pra ela — sem login próprio de qualquer forma, cobre pela Camile).
+> JC Ubatuba — e, por último, JC Frade também. **As 15 unidades têm endereço completo agora.**
 >
 > Última atualização anterior: 01/09/2026. Resumo das entregas recentes (detalhes em cada seção
 > abaixo):
@@ -1740,10 +1739,9 @@ ficavam só em Config → Unidades, aba que esse papel não vê.
 21. ✅ **Dedicante de unidade — links de catálogo e entrega por PIN — implementado, mesclado na
    `main`.** Ver seção dedicada abaixo ("Dedicante de unidade: planilha pra Korin + links de
    catálogo/entrega"). **Ainda não testado por ninguém em uso real.**
-22. ✅ **Endereço das unidades do Grupo Campo Grande/Costa Verde — resolvido.** Junior mandou os
-   links certos das 7 páginas que a busca não achou; todos os endereços foram atualizados. **Só
-   JC Frade (Costa Verde) ficou sem `endereco`** — não tem login próprio (cobre pela Camile) e
-   ninguém mandou o link/endereço dela ainda.
+22. ✅ **Endereço das 15 unidades do Grupo Campo Grande/Costa Verde — completo.** Junior mandou os
+   links/endereços que a busca não tinha achado, incluindo JC Frade por último. Todas as 15
+   unidades têm nome + endereço cadastrados agora.
 
 ---
 
