@@ -920,8 +920,21 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
   // foto nunca trouxe custo e nunca travou o Salvar, continua assim.
   const semCusto = tipoArquivo === 'planilha' ? importados.filter(p => p.precoCusto == null) : []
 
+  // Código repetido DENTRO da mesma planilha (2 produtos com o mesmo cód, ex:
+  // erro de digitação de quem monta a planilha própria) trava o salvar com
+  // erro de banco (upsert em massa não aceita 2 linhas pro mesmo código de
+  // uma vez — Postgres recusa com "ON CONFLICT ... cannot affect row a
+  // second time"). Detectado achado numa planilha real de coordenadora — 2
+  // produtos diferentes com o mesmo código por engano dela. Trava aqui, com
+  // mensagem clara, em vez de deixar estourar erro de banco confuso lá na
+  // hora de salvar.
+  const contagemCod = {}
+  importados.forEach(p => { contagemCod[p.cod] = (contagemCod[p.cod] || 0) + 1 })
+  const codsDuplicados = [...new Set(importados.filter(p => contagemCod[p.cod] > 1).map(p => p.cod))]
+
   const confirmarSalvar = async () => {
     if (!mesmoMes && !dataLimite) { toast('Informe a data limite do novo período'); return }
+    if (codsDuplicados.length > 0) { toast('Tem código repetido na planilha — remova um dos produtos duplicados antes de salvar'); return }
     if (conflitos.length > 0 && !confirmouConflitos) { toast('Revise e confirme os produtos com código reaproveitado antes de salvar'); return }
     if (semCusto.length > 0) { toast('Preencha o custo dos produtos destacados em vermelho antes de salvar'); return }
     setSalvando(true)
@@ -944,8 +957,8 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
   }
 
   if (etapa === 'upload') return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
-      <div className="bg-white w-full rounded-t-3xl p-5 space-y-4">
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center sm:p-4">
+      <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 space-y-4">
         <div className="flex justify-between items-center">
           <div className="text-xl font-black">Importar catálogo</div>
           <button onClick={onClose} className="p-2 rounded-full bg-stone-100 text-xl">✕</button>
@@ -985,8 +998,8 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
   )
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
-      <div className="bg-white w-full rounded-t-3xl flex flex-col" style={{ maxHeight: '90vh' }}>
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center sm:p-4">
+      <div className="bg-white w-full sm:max-w-2xl rounded-t-3xl sm:rounded-3xl flex flex-col" style={{ maxHeight: '90vh' }}>
         <div className="p-4 border-b border-stone-100 flex-shrink-0">
           <div className="flex justify-between items-center">
             <div>
@@ -1018,6 +1031,15 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
                 <input type="date" value={dataLimite} onChange={e => setDataLimite(e.target.value)}
                   className="w-full border border-amber-200 rounded-xl px-3 py-2 text-sm font-bold focus:outline-none focus:border-amber-400" />
               </div>
+            </div>
+          </div>
+        )}
+
+        {codsDuplicados.length > 0 && (
+          <div className="px-4 pt-3 flex-shrink-0">
+            <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 font-semibold">
+              🔴 Código{codsDuplicados.length > 1 ? 's' : ''} repetido{codsDuplicados.length > 1 ? 's' : ''} na planilha:{' '}
+              {codsDuplicados.join(', ')} — apaga um dos produtos duplicados (botão ✕) antes de salvar.
             </div>
           </div>
         )}
@@ -1057,41 +1079,46 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
         )}
 
         <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2">
-          {importados.map((p, i) => (
-            <div key={p.cod} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${p.conflitoCod ? 'bg-amber-50 border border-amber-200' : 'bg-stone-50'}`}>
-              <div className={`w-8 h-8 rounded-lg text-white flex items-center justify-center text-xs font-black flex-shrink-0 ${p.conflitoCod ? 'bg-amber-600' : 'bg-green-700'}`}>{p.cod}</div>
+          {importados.map((p, i) => {
+            const duplicado = contagemCod[p.cod] > 1
+            return (
+            <div key={`${p.cod}-${i}`} className={`flex items-center gap-3 rounded-xl px-3 py-3 sm:py-3.5 ${duplicado ? 'bg-red-50 border border-red-300' : p.conflitoCod ? 'bg-amber-50 border border-amber-200' : 'bg-stone-50'}`}>
+              <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg text-white flex items-center justify-center text-xs sm:text-sm font-black flex-shrink-0 ${duplicado ? 'bg-red-600' : p.conflitoCod ? 'bg-amber-600' : 'bg-green-700'}`}>{p.cod}</div>
               <div className="flex-1 min-w-0">
                 <input value={p.nome}
                   onChange={e => { const v = e.target.value; setImportados(prev => prev.map((x, j) => j === i ? { ...x, nome: v, nomeCustomizado: true } : x)) }}
-                  className="text-sm font-bold text-stone-800 bg-transparent border-b border-transparent focus:border-green-500 focus:outline-none w-full truncate" />
+                  className="text-sm sm:text-base font-bold text-stone-800 bg-transparent border-b border-transparent focus:border-green-500 focus:outline-none w-full truncate" />
                 {p.nomeOriginalKorin && normalizarTexto(p.nomeOriginalKorin) !== normalizarTexto(p.nome) && (
-                  <div className="text-[11px] text-stone-400 truncate">Korin: {p.nomeOriginalKorin}</div>
+                  <div className="text-[11px] sm:text-xs text-stone-400 truncate">Korin: {p.nomeOriginalKorin}</div>
+                )}
+                {duplicado && (
+                  <div className="text-xs sm:text-sm text-red-700 font-semibold truncate">🔴 código {p.cod} repetido nesta planilha</div>
                 )}
                 {p.conflitoCod && (
-                  <div className="text-xs text-amber-700 font-semibold truncate">⚠️ código {p.cod} era "{p.nomeAnterior}"</div>
+                  <div className="text-xs sm:text-sm text-amber-700 font-semibold truncate">⚠️ código {p.cod} era "{p.nomeAnterior}"</div>
                 )}
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  {p.unidade && <span className="text-xs text-stone-400">{p.unidade}</span>}
+                  {p.unidade && <span className="text-xs sm:text-sm text-stone-400">{p.unidade}</span>}
                   <select value={p.categoria}
                     onChange={e => { const cat = e.target.value; setImportados(prev => prev.map((x, j) => j === i ? { ...x, categoria: cat } : x)) }}
-                    className="text-xs font-bold bg-white border border-stone-200 rounded-lg pl-1.5 pr-5 py-0.5 focus:outline-none focus:border-green-500"
+                    className="text-xs sm:text-sm font-bold bg-white border border-stone-200 rounded-lg pl-1.5 pr-5 py-0.5 sm:py-1 focus:outline-none focus:border-green-500"
                     style={{ color: CAT_COR[p.categoria] || '#555' }}>
                     {CATS_ORDEM.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                <div className="text-sm font-black text-green-700">{fmt(p.preco)}</div>
+                <div className="text-sm sm:text-base font-black text-green-700">{fmt(p.preco)}</div>
                 {tipoArquivo === 'planilha' && (
                   <div className="flex flex-col items-end">
                     <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-stone-400 font-bold">custo</span>
+                      <span className="text-[10px] sm:text-xs text-stone-400 font-bold">custo</span>
                       <input type="number" step="0.01" inputMode="decimal" value={p.precoCusto ?? ''} placeholder="0,00"
                         onChange={e => {
                           const v = e.target.value === '' ? null : Number(e.target.value)
                           setImportados(prev => prev.map((x, j) => j === i ? { ...x, precoCusto: v, origemCusto: 'manual' } : x))
                         }}
-                        className={`w-16 text-xs font-bold rounded-lg px-1.5 py-0.5 border text-right focus:outline-none ${
+                        className={`w-20 sm:w-24 text-sm sm:text-base font-bold rounded-lg px-2 py-1 sm:py-1.5 border text-right focus:outline-none ${
                           p.precoCusto == null
                             ? 'bg-red-50 border-red-300 text-red-700'
                             : (p.origemCusto === 'atual' || p.origemCusto === 'anterior')
@@ -1099,20 +1126,20 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
                               : 'bg-white border-stone-200 text-stone-500'
                         }`} />
                     </div>
-                    {p.origemCusto === 'atual' && <div className="text-[9px] text-amber-600 mt-0.5">mês atual — confira</div>}
-                    {p.origemCusto === 'anterior' && <div className="text-[9px] text-amber-600 mt-0.5">mês anterior — confira</div>}
+                    {p.origemCusto === 'atual' && <div className="text-[10px] sm:text-xs text-amber-600 mt-0.5">mês atual — confira</div>}
+                    {p.origemCusto === 'anterior' && <div className="text-[10px] sm:text-xs text-amber-600 mt-0.5">mês anterior — confira</div>}
                   </div>
                 )}
               </div>
               <button onClick={() => setImportados(prev => prev.filter((_,j) => j !== i))}
-                className="text-stone-300 text-lg active:text-red-500 flex-shrink-0">✕</button>
+                className="text-stone-300 text-lg sm:text-xl active:text-red-500 flex-shrink-0">✕</button>
             </div>
-          ))}
+          )})}
         </div>
         <div className="p-4 border-t border-stone-100 flex gap-3 flex-shrink-0">
           <button onClick={() => setEtapa('upload')}
             className="px-5 py-3.5 bg-stone-100 text-stone-600 rounded-2xl font-black active:bg-stone-200">← Voltar</button>
-          <button onClick={confirmarSalvar} disabled={salvando || (!mesmoMes && !dataLimite) || (conflitos.length > 0 && !confirmouConflitos) || semCusto.length > 0}
+          <button onClick={confirmarSalvar} disabled={salvando || (!mesmoMes && !dataLimite) || codsDuplicados.length > 0 || (conflitos.length > 0 && !confirmouConflitos) || semCusto.length > 0}
             className="flex-1 py-3.5 bg-green-700 text-white rounded-2xl font-black text-base active:bg-green-800 disabled:opacity-50">
             {salvando ? '⟳ Salvando…' : `✅ Salvar ${importados.length} produtos`}
           </button>
