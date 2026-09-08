@@ -19,7 +19,19 @@
 > vai pro git) — foram passadas ao Junior direto no chat da sessão em que foram geradas, pra ele
 > repassar por WhatsApp. Nenhuma das 2 tem unidade cadastrada ainda nem recurso de dedicante de
 > unidade ligado — ambos ficam pendentes de configuração (cadastro das unidades de cada grupo, e
-> ligar `permite_dedicante_unidade` em cada uma se for o caso, via `/gestor`).
+> ligar `permite_dedicante_unidade` em cada uma se for o caso, via `/gestor`). **Atualização no
+> mesmo dia**: as 15 unidades reais das 2 organizações foram cadastradas (8 em Grupo Campo Grande,
+> 7 em Grupo Costa Verde — unidades da Igreja Messiânica Mundial do Brasil), `permite_dedicante_unidade`
+> ativado nas duas, e **13 logins de representante de unidade criados** (mesmo padrão de senha
+> auto-gerada, direto no banco). 2 unidades (JC Sepetiba em Campo Grande, JC Frade em Costa Verde)
+> não têm login próprio — a pedido do Junior, ficam sob a coordenadora geral (Camile), que já
+> tem acesso total via login principal de cada organização. **Endereço**: pesquisado no site
+> oficial da Igreja Messiânica (`enderecos.messianica.org.br` via busca — o domínio está bloqueado
+> pro fetch direto neste ambiente, só busca funcionou) para as unidades com página própria
+> indexada; **6 unidades ficaram sem endereço confirmado** (JC Magalhães Bastos, Difusão Bangu,
+> JC Mangaratiba, JC Muriqui, JC Angra dos Reis, JC Parque Mambucaba, JC Ubatuba — a busca não
+> achou página oficial ou endereço específico) — campo `endereco` ficou `null` nessas, pendente de
+> confirmação com os próprios representantes (ver Pendente).
 >
 > Última atualização anterior: 01/09/2026. Resumo das entregas recentes (detalhes em cada seção
 > abaixo):
@@ -1728,6 +1740,12 @@ ficavam só em Config → Unidades, aba que esse papel não vê.
 21. ✅ **Dedicante de unidade — links de catálogo e entrega por PIN — implementado, mesclado na
    `main`.** Ver seção dedicada abaixo ("Dedicante de unidade: planilha pra Korin + links de
    catálogo/entrega"). **Ainda não testado por ninguém em uso real.**
+22. **Endereço de 7 unidades (Grupo Campo Grande/Costa Verde) não confirmado.** JC Magalhães
+   Bastos, Difusão Bangu, JC Mangaratiba, JC Muriqui, JC Angra dos Reis, JC Parque Mambucaba e
+   JC Ubatuba ficaram com `endereco = null` — a busca no site da Igreja Messiânica não achou
+   página/endereço específico pra elas (WebFetch direto no domínio bloqueado neste ambiente, só
+   busca funcionou, e nem toda unidade tem página indexada). O próprio representante de cada uma
+   sabe o endereço de cor — mais rápido confirmar com eles diretamente do que insistir na busca.
 
 ---
 
