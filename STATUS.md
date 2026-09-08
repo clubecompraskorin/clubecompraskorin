@@ -4,6 +4,19 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
+> **Atualização (mesmo dia, complementar)**: **bug real corrigido — "there is no unique or
+> exclusion constraint matching the ON CONFLICT specification" ao salvar foto pela nova tela do
+> `/gestor`.** Causa: o índice único de `cod` criado pra essa feature (`fotos_produtos_korin_
+> add_cod`) era **parcial** (`WHERE cod IS NOT NULL`) — Postgres só usa um índice parcial como alvo
+> de `ON CONFLICT` se a cláusula repetir o mesmo `WHERE`, e o upsert do supabase-js não faz isso,
+> só manda `ON CONFLICT (cod)` puro. **Corrigido**: trocado pra índice único comum (sem `WHERE`) —
+> Postgres já trata `NULL` como "não repetido" por padrão em índice único, então continua
+> permitindo várias linhas com `cod` vazio, sem precisar do parcial. Migração
+> `fotos_produtos_korin_cod_key_nao_parcial`. Testado direto no banco (insert + upsert reais numa
+> transação revertida) confirmando que resolve, e conferido que os dados reais continuam intactos
+> (39 fotos, 38 com código, nada mudou). **Ainda não reconfirmado pelo Junior** se salvar uma foto
+> pela tela funciona ponta a ponta agora.
+>
 > **Atualização (mesmo dia, complementar)**: **tela de cadastro de foto em `/gestor` — implementado
 > e mesclado na `main`.** Antes, cadastrar foto de produto era 100% manual — eu (Claude) chamava
 > `api/gestor-fotos.js` direto por API a pedido do Junior, sem UI nenhuma. Agora tem uma aba "📷
