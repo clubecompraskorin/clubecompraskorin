@@ -4,7 +4,21 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
-> **Atualização (mesmo dia, sessão seguinte)**: **importação de planilha própria da coordenadora +
+> **Atualização (mesmo dia)**: **coordenadora pode gerar senha nova pro dedicante direto pelo app
+> — implementado e mesclado na `main`.** Motivo: não existia nenhum jeito de trocar senha (nem
+> "esqueci senha", nem nada) — a única forma era manual, direto no banco. Decisão consciente de
+> não usar o fluxo padrão de recuperação por e-mail do Supabase pro dedicante, porque foi o mesmo
+> motivo de origem da senha auto-gerada (nem todos lidam bem com e-mail). Fluxo agora: dedicante
+> esqueceu a senha → avisa a coordenadora (WhatsApp/pessoalmente, como já fariam) → ela clica
+> "🔑 Nova senha" do lado do nome dele em Config → Dedicantes → sistema gera e mostra a senha nova
+> (mesmo padrão/alfabeto de quando cria) → ela reenvia por WhatsApp. `api/dedicante.js` ganhou
+> `PATCH { orgId, memberId }` (reaproveita `autenticarOrgAdmin`/`gerarSenha` que já existiam, só
+> chama `auth.admin.updateUserById`) — continua no mesmo arquivo, 12/12 funções do Hobby. Validado:
+> `npx vite build` limpo; revisão visual do botão + modal via harness Playwright descartável
+> (mobile 390px, botões "Nova senha"/"Remover" cabem lado a lado sem quebrar). **Ainda não testado
+> em produção** — falta confirmar clicando de verdade num dos 13 acessos reais.
+>
+> Atualização anterior (mesmo dia, sessão seguinte): **importação de planilha própria da coordenadora +
 > custo em cascata — implementado e mesclado na `main`, confirmado pelo Junior.** Motivo: uma
 > coordenadora do Grupo Campo Grande usa o próprio modelo de
 > planilha (não a tabela oficial da Korin, que trava a célula de preço de venda) — mesma lógica da
@@ -1792,6 +1806,10 @@ ficavam só em Config → Unidades, aba que esse papel não vê.
    confirmado pelo Junior se os 2 fixes resolveram de vez** — precisa testar de novo com a mesma
    planilha (apagando um dos 2 produtos duplicados primeiro, já que o sistema não decide sozinho
    qual dos dois está certo).
+24. **Gerar senha nova pro dedicante (botão "🔑 Nova senha") — mesclado, sem teste real ainda.**
+   Validado só com `npx vite build` + harness Playwright descartável (visual). Falta clicar de
+   verdade num dos 13 acessos reais, confirmar que a senha antiga para de funcionar e a nova
+   funciona.
 
 ---
 
