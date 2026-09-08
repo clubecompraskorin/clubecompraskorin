@@ -4,7 +4,25 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
-> Última atualização: 01/09/2026. Resumo das entregas recentes (detalhes em cada seção abaixo):
+> Última atualização: 08/09/2026. **Organização "parati" (conta de testes) excluída a pedido do
+> Junior** — junto com "Igreja Gloria" (org de teste sem cliente real associado). Só ficou
+> **"Clube de Compras Natural"** como organização preexistente. No lugar da "parati", **o
+> primeiro cliente real foi recadastrado com os dados definitivos**: pessoa jurídica **Produtos
+> Makoto Attilio Ltda** (CNPJ 67.847.703/0001-20, Realengo, Rio de Janeiro/RJ) — ela vai operar
+> com **2 organizações separadas no sistema, uma por grupo** (não uma org só com dedicantes
+> dentro, como estava desenhado antes): **"Grupo Campo Grande"** (login
+> `clubecompras.grupocampogranderj@gmail.com`, slug `grupo-campo-grande`) e **"Grupo Costa
+> Verde"** (login `clubecompras.grupocostaverde@gmail.com`, slug `grupo-costa-verde`). As 2 contas
+> foram criadas direto no banco (mesmo padrão de senha auto-gerada do dedicante de unidade — pedido
+> explícito do Junior pra não depender dela passar pelo cadastro sozinha), com e-mail já confirmado
+> e vínculo `org_members.role = 'admin'`. **Senhas não ficam registradas aqui** (segurança — arquivo
+> vai pro git) — foram passadas ao Junior direto no chat da sessão em que foram geradas, pra ele
+> repassar por WhatsApp. Nenhuma das 2 tem unidade cadastrada ainda nem recurso de dedicante de
+> unidade ligado — ambos ficam pendentes de configuração (cadastro das unidades de cada grupo, e
+> ligar `permite_dedicante_unidade` em cada uma se for o caso, via `/gestor`).
+>
+> Última atualização anterior: 01/09/2026. Resumo das entregas recentes (detalhes em cada seção
+> abaixo):
 > **Dedicante de unidade — implementado, testado e confirmado pelo Junior em produção com o
 > primeiro cliente real** (organização "parati"): login restrito por unidade, sem custo, sem
 > editar produto/estoque/planilha, sem abrir/fechar mês — feature isolada por organização (só
