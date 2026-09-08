@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getSession, onAuthChange, signIn, signOut, signUpSemOrganizacao, isPlatformAdmin } from './lib/auth'
 import { getOrganizacoesGestor, getPedidosCountPorOrg, setOrgAtivo, setPagoAte, setPermiteDedicanteUnidade, getCobrancasGestor, processarCancelamento, descartarCancelamento } from './lib/platform'
+import { listarProdutosParaFotos, cadastrarFotoProduto } from './lib/fotosGestor'
 
 const display = { fontFamily: "'Space Grotesk', sans-serif" }
 const mono = { fontFamily: "'JetBrains Mono', monospace" }
@@ -173,6 +174,166 @@ function ToggleDedicanteUnidade({ org, onSalvo }) {
   )
 }
 
+// Modal de upload -- aparece tanto pra um produto já conhecido (clicou
+// "+ foto"/"trocar" na lista) quanto pra um cadastrado na mão (código nem
+// sempre existe ainda em nenhuma organização).
+function ModalUploadFoto({ produto, onFechar, onSalvo }) {
+  const [arquivo, setArquivo] = useState(null)
+  const [preview, setPreview] = useState(null)
+  const [enviando, setEnviando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  const escolherArquivo = (e) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setArquivo(f)
+    setPreview(URL.createObjectURL(f))
+    setErro('')
+  }
+
+  const salvar = async () => {
+    if (!arquivo) { setErro('Escolha uma imagem'); return }
+    setEnviando(true); setErro('')
+    const r = await cadastrarFotoProduto({ nomeKorin: produto.nome, cod: produto.cod, arquivo })
+    setEnviando(false)
+    if (!r.ok) { setErro(r.error); return }
+    onSalvo(produto.cod, r.url)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onFechar}>
+      <div className="bg-[#0B1410] border border-white/10 rounded-3xl p-5 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
+        <div className="font-semibold text-white" style={display}>{produto.foto ? 'Trocar foto' : 'Adicionar foto'}</div>
+        <div className="text-xs text-white/50">
+          {produto.cod != null && <span className="text-white/70 font-semibold" style={mono}>#{produto.cod}</span>} {produto.nome}
+        </div>
+
+        {preview ? (
+          <img src={preview} alt="Prévia" className="w-full h-40 object-contain bg-white/5 rounded-xl" />
+        ) : produto.foto ? (
+          <img src={produto.foto} alt="Foto atual" className="w-full h-40 object-contain bg-white/5 rounded-xl opacity-60" />
+        ) : (
+          <div className="w-full h-40 flex items-center justify-center bg-white/5 rounded-xl text-white/20 text-4xl">📷</div>
+        )}
+
+        <label className="block">
+          <div className="w-full py-3 bg-white/10 hover:bg-white/20 rounded-xl text-center text-sm font-semibold cursor-pointer transition-colors">
+            {arquivo ? arquivo.name : 'Escolher imagem…'}
+          </div>
+          <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={escolherArquivo} />
+        </label>
+
+        {erro && <div className="text-xs text-red-400">{erro}</div>}
+
+        <div className="flex gap-2">
+          <button onClick={onFechar} className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-semibold transition-colors">Cancelar</button>
+          <button onClick={salvar} disabled={enviando || !arquivo}
+            className="flex-1 py-3 bg-white text-[#0B1410] rounded-xl text-sm font-semibold disabled:opacity-40">
+            {enviando ? 'Enviando…' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TabFotos() {
+  const [produtos, setProdutos] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [busca, setBusca] = useState('')
+  const [selecionado, setSelecionado] = useState(null)
+  const [novoCod, setNovoCod] = useState('')
+  const [novoNome, setNovoNome] = useState('')
+
+  const carregar = useCallback(() => {
+    setLoading(true)
+    listarProdutosParaFotos().then(l => { setProdutos(l); setLoading(false) })
+  }, [])
+  useEffect(() => { carregar() }, [carregar])
+
+  const filtrados = produtos.filter(p =>
+    !busca || String(p.cod).includes(busca) || p.nome?.toLowerCase().includes(busca.toLowerCase())
+  )
+  const semFoto = produtos.filter(p => !p.foto).length
+
+  const salvo = (cod, url) => {
+    setProdutos(prev => {
+      const existe = prev.some(p => p.cod === cod)
+      if (existe) return prev.map(p => p.cod === cod ? { ...p, foto: url } : p)
+      return prev // cadastro manual de produto ainda não visto em nenhum período -- não força ele a aparecer na lista, evita duplicar se depois vier de verdade num import
+    })
+    setSelecionado(null)
+  }
+
+  const adicionarManual = () => {
+    if (!novoNome.trim()) return
+    setSelecionado({ cod: novoCod.trim() ? Number(novoCod) : null, nome: novoNome.trim(), foto: null })
+    setNovoCod(''); setNovoNome('')
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+          <div className="text-xs text-white/40 mb-1">Produtos sem foto</div>
+          <div className="text-3xl font-semibold" style={display}>{semFoto}</div>
+        </div>
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+          <div className="text-xs text-white/40 mb-1">Produtos conhecidos</div>
+          <div className="text-3xl font-semibold" style={display}>{produtos.length}</div>
+        </div>
+      </div>
+
+      <div className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-4 space-y-2">
+        <div className="text-xs text-white/40">Cadastrar produto novo (ainda não apareceu em nenhum pedido)</div>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex gap-2">
+            <input value={novoCod} onChange={e => setNovoCod(e.target.value.replace(/\D/g, ''))} placeholder="Código"
+              className="w-24 sm:w-28 flex-shrink-0 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-white/30" style={mono} />
+            <input value={novoNome} onChange={e => setNovoNome(e.target.value)} placeholder="Nome do produto"
+              className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-white/30" />
+          </div>
+          <button onClick={adicionarManual} disabled={!novoNome.trim()}
+            className="px-4 py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-semibold disabled:opacity-30 transition-colors sm:flex-shrink-0">
+            📷 Foto
+          </button>
+        </div>
+      </div>
+
+      <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por código ou nome..."
+        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm mb-4 focus:outline-none focus:border-white/30" />
+
+      {loading ? (
+        <div className="text-white/40 text-sm py-12 text-center">Carregando…</div>
+      ) : filtrados.length === 0 ? (
+        <div className="text-white/40 text-sm py-12 text-center">Nenhum produto encontrado.</div>
+      ) : (
+        <div className="space-y-2">
+          {filtrados.map(p => (
+            <div key={p.cod} className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 flex items-center gap-3">
+              {p.foto ? (
+                <img src={p.foto} alt={p.nome} className="w-12 h-12 object-contain bg-white/5 rounded-lg flex-shrink-0" />
+              ) : (
+                <div className="w-12 h-12 flex items-center justify-center bg-white/5 rounded-lg text-white/20 flex-shrink-0">📷</div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold truncate">{p.nome}</div>
+                <div className="text-xs text-white/40" style={mono}>#{p.cod}</div>
+              </div>
+              <button onClick={() => setSelecionado(p)}
+                className={`text-xs font-semibold px-3 py-2 rounded-xl flex-shrink-0 transition-colors ${p.foto ? 'bg-white/5 text-white/50 hover:bg-white/10' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'}`}>
+                {p.foto ? 'Trocar' : '+ Foto'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {selecionado && <ModalUploadFoto produto={selecionado} onFechar={() => setSelecionado(null)} onSalvo={salvo} />}
+    </div>
+  )
+}
+
 function Dashboard() {
   const [orgs, setOrgs] = useState([])
   const [contagem, setContagem] = useState({})
@@ -180,6 +341,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [togglingId, setTogglingId] = useState(null)
+  const [aba, setAba] = useState('orgs')
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -216,7 +378,18 @@ function Dashboard() {
         <button onClick={signOut} className="text-xs text-white/40 hover:text-white/70 transition-colors">Sair</button>
       </header>
 
+      <div className="max-w-6xl mx-auto px-6 pt-5 flex gap-2">
+        {[{ id: 'orgs', label: 'Organizações' }, { id: 'fotos', label: '📷 Fotos' }].map(t => (
+          <button key={t.id} onClick={() => setAba(t.id)}
+            className={`text-xs font-semibold px-4 py-2 rounded-xl transition-colors ${aba === t.id ? 'bg-white text-[#0B1410]' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       <main className="max-w-6xl mx-auto px-6 py-8">
+      {aba === 'fotos' ? <TabFotos /> : (
+        <>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
             <div className="text-xs text-white/40 mb-1">Organizações ativas</div>
@@ -284,6 +457,8 @@ function Dashboard() {
             })}
           </div>
         )}
+        </>
+      )}
       </main>
     </div>
   )

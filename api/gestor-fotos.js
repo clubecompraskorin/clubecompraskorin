@@ -1,51 +1,83 @@
 // api/gestor-fotos.js — Vercel Serverless Function
-// Só eu (Junior) chamo isso diretamente pra popular o banco compartilhado de
-// fotos -- nenhuma organização tem acesso a isso, não tem UI de cliente
-// nenhuma apontando aqui. Existe justamente porque o sandbox de
-// desenvolvimento não tem rota de rede pro site da Korin, mas a Vercel tem
-// internet livre -- então a function faz o download+re-host, não o
-// ambiente de dev.
+// Popula o banco compartilhado de fotos (fotos_produtos_korin) -- nenhuma
+// organização tem acesso a isso, é sempre o Junior (via /gestor -> aba
+// Fotos) ou eu direto por API.
 //
-// POST { nomeKorin, urlOrigem, cod? } -> baixa urlOrigem, sobe pro Storage
-// (bucket produto-fotos, pasta korin/), grava em fotos_produtos_korin
-// casando por nome normalizado (mesma normalização usada no import pra
-// detectar código reaproveitado: só A-Z0-9 maiúsculo). `cod` é opcional
-// mas sempre que der pra informar (é o mesmo código real da Korin que
-// aparece do lado do nome no site/tabela) -- é o casamento primário no
-// app, o nome normalizado só é usado como reserva.
+// POST { nomeKorin, cod?, urlOrigem } -> baixa urlOrigem (foto já publicada
+//   em algum site) e re-hospeda. Existe porque o sandbox de desenvolvimento
+//   não tem rota de rede pro site da Korin, mas a Vercel tem internet livre.
+// POST { nomeKorin, cod?, imagemBase64, mimeType } -> sobe o arquivo que o
+//   Junior escolheu direto no /gestor (upload de verdade, sem precisar de
+//   link pronto em outro site).
+//
+// Autenticação: token estático (CRON_SECRET, pra automação/chamada direta
+// por API) OU sessão de platform_admin (Bearer <access_token>, pro uso via
+// /gestor -- mesmo padrão de validação direto na API REST do GoTrue usado
+// em api/dedicante.js, sem depender do supabase-js/.auth.getUser()).
+//
+// `cod` é opcional mas sempre que der pra informar é o casamento primário
+// (número real da Korin, igual em qualquer planilha) -- nome normalizado
+// só é usado como reserva quando não tem código.
 
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseAdmin = createClient(
   process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
 const normalizar = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 const slugify = (s) => (s || 'produto').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80)
 
-export default async function handler(req, res) {
-  const dados = req.method === 'GET' ? req.query : (req.method === 'POST' ? req.body : null)
-  if (!dados) return res.status(405).end()
+const MIME_EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }
 
-  const token = req.method === 'GET' ? dados.token : req.headers.authorization?.replace('Bearer ', '')
-  if (token !== process.env.CRON_SECRET) {
-    return res.status(401).json({ ok: false, error: 'Não autorizado' })
+async function autenticado(req) {
+  const token = req.headers.authorization?.replace('Bearer ', '')
+  if (token && token === process.env.CRON_SECRET) return true
+
+  if (!token) return false
+  try {
+    const resp = await fetch(`${process.env.VITE_SUPABASE_URL}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${token}`, apikey: process.env.VITE_SUPABASE_ANON_KEY },
+    })
+    if (!resp.ok) return false
+    const userData = await resp.json()
+    if (!userData?.email) return false
+    const { data } = await supabaseAdmin
+      .from('platform_admins').select('email').ilike('email', userData.email).maybeSingle()
+    return Boolean(data)
+  } catch {
+    return false
   }
+}
 
-  const { nomeKorin, urlOrigem, cod } = dados
-  if (!nomeKorin || !urlOrigem) return res.status(400).json({ ok: false, error: 'nomeKorin e urlOrigem são obrigatórios' })
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).end()
+  if (!(await autenticado(req))) return res.status(401).json({ ok: false, error: 'Não autorizado' })
+
+  const { nomeKorin, cod, urlOrigem, imagemBase64, mimeType } = req.body || {}
+  if (!nomeKorin) return res.status(400).json({ ok: false, error: 'nomeKorin é obrigatório' })
+  if (!urlOrigem && !imagemBase64) return res.status(400).json({ ok: false, error: 'Envie urlOrigem ou imagemBase64' })
   const codNumero = cod != null && cod !== '' ? Number(cod) : null
   if (cod != null && cod !== '' && !Number.isInteger(codNumero)) {
     return res.status(400).json({ ok: false, error: 'cod precisa ser um número inteiro' })
   }
 
   try {
-    const imgRes = await fetch(urlOrigem)
-    if (!imgRes.ok) throw new Error(`Falha ao baixar imagem de origem (${imgRes.status})`)
-    const contentType = imgRes.headers.get('content-type') || 'image/png'
-    const buffer = Buffer.from(await imgRes.arrayBuffer())
+    let buffer, contentType
+    if (imagemBase64) {
+      if (!MIME_EXT[mimeType]) return res.status(400).json({ ok: false, error: 'Formato de imagem não suportado (use JPG, PNG, WEBP ou GIF)' })
+      buffer = Buffer.from(imagemBase64, 'base64')
+      if (buffer.length > 4 * 1024 * 1024) return res.status(400).json({ ok: false, error: 'Imagem muito grande (máximo 4MB) -- comprima e tente de novo' })
+      contentType = mimeType
+    } else {
+      const imgRes = await fetch(urlOrigem)
+      if (!imgRes.ok) throw new Error(`Falha ao baixar imagem de origem (${imgRes.status})`)
+      contentType = imgRes.headers.get('content-type') || 'image/png'
+      buffer = Buffer.from(await imgRes.arrayBuffer())
+    }
     const ext = contentType.includes('jpeg') ? 'jpg' : contentType.includes('webp') ? 'webp' : contentType.includes('gif') ? 'gif' : 'png'
     const path = `korin/${slugify(nomeKorin)}.${ext}`
 
@@ -62,7 +94,7 @@ export default async function handler(req, res) {
       nome_korin_normalizado: normalizar(nomeKorin),
       nome_korin_original: nomeKorin,
       url_foto: pub.publicUrl,
-      fonte: 'korin-site',
+      fonte: imagemBase64 ? 'upload-gestor' : 'korin-site',
       atualizado_em: new Date().toISOString(),
     }, { onConflict: codNumero != null ? 'cod' : 'nome_korin_normalizado' })
     if (dbErr) throw dbErr
