@@ -29,12 +29,18 @@
 >
 > Validado: `npx vite build` sem erro; testado com Node standalone contra a planilha real anexada
 > (41 produtos extraídos corretamente, parser oficial corretamente rejeitado); revisão visual das
-> 4 cores de custo via harness Playwright descartável (revertido depois). **Não testado ainda**: a
-> chamada real de IA pro mapeamento de coluna (não dá pra testar sem esse ambiente ter
-> `ANTHROPIC_API_KEY` de produção) e o fluxo completo dentro do app de verdade — ver Pendente.
+> 4 cores de custo via harness Playwright descartável (revertido depois).
 > **Status no GitHub: mesclada na `main`.** Commit `6706d30` (branch `feat/import-planilha-
 > flexivel`), merge commit na `main` (`3653a88..` — build revalidado depois do merge, 12/12
 > funções confirmado).
+>
+> **Teste real do Junior (mesma sessão) achou 2 bugs, os dois corrigidos**: modal ilegível em
+> desktop (só tinha estilo mobile — corrigido, largura limitada e fontes maiores em telas
+> grandes) e "erro de conflict" ao salvar (a planilha real tem 2 produtos com o mesmo código —
+> confirmado: 41042 duplicado — que batia direto no upsert em lote do Supabase; agora detecta e
+> trava com mensagem clara antes de tentar salvar). Commit `165726e` (branch `fix/import-planilha-
+> ux-conflito`), mesclado na `main`. **Ainda não reconfirmado pelo Junior** — ver item 23 do
+> Pendente.
 >
 > Última atualização anterior: 08/09/2026. **Organização "parati" (conta de testes) excluída a pedido do
 > Junior** — junto com "Igreja Gloria" (org de teste sem cliente real associado). Só ficou
@@ -1774,11 +1780,18 @@ ficavam só em Config → Unidades, aba que esse papel não vê.
 22. ✅ **Endereço das 15 unidades do Grupo Campo Grande/Costa Verde — completo.** Junior mandou os
    links/endereços que a busca não tinha achado, incluindo JC Frade por último. Todas as 15
    unidades têm nome + endereço cadastrados agora.
-23. **Importação de planilha própria + custo em cascata — mesclada, mas sem teste real ainda.**
-   Validado só fora do app (Node standalone contra a planilha real, build limpo, QA visual das
-   cores). Falta: testar de verdade dentro do app (upload real de uma planilha caseira de
-   coordenadora, confirmar que a IA mapeia as colunas certas, confirmar que os 3 estados de custo
-   — importado/amarelo/vermelho — aparecem certo e que o Salvar trava mesmo com vermelho pendente).
+23. ✅ **Importação de planilha própria + custo em cascata — testada em produção pelo Junior, 2
+   bugs reais encontrados e corrigidos.** (1) Modal ilegível em desktop (só tinha estilo mobile) —
+   corrigido, mesmo padrão de modal centralizado com largura limitada já usado no de senha do
+   dedicante, fontes e campo de custo maiores. (2) "Erro de conflict" ao salvar — a planilha real
+   tem 2 produtos diferentes com o mesmo código por engano de quem montou (confirmado: código
+   41042 duplicado no arquivo real) — batia direto no upsert em lote do Supabase ("ON CONFLICT ...
+   cannot affect row a second time"), erro de banco cru sem contexto nenhum pra quem usa. Agora
+   detecta duplicidade antes de salvar, destaca em vermelho e trava o Salvar com mensagem clara.
+   Commit `165726e` (branch `fix/import-planilha-ux-conflito`), mesclado na `main`. **Ainda não
+   confirmado pelo Junior se os 2 fixes resolveram de vez** — precisa testar de novo com a mesma
+   planilha (apagando um dos 2 produtos duplicados primeiro, já que o sistema não decide sozinho
+   qual dos dois está certo).
 
 ---
 
