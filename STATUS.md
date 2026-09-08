@@ -4,6 +4,24 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
+> **Atualização (mesmo dia, complementar)**: **tela de cadastro de foto em `/gestor` — implementado
+> e mesclado na `main`.** Antes, cadastrar foto de produto era 100% manual — eu (Claude) chamava
+> `api/gestor-fotos.js` direto por API a pedido do Junior, sem UI nenhuma. Agora tem uma aba "📷
+> Fotos" no painel do gestor: lista todo produto já visto em qualquer organização (código + nome,
+> cruzado com `periodo_produtos` — RLS pública), o que já tem foto e o que falta (sem foto aparece
+> primeiro); clica, escolhe a imagem do próprio aparelho (upload de arquivo de verdade, não
+> precisa mais de link pronto em outro site) e salva; também dá pra cadastrar produto novo na mão
+> (código + nome) se ele ainda não apareceu em nenhum período importado. `api/gestor-fotos.js`
+> ganhou autenticação por sessão de platform_admin (Bearer token, validado direto na API REST do
+> GoTrue — mesmo padrão de `api/dedicante.js`), mantendo o token estático `CRON_SECRET` de antes
+> pra automação; endpoint aceita `imagemBase64`+`mimeType` (upload real, limite 4MB) além do
+> `urlOrigem` de sempre. `src/lib/fotosGestor.js` novo. Continua em 12/12 funções do Hobby
+> (endpoint reaproveitado). Validado: `npx vite build` limpo; QA visual via harness Playwright
+> descartável em desktop e mobile — achado e corrigido um bug real no processo (botão "📷 Foto" do
+> cadastro manual cortava fora da tela no mobile, corrigido pra empilhar em vez de estourar).
+> **Ainda não testado em produção** — falta logar de verdade como platform_admin e confirmar que a
+> autenticação por sessão funciona (só a lógica foi validada, não a chamada real ao GoTrue).
+>
 > **Atualização (mesmo dia, complementar)**: **foto de produto passa a casar por código da Korin,
 > não só por nome — implementado e mesclado na `main`.** Motivo: investigando por que a planilha
 > própria da coordenadora (ver entrada anterior) achou foto pra só 3 de 40 produtos, achei a causa
