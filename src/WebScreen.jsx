@@ -8,6 +8,7 @@ import {
   listarPeriodos, atualizarPeriodo, criarPeriodoComCopia,
   getProdutosDoPeriodo, salvarProdutoNoPeriodo, substituirProdutosDoPeriodo,
   getSobraPeriodoAnterior, getComprasConfirmadas, registrarAjusteManualEstoque, excluirCompraConfirmada,
+  buscarCustoPeriodoAnterior,
 } from './lib/periodos'
 import { getPwaInstallCount } from './lib/pwa'
 import { pushSuportado, pushJaInscrito, ativarPush, desativarPush } from './lib/push'
@@ -15,6 +16,7 @@ import { CAT_COR, CATS_ORDEM } from './lib/catalog'
 import { toast, confirmar } from './lib/dialog'
 import { getUnidades } from './lib/unidades'
 import { ehPlanilha, parseTabelaKorin } from './lib/importarPlanilha'
+import { parsePlanilhaGenerica } from './lib/importarPlanilhaGenerica'
 import { printRelatorioPedidos, printRelatorioEstoque, printRelatorioFechamento } from './lib/print'
 import UnidadesManager from './UnidadesManager'
 import ClientesManager from './ClientesManager'
@@ -801,10 +803,19 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
   // sobrescrever direto, porque um pedido pendente que referencia esse
   // mesmo produto por trás dos panos passaria a exibir/cobrar o produto
   // novo sem nenhum aviso.
+  // origemCusto rastreia de onde veio precoCusto, só pra sinalizar na revisão
+  // (amarelo = inferido, precisa conferir; null = não achou, vermelho, trava
+  // o Salvar). 'importado' = veio da própria fonte lida agora (tabela oficial
+  // da Korin, que tem coluna de custo); 'atual' = produto já existia no
+  // período corrente com custo configurado, foto/planilha própria não trazem
+  // custo então herda; 'anterior' só é resolvido depois, em processar(), pra
+  // quem sobrar sem custo aqui (busca no período anterior, 1 chamada só pra
+  // todos de uma vez em vez de uma por produto).
   const mesclarComExistentes = (produtosNovos) =>
     produtosNovos.map(p => {
       const exist = produtosAtuais.find(x => x.cod === p.cod)
       const nomeMudou = exist && normalizarTexto(exist.nomeOriginalKorin || exist.nome) !== normalizarTexto(p.nomeOriginalKorin || p.nome)
+      const precoCusto = p.precoCusto ?? exist?.precoCusto ?? null
       return {
         ...p,
         id: exist?.id,
@@ -813,13 +824,24 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
         // cru original da Korin (referência) é sempre atualizado.
         nome: exist?.nomeCustomizado ? exist.nome : p.nome,
         nomeCustomizado: exist?.nomeCustomizado || false,
-        precoCusto: p.precoCusto ?? exist?.precoCusto ?? null,
+        precoCusto,
+        origemCusto: p.precoCusto != null ? 'importado' : (exist?.precoCusto != null ? 'atual' : null),
         qtdCaixa: exist?.qtdCaixa ?? p.qtdCaixa ?? 0,
         caixasAbertas: exist?.caixasAbertas ?? 0,
         conflitoCod: nomeMudou,
         nomeAnterior: nomeMudou ? exist.nome : null,
       }
     })
+
+  const classificarCategorias = async (produtos) => {
+    const catRes  = await fetch('/api/classificar-categorias', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ produtos: produtos.map(x => ({ cod: x.cod, nome: x.nome })) })
+    })
+    const catData = await catRes.json()
+    const categorias = catData.categorias || {}
+    return produtos.map(x => ({ ...x, categoria: categorias[String(x.cod)] || CATS_ORDEM[0] }))
+  }
 
   const processar = async () => {
     if (!arquivo) return
@@ -828,17 +850,28 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
       let periodoLido, produtosBase
 
       if (tipoArquivo === 'planilha') {
-        const { periodo: p, produtos } = await parseTabelaKorin(arquivo)
-        if (!produtos.length) { setErro('Nenhum produto reconhecido nesta planilha. Confira se é o arquivo .xlsx original da Korin.'); return }
-
-        const catRes  = await fetch('/api/classificar-categorias', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ produtos: produtos.map(x => ({ cod: x.cod, nome: x.nome })) })
-        })
-        const catData = await catRes.json()
-        const categorias = catData.categorias || {}
-        produtosBase = produtos.map(x => ({ ...x, categoria: categorias[String(x.cod)] || CATS_ORDEM[0] }))
-        periodoLido = p
+        const oficial = await parseTabelaKorin(arquivo)
+        // "Achou produto" sozinho não confirma que é mesmo o layout oficial —
+        // uma planilha caseira pode coincidir nas colunas B/C/F (cód/nome/
+        // venda) por acaso e "passar" no parser oficial mesmo assim, só que
+        // lendo QTD./CX errado (coluna J, que nessa planilha não existe/tá
+        // vazia, em vez da coluna real de quantidade). Sinal confiável: no
+        // arquivo oficial de verdade, a viagem quase todo produto tem
+        // qtd-por-caixa (col. J) preenchida; numa planilha caseira que só
+        // coincidiu por acaso, isso vem zerado pra praticamente tudo.
+        const comQtd = oficial.produtos.filter(p => p.qtdCaixa > 0).length
+        const pareceOficial = oficial.produtos.length > 0 && (comQtd / oficial.produtos.length) >= 0.7
+        if (pareceOficial) {
+          produtosBase = await classificarCategorias(oficial.produtos)
+          periodoLido = oficial.periodo
+        } else {
+          // Não é o layout oficial da Korin (coordenadora com planilha
+          // própria) — tenta ler de forma flexível, IA só mapeia coluna.
+          const generico = await parsePlanilhaGenerica(arquivo)
+          if (!generico.produtos.length) { setErro(generico.erro || 'Nenhum produto reconhecido nesta planilha.'); return }
+          produtosBase = await classificarCategorias(generico.produtos)
+          periodoLido = generico.periodo
+        }
       } else {
         const res  = await fetch('/api/interpretar-catalogo', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -850,7 +883,26 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
         periodoLido = data.periodo
       }
 
-      setImportados(mesclarComExistentes(produtosBase))
+      let mesclados = mesclarComExistentes(produtosBase)
+
+      // Cascata de custo só faz sentido pra importação de planilha — é onde
+      // custo pode legitimamente estar ausente na fonte (planilha própria
+      // sem coluna de custo) e existir vindo do próprio catálogo. Foto nunca
+      // teve isso e continua exatamente como sempre funcionou, sem trava
+      // nova nenhuma.
+      if (tipoArquivo === 'planilha') {
+        const semCusto = mesclados.filter(p => p.precoCusto == null).map(p => p.cod)
+        if (semCusto.length) {
+          const doAnterior = await buscarCustoPeriodoAnterior(orgId, periodo?.id, semCusto)
+          mesclados = mesclados.map(p =>
+            p.precoCusto == null && doAnterior[p.cod] != null
+              ? { ...p, precoCusto: doAnterior[p.cod], origemCusto: 'anterior' }
+              : p
+          )
+        }
+      }
+
+      setImportados(mesclados)
       setPeriodoTabela(periodoLido)
       setConfirmouConflitos(false)
 
@@ -864,10 +916,14 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
   }
 
   const conflitos = importados.filter(p => p.conflitoCod)
+  // Só bloqueia por custo faltando em importação de planilha (ver processar) —
+  // foto nunca trouxe custo e nunca travou o Salvar, continua assim.
+  const semCusto = tipoArquivo === 'planilha' ? importados.filter(p => p.precoCusto == null) : []
 
   const confirmarSalvar = async () => {
     if (!mesmoMes && !dataLimite) { toast('Informe a data limite do novo período'); return }
     if (conflitos.length > 0 && !confirmouConflitos) { toast('Revise e confirme os produtos com código reaproveitado antes de salvar'); return }
+    if (semCusto.length > 0) { toast('Preencha o custo dos produtos destacados em vermelho antes de salvar'); return }
     setSalvando(true)
     try {
       let periodoAlvo = periodo?.id
@@ -966,6 +1022,14 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
           </div>
         )}
 
+        {tipoArquivo === 'planilha' && semCusto.length > 0 && (
+          <div className="px-4 pt-3 flex-shrink-0">
+            <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 font-semibold">
+              🔴 {semCusto.length} produto{semCusto.length > 1 ? 's' : ''} sem custo — preenche o valor em vermelho na lista abaixo antes de salvar.
+            </div>
+          </div>
+        )}
+
         {conflitos.length > 0 && (
           <div className="px-4 pt-3 flex-shrink-0">
             <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-sm text-amber-800 space-y-2">
@@ -1016,7 +1080,30 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
                   </select>
                 </div>
               </div>
-              <div className="text-sm font-black text-green-700 flex-shrink-0">{fmt(p.preco)}</div>
+              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                <div className="text-sm font-black text-green-700">{fmt(p.preco)}</div>
+                {tipoArquivo === 'planilha' && (
+                  <div className="flex flex-col items-end">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-stone-400 font-bold">custo</span>
+                      <input type="number" step="0.01" inputMode="decimal" value={p.precoCusto ?? ''} placeholder="0,00"
+                        onChange={e => {
+                          const v = e.target.value === '' ? null : Number(e.target.value)
+                          setImportados(prev => prev.map((x, j) => j === i ? { ...x, precoCusto: v, origemCusto: 'manual' } : x))
+                        }}
+                        className={`w-16 text-xs font-bold rounded-lg px-1.5 py-0.5 border text-right focus:outline-none ${
+                          p.precoCusto == null
+                            ? 'bg-red-50 border-red-300 text-red-700'
+                            : (p.origemCusto === 'atual' || p.origemCusto === 'anterior')
+                              ? 'bg-amber-50 border-amber-300 text-amber-700'
+                              : 'bg-white border-stone-200 text-stone-500'
+                        }`} />
+                    </div>
+                    {p.origemCusto === 'atual' && <div className="text-[9px] text-amber-600 mt-0.5">mês atual — confira</div>}
+                    {p.origemCusto === 'anterior' && <div className="text-[9px] text-amber-600 mt-0.5">mês anterior — confira</div>}
+                  </div>
+                )}
+              </div>
               <button onClick={() => setImportados(prev => prev.filter((_,j) => j !== i))}
                 className="text-stone-300 text-lg active:text-red-500 flex-shrink-0">✕</button>
             </div>
@@ -1025,7 +1112,7 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
         <div className="p-4 border-t border-stone-100 flex gap-3 flex-shrink-0">
           <button onClick={() => setEtapa('upload')}
             className="px-5 py-3.5 bg-stone-100 text-stone-600 rounded-2xl font-black active:bg-stone-200">← Voltar</button>
-          <button onClick={confirmarSalvar} disabled={salvando || (!mesmoMes && !dataLimite) || (conflitos.length > 0 && !confirmouConflitos)}
+          <button onClick={confirmarSalvar} disabled={salvando || (!mesmoMes && !dataLimite) || (conflitos.length > 0 && !confirmouConflitos) || semCusto.length > 0}
             className="flex-1 py-3.5 bg-green-700 text-white rounded-2xl font-black text-base active:bg-green-800 disabled:opacity-50">
             {salvando ? '⟳ Salvando…' : `✅ Salvar ${importados.length} produtos`}
           </button>
