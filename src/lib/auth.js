@@ -40,6 +40,26 @@ export const signOut = async () => {
   await supabase.auth.signOut()
 }
 
+/**
+ * Troca a senha de quem já está logado (representante ou dedicante de
+ * unidade, qualquer papel) — self-service, não depende de admin nem de
+ * e-mail. Confere a senha atual reautenticando antes de trocar (em vez de
+ * confiar só na sessão já aberta), pra alguém não conseguir trocar a senha
+ * de outra pessoa só porque pegou o celular/computador destravado.
+ */
+export const trocarSenha = async (senhaAtual, senhaNova) => {
+  if (!supabase) return { ok: false, error: 'Sem conexão' }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user?.email) return { ok: false, error: 'Sessão inválida — recarregue a página e entre novamente.' }
+
+  const { error: erroAtual } = await supabase.auth.signInWithPassword({ email: user.email, password: senhaAtual })
+  if (erroAtual) return { ok: false, error: 'Senha atual incorreta.' }
+
+  const { error } = await supabase.auth.updateUser({ password: senhaNova })
+  if (error) return { ok: false, error: traduzErro(error.message) }
+  return { ok: true }
+}
+
 // Cria o usuário no Supabase Auth, depois cria a organização e vincula via RPC
 export const signUpComOrganizacao = async ({ email, password, nomeOrg, slugOrg, onProgress }) => {
   if (!supabase) return { ok: false, error: 'Sem conexão' }

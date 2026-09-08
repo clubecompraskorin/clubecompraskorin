@@ -1,8 +1,57 @@
 import { useState, useEffect } from 'react'
-import { getSession, onAuthChange, getOrgDoUsuario, signOut } from './lib/auth'
+import { getSession, onAuthChange, getOrgDoUsuario, signOut, trocarSenha } from './lib/auth'
 import { supabase } from './lib/supabase'
 import Login from './Login'
 import UnidadesManager from './UnidadesManager'
+import { toast } from './lib/dialog'
+
+// Self-service: qualquer pessoa logada (representante ou dedicante de
+// unidade) troca a própria senha sabendo a atual — não depende de admin nem
+// de e-mail. "Esqueci a senha e não consigo nem entrar" é um caso diferente,
+// que continua precisando de alguém com acesso total pra confirmar quem é
+// (botão "Nova senha" em Config → Dedicantes, ou o Junior pra representante).
+function TrocarSenhaModal({ onClose }) {
+  const [senhaAtual, setSenhaAtual] = useState('')
+  const [senhaNova, setSenhaNova]   = useState('')
+  const [confirmar, setConfirmar]   = useState('')
+  const [salvando, setSalvando]     = useState(false)
+  const [erro, setErro]             = useState('')
+
+  const salvar = async () => {
+    setErro('')
+    if (!senhaAtual || !senhaNova || !confirmar) { setErro('Preencha os 3 campos'); return }
+    if (senhaNova.length < 6) { setErro('Senha nova precisa ter no mínimo 6 caracteres'); return }
+    if (senhaNova !== confirmar) { setErro('Senha nova e confirmação não são iguais'); return }
+    setSalvando(true)
+    const r = await trocarSenha(senhaAtual, senhaNova)
+    setSalvando(false)
+    if (!r.ok) { setErro(r.error); return }
+    toast('Senha alterada!')
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
+        <div className="text-lg font-black text-green-800">🔑 Trocar minha senha</div>
+        <div className="space-y-2">
+          <input type="password" placeholder="Senha atual" value={senhaAtual} onChange={e => setSenhaAtual(e.target.value)}
+            className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-green-500" />
+          <input type="password" placeholder="Senha nova" value={senhaNova} onChange={e => setSenhaNova(e.target.value)}
+            className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-green-500" />
+          <input type="password" placeholder="Confirmar senha nova" value={confirmar} onChange={e => setConfirmar(e.target.value)}
+            className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-green-500" />
+        </div>
+        {erro && <div className="text-sm text-red-600 font-semibold">{erro}</div>}
+        <button onClick={salvar} disabled={salvando}
+          className="w-full py-3 bg-green-700 text-white rounded-xl font-black text-sm active:bg-green-800 disabled:opacity-50">
+          {salvando ? 'Salvando…' : 'Trocar senha'}
+        </button>
+        <button onClick={onClose} className="w-full text-center text-xs text-stone-400 underline">Cancelar</button>
+      </div>
+    </div>
+  )
+}
 
 // Troca o manifest do PWA pra incluir o nome da unidade no app instalado
 // (ex: "Unido Gestão — JC Peruibe"). Gerado no cliente via Blob, sem precisar
@@ -41,6 +90,7 @@ export default function AuthGate({ children }) {
   const [org, setOrg] = useState(null)
   const [erroOrg, setErroOrg] = useState(false)
   const [unidadesOk, setUnidadesOk] = useState(null) // null=checando | true | false (precisa onboarding)
+  const [trocandoSenha, setTrocandoSenha] = useState(false)
 
   useManifestPersonalizado(org)
 
@@ -158,12 +208,21 @@ export default function AuthGate({ children }) {
     return (
       <>
         {children(org, () => resolverOrg(1))}
-        <button
-          onClick={signOut}
-          className="fixed bottom-3 right-3 z-50 bg-stone-800 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg opacity-70 active:opacity-100"
-        >
-          Sair ({org?.nome?.split(' ')[0] || 'conta'})
-        </button>
+        <div className="fixed bottom-3 right-3 z-50 flex items-center gap-2">
+          <button
+            onClick={() => setTrocandoSenha(true)}
+            className="bg-stone-800 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg opacity-70 active:opacity-100"
+          >
+            🔑 Senha
+          </button>
+          <button
+            onClick={signOut}
+            className="bg-stone-800 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg opacity-70 active:opacity-100"
+          >
+            Sair ({org?.nome?.split(' ')[0] || 'conta'})
+          </button>
+        </div>
+        {trocandoSenha && <TrocarSenhaModal onClose={() => setTrocandoSenha(false)} />}
       </>
     )
   }
