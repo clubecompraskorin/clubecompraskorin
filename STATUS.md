@@ -14,8 +14,9 @@
 > permitindo várias linhas com `cod` vazio, sem precisar do parcial. Migração
 > `fotos_produtos_korin_cod_key_nao_parcial`. Testado direto no banco (insert + upsert reais numa
 > transação revertida) confirmando que resolve, e conferido que os dados reais continuam intactos
-> (39 fotos, 38 com código, nada mudou). **Ainda não reconfirmado pelo Junior** se salvar uma foto
-> pela tela funciona ponta a ponta agora.
+> (39 fotos, 38 com código, nada mudou). **Confirmado pelo Junior em produção: tela de cadastro de
+> foto funcionando ponta a ponta** (login como platform_admin, upload de arquivo, casamento por
+> código).
 >
 > **Atualização (mesmo dia, complementar)**: **tela de cadastro de foto em `/gestor` — implementado
 > e mesclado na `main`.** Antes, cadastrar foto de produto era 100% manual — eu (Claude) chamava
@@ -32,8 +33,9 @@
 > (endpoint reaproveitado). Validado: `npx vite build` limpo; QA visual via harness Playwright
 > descartável em desktop e mobile — achado e corrigido um bug real no processo (botão "📷 Foto" do
 > cadastro manual cortava fora da tela no mobile, corrigido pra empilhar em vez de estourar).
-> **Ainda não testado em produção** — falta logar de verdade como platform_admin e confirmar que a
-> autenticação por sessão funciona (só a lógica foi validada, não a chamada real ao GoTrue).
+> **Testado em produção pelo Junior — funcionando.** Achou 1 bug real no meio do caminho (erro de
+> índice parcial no `ON CONFLICT`, ver entrada acima com o fix) — depois de corrigido, confirmou
+> tudo certo ponta a ponta.
 >
 > **Atualização (mesmo dia, complementar)**: **foto de produto passa a casar por código da Korin,
 > não só por nome — implementado e mesclado na `main`.** Motivo: investigando por que a planilha
@@ -1888,6 +1890,10 @@ ficavam só em Config → Unidades, aba que esse papel não vê.
    senha nova funciona pra logar de novo, e confirmar que isso não desloga a pessoa sem querer
    (o `signInWithPassword` de confirmação reautentica o mesmo usuário — não devia remontar o app,
    já que `AuthGate` ignora evento de auth do mesmo usuário, mas vale confirmar ao vivo).
+26. ✅ **Tela de cadastro de foto em `/gestor` (aba "📷 Fotos") — testada em produção pelo Junior,
+   funcionando.** Achou 1 bug real (índice parcial quebrava o `ON CONFLICT` por código),
+   corrigido na hora — depois confirmou tudo certo ponta a ponta (login, upload, casamento por
+   código).
 
 ---
 
