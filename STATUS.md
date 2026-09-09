@@ -4,6 +4,13 @@
 > tomada, teste realizado) e sempre commitar na `main` — é o mecanismo pra qualquer sessão nova
 > retomar o contexto sem o Junior precisar reexplicar tudo de novo.
 >
+> **Próximo assunto a retomar (sinalizado pelo Junior em 09/09, ainda não iniciado)**: a
+> integração com Asaas — ver itens 16 e 17 do Pendente e a seção "Integração com Asaas" mais
+> abaixo. Resumindo: Pix não apareceu no único teste real (sandbox) feito até agora, e o ciclo
+> completo (cobrança → pagamento confirmado → webhook atualiza `pago_ate` sozinho) nunca foi
+> validado ponta a ponta com pagamento de verdade. Junior pediu só pra anotar por enquanto —
+> "veremos depois", nada a fazer aqui até ele retomar o assunto.
+>
 > **Atualização (mesmo dia, complementar)**: **bug real corrigido — "there is no unique or
 > exclusion constraint matching the ON CONFLICT specification" ao salvar foto pela nova tela do
 > `/gestor`.** Causa: o índice único de `cod` criado pra essa feature (`fotos_produtos_korin_
