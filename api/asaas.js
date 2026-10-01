@@ -257,9 +257,22 @@ async function receberWebhook(req, res) {
   let corpo = req.body
   if (Buffer.isBuffer(corpo)) corpo = corpo.toString('utf8')
   if (typeof corpo === 'string') { try { corpo = JSON.parse(corpo) } catch { corpo = null } }
+  // Corpo form-urlencoded com o JSON inteiro na única chave, ou JSON embrulhado
+  // em "data"/"payload": tenta recuperar o evento antes de desistir.
+  if (corpo && typeof corpo === 'object' && !corpo.event) {
+    const chaves = Object.keys(corpo)
+    if (chaves.length === 1) { try { corpo = JSON.parse(chaves[0]) } catch {} }
+    for (const campo of ['data', 'payload', 'body']) {
+      let interno = corpo?.[campo]
+      if (typeof interno === 'string') { try { interno = JSON.parse(interno) } catch {} }
+      if (interno && typeof interno === 'object' && interno.event) { corpo = interno; break }
+    }
+  }
   const { event, payment: pagamentoDoEvento } = corpo || {}
   const ignorar = (motivo, extra = '') => {
-    console.log(`asaas-webhook ignorado: motivo=${motivo} evento=${event} cobranca=${pagamentoDoEvento?.id} ${extra}`.trim())
+    // Só nomes de campos e o Content-Type (nunca valores) — pra descobrir o formato real do corpo.
+    const chaves = corpo && typeof corpo === 'object' ? Object.keys(corpo).slice(0, 8).map(k => k.slice(0, 40)).join('|') : '-'
+    console.log(`asaas-webhook ignorado: motivo=${motivo} evento=${event} cobranca=${pagamentoDoEvento?.id} content_type=${req.headers['content-type']} chaves=${chaves} ${extra}`.trim())
     return res.status(200).json({ ok: true, ignorado: true })
   }
   if (!EVENTOS_DE_COBRANCA.has(event) || !pagamentoDoEvento?.id) {
