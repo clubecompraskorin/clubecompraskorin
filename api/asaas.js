@@ -224,9 +224,14 @@ function proximoPagoAte(pagoAteAtual) {
 async function receberWebhook(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const tokenEsperado = process.env.ASAAS_WEBHOOK_TOKEN
-  const tokenRecebido = req.headers['asaas-access-token']
+  // trim: espaço ou quebra de linha sobrando ao colar o token no painel do
+  // Vercel/Asaas não pode derrubar a validação.
+  const tokenEsperado = (process.env.ASAAS_WEBHOOK_TOKEN || '').trim()
+  const tokenRecebido = String(req.headers['asaas-access-token'] || '').trim()
   if (!tokenEsperado || tokenRecebido !== tokenEsperado) {
+    // Só o motivo e os tamanhos vão pro log — nunca o valor dos tokens.
+    const motivo = !tokenEsperado ? 'token_nao_configurado_no_servidor' : !tokenRecebido ? 'header_ausente' : 'token_diferente'
+    console.error(`asaas-webhook 401: motivo=${motivo} tamanho_esperado=${tokenEsperado.length} tamanho_recebido=${tokenRecebido.length}`)
     return res.status(401).json({ ok: false, error: 'Não autorizado' })
   }
 
