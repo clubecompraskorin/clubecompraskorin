@@ -231,7 +231,8 @@ async function receberWebhook(req, res) {
   if (!tokenEsperado || tokenRecebido !== tokenEsperado) {
     // Só o motivo e os tamanhos vão pro log — nunca o valor dos tokens.
     const motivo = !tokenEsperado ? 'token_nao_configurado_no_servidor' : !tokenRecebido ? 'header_ausente' : 'token_diferente'
-    console.error(`asaas-webhook 401: motivo=${motivo} tamanho_esperado=${tokenEsperado.length} tamanho_recebido=${tokenRecebido.length}`)
+    // Nomes dos cabeçalhos recebidos (só os nomes, nunca os valores) — pra descobrir se o token chega com outro nome.
+    console.error(`asaas-webhook 401: motivo=${motivo} tamanho_esperado=${tokenEsperado.length} tamanho_recebido=${tokenRecebido.length} cabecalhos=${Object.keys(req.headers).sort().join(',')}`)
     return res.status(401).json({ ok: false, error: 'Não autorizado' })
   }
 
