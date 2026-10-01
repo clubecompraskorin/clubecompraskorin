@@ -1830,6 +1830,15 @@ ficavam só em Config → Unidades, aba que esse papel não vê.
   `trial_fim_7_dias_apos_criacao`: o padrão da coluna era uma **data fixa (2026-09-08)**, então
   toda organização criada depois dela nascia bloqueada ("Trial Atingido"); agora é
   `hoje (Brasília) + 7`. Organizações existentes **não foram alteradas**.
+- **Desconto mensal por organização** (coluna `organizacoes.desconto_mensal`, padrão 0, migração
+  `organizacoes_desconto_mensal`): abatido da fórmula R$ 49,90 + R$ 9,90 por unidade extra, usado
+  na cobrança (`api/asaas.js`), na tela de bloqueio e na aba Financeiro. Motivo: a Camile tem **2
+  grupos** (Campo Grande, 8 unidades; Costa Verde, 7) e o combinado foi cobrar como **um cliente
+  só** (uma base de R$ 49,90): Campo Grande R$ 119,20 + Costa Verde R$ 109,30 − R$ 40,00 =
+  **R$ 69,30** → **R$ 188,50/mês no total**, sem prazo. Só o servidor/gestor escreve (clientes
+  não têm UPDATE em `organizacoes`). Mudar o desconto: `update organizacoes set desconto_mensal =
+  X where slug = '...'` (vale nas próximas cobranças; assinatura já criada no Asaas mantém o
+  valor antigo até ser atualizada lá). Valor final abaixo de R$ 5 é recusado (mínimo do Asaas).
 - Token do webhook: Junior optou por **não trocar** o token. Ele apareceu inteiro numa conversa
   (URL `?token=`); o risco é baixo porque o servidor confirma cada pagamento direto no Asaas
   (evento forjado não libera nada), mas fica registrado.
@@ -1874,7 +1883,7 @@ qualquer) — pra testar o cliente, logar com a conta da organização.
 
 **Pendências**
 - **Camile / Grupo Campo Grande e Costa Verde**: `pago_ate` = **10/10/2026**, `assinatura_status`
-  `nunca_assinou`. Usam até 10/10; a partir de 11/10 caem na tela de bloqueio já com o Pix. Se
+  `nunca_assinou`. Usam até 10/10; a partir de 11/10 caem na tela de bloqueio já com o Pix. Valores: Campo Grande R$ 119,20 e Costa Verde R$ 69,30 (com o desconto acima). Se
   pagarem antes, a cobrança vence em 10/10 e o acesso soma um mês a partir dessa data. **Avisar
   a Camile.**
 - **Boleto dentro da tela não foi testado com o Asaas real** (nem se `pixQrCode` /

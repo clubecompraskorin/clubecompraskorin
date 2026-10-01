@@ -39,7 +39,7 @@ export default function TelaBloqueio({ org, onLiberado, onSair }) {
       ])
       if (cancelado) return
       const extras = Math.max(0, (unidades?.count || 1) - 1)
-      setValor(49.90 + extras * 9.90)
+      setValor(Math.max(0, 49.90 + extras * 9.90 - (org.descontoMensal || 0)))
       const aberta = cobrancas.find(c => c.tipo === 'mensalidade' && ['pendente', 'vencido'].includes(c.status) && c.link_pagamento)
       if (aberta) { setLink(aberta.link_pagamento); setCobrancaId(aberta.asaas_charge_id) }
       setCarregando(false)
