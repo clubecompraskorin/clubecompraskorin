@@ -77,7 +77,7 @@ async function criarCobranca(req, res) {
 
     const { data: org, error: orgError } = await supabaseAdmin
       .from('organizacoes')
-      .select('id, nome, ativo, responsavel_nome, documento, documento_tipo, asaas_customer_id, asaas_subscription_id, assinatura_status, pago_ate')
+      .select('id, nome, ativo, responsavel_nome, documento, documento_tipo, asaas_customer_id, asaas_subscription_id, assinatura_status, pago_ate, desconto_mensal')
       .eq('id', membro.org_id).maybeSingle()
     if (orgError || !org) return res.status(404).json({ ok: false, error: 'Organização não encontrada' })
     if (!org.ativo) return res.status(403).json({ ok: false, error: 'Organização inativa' })
@@ -148,10 +148,14 @@ async function criarCobranca(req, res) {
       const { count } = await supabaseAdmin
         .from('org_unidades').select('id', { count: 'exact', head: true }).eq('org_id', org.id)
       const extras = Math.max(0, (count || 1) - 1)
-      valor = Number((VALOR_MENSALIDADE_BASE + extras * VALOR_POR_UNIDADE_EXTRA).toFixed(2))
+      // Desconto mensal combinado por organização (coluna desconto_mensal, padrão 0).
+      const desconto = Number(org.desconto_mensal) || 0
+      valor = Number(Math.max(0, VALOR_MENSALIDADE_BASE + extras * VALOR_POR_UNIDADE_EXTRA - desconto).toFixed(2))
       // Vence no dia em que o acesso atual termina (pago_ate); se já terminou
       // (ou nunca pagou), vence hoje.
       const hoje = hojeBR()
+      // O Asaas não aceita cobrança abaixo de R$ 5,00 — desconto exagerado não pode gerar valor inválido.
+      if (valor < 5) return res.status(400).json({ ok: false, error: 'Valor da mensalidade inválido. Fale com o suporte.' })
       vencimento = org.pago_ate && org.pago_ate > hoje ? org.pago_ate : hoje
 
       const assinatura = await asaasFetch('/subscriptions', {

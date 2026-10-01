@@ -460,7 +460,7 @@ function TabFinanceiro({ org, unidadesCount, onIrParaDados, onSalvo }) {
 
   if (carregando) return <div className="text-center py-12 text-stone-400 text-sm">Carregando…</div>
 
-  const valorMensalidade = 49.90 + Math.max(0, (unidadesCount || 1) - 1) * 9.90
+  const valorMensalidade = Math.max(0, 49.90 + Math.max(0, (unidadesCount || 1) - 1) * 9.90 - (org.descontoMensal || 0))
   const cobrancaPendente = (tipo) => cobrancas.find(c => c.tipo === tipo && c.status === 'pendente')
   const cobrancaPaga = (tipo) => cobrancas.find(c => c.tipo === tipo && c.status === 'pago')
 
