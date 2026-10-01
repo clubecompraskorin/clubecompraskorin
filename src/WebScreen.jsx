@@ -4,6 +4,7 @@ import { getPedidos, getTotaisPorProduto, getEntreguesPorProduto } from './lib/s
 import { calcEstoque, alertaCaixa, calcTotal, sortByCod, hojeBR } from './lib/helpers'
 import { atualizarDadosOrganizacao, solicitarCancelamentoAssinatura } from './lib/auth'
 import { criarCobranca, listarCobrancas } from './lib/asaas'
+import PagamentoInline from './PagamentoInline'
 import {
   listarPeriodos, atualizarPeriodo, criarPeriodoComCopia,
   getProdutosDoPeriodo, salvarProdutoNoPeriodo, substituirProdutosDoPeriodo,
@@ -434,6 +435,7 @@ function TabFinanceiro({ org, unidadesCount, onIrParaDados, onSalvo }) {
   const [cobrancas, setCobrancas] = useState([])
   const [carregando, setCarregando] = useState(true)
   const [processando, setProcessando] = useState(null) // 'configuracao_guiada' | 'mensalidade' | 'cancelar' | null
+  const [pagando, setPagando] = useState(null) // { id, link } da cobrança sendo paga dentro da tela
 
   useEffect(() => {
     if (!org?.orgId || !org?.cadastroCompleto) { setCarregando(false); return }
@@ -467,8 +469,16 @@ function TabFinanceiro({ org, unidadesCount, onIrParaDados, onSalvo }) {
     const r = await criarCobranca(tipo)
     setProcessando(null)
     if (!r.ok) { toast(r.error); return }
-    window.open(r.link, '_blank')
     listarCobrancas(org.orgId).then(setCobrancas)
+    if (r.cobrancaId) setPagando({ id: r.cobrancaId, link: r.link })
+    else window.open(r.link, '_blank')
+  }
+
+  const pagou = () => {
+    setPagando(null)
+    toast('Pagamento confirmado!')
+    listarCobrancas(org.orgId).then(setCobrancas)
+    onSalvo?.()
   }
 
   const pedirCancelamento = async () => {
@@ -502,10 +512,10 @@ function TabFinanceiro({ org, unidadesCount, onIrParaDados, onSalvo }) {
         {cgPaga ? (
           <div className="text-sm font-bold text-green-700">✅ Contratada em {fmtData(cgPaga.pago_em?.slice(0, 10))}</div>
         ) : cgPendente ? (
-          <a href={cgPendente.link_pagamento} target="_blank" rel="noopener noreferrer"
+          <button onClick={() => setPagando({ id: cgPendente.asaas_charge_id, link: cgPendente.link_pagamento })}
             className="block text-center w-full py-3 bg-amber-100 text-amber-800 rounded-xl font-black text-sm">
-            Pagamento pendente — continuar
-          </a>
+            Pagamento pendente — pagar agora
+          </button>
         ) : (
           <button onClick={() => contratar('configuracao_guiada')} disabled={processando === 'configuracao_guiada'}
             className="w-full py-3 bg-stone-800 text-white rounded-xl font-black text-sm active:bg-stone-900 disabled:opacity-50">
@@ -537,10 +547,10 @@ function TabFinanceiro({ org, unidadesCount, onIrParaDados, onSalvo }) {
             )}
           </>
         ) : mensPendente ? (
-          <a href={mensPendente.link_pagamento} target="_blank" rel="noopener noreferrer"
+          <button onClick={() => setPagando({ id: mensPendente.asaas_charge_id, link: mensPendente.link_pagamento })}
             className="block text-center w-full py-3 bg-amber-100 text-amber-800 rounded-xl font-black text-sm">
-            Pagamento pendente — continuar
-          </a>
+            Pagamento pendente — pagar agora
+          </button>
         ) : (
           <>
             <div className="text-sm mb-3">
@@ -555,6 +565,51 @@ function TabFinanceiro({ org, unidadesCount, onIrParaDados, onSalvo }) {
           </>
         )}
       </div>
+
+      {/* PAGAMENTO NA TELA */}
+      {pagando && (
+        <div className="bg-white rounded-2xl border border-green-200 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs font-black tracking-widest uppercase text-stone-400">Pagar agora</div>
+            <button onClick={() => setPagando(null)} className="text-xs text-stone-400 underline">Fechar</button>
+          </div>
+          <PagamentoInline key={pagando.id} orgId={org.orgId} cobrancaId={pagando.id} link={pagando.link} onPago={pagou} />
+        </div>
+      )}
+
+      {/* HISTÓRICO DE FATURAS */}
+      {cobrancas.length > 0 && (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+          <div className="text-xs font-black tracking-widest uppercase text-stone-400 mb-3">Faturas</div>
+          <div className="divide-y divide-stone-100">
+            {cobrancas.map(c => {
+              const aberta = c.status === 'pendente' || c.status === 'vencido'
+              const rotulo = { pago: ['Paga', 'bg-green-100 text-green-700'], pendente: ['Em aberto', 'bg-amber-100 text-amber-700'],
+                vencido: ['Vencida', 'bg-red-100 text-red-700'], cancelado: ['Cancelada', 'bg-stone-100 text-stone-500'] }[c.status] || [c.status, 'bg-stone-100 text-stone-500']
+              return (
+                <div key={c.asaas_charge_id} className="py-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-stone-800 truncate">
+                      {c.tipo === 'mensalidade' ? 'Mensalidade' : 'Configuração Guiada'} · {fmt(c.valor)}
+                    </div>
+                    <div className="text-xs text-stone-400">
+                      {c.status === 'pago' ? `Paga em ${fmtData((c.pago_em || '').slice(0, 10))}` : `Vence em ${fmtData(c.vencimento)}`}
+                    </div>
+                  </div>
+                  <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${rotulo[1]}`}>{rotulo[0]}</span>
+                  {aberta ? (
+                    <button onClick={() => setPagando({ id: c.asaas_charge_id, link: c.link_pagamento })}
+                      className="text-xs font-black text-green-700 underline">Pagar</button>
+                  ) : c.link_pagamento ? (
+                    <a href={c.link_pagamento} target="_blank" rel="noopener noreferrer"
+                      className="text-xs font-black text-stone-500 underline">Ver</a>
+                  ) : null}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import { getOrgDoUsuario, atualizarDadosOrganizacao } from './lib/auth'
 import { criarCobranca, listarCobrancas } from './lib/asaas'
+import PagamentoInline from './PagamentoInline'
 
 const fmt = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',')
 const fmtData = iso => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR') : ''
@@ -17,6 +18,7 @@ export default function TelaBloqueio({ org, onLiberado, onSair }) {
   const fimAcesso = org.pagoAte || org.trialFim
   const [valor, setValor] = useState(null)
   const [link, setLink] = useState(null)
+  const [cobrancaId, setCobrancaId] = useState(null)
   const [carregando, setCarregando] = useState(podePagar)
   const [gerando, setGerando] = useState(false)
   const [erro, setErro] = useState('')
@@ -39,7 +41,7 @@ export default function TelaBloqueio({ org, onLiberado, onSair }) {
       const extras = Math.max(0, (unidades?.count || 1) - 1)
       setValor(49.90 + extras * 9.90)
       const aberta = cobrancas.find(c => c.tipo === 'mensalidade' && ['pendente', 'vencido'].includes(c.status) && c.link_pagamento)
-      if (aberta) setLink(aberta.link_pagamento)
+      if (aberta) { setLink(aberta.link_pagamento); setCobrancaId(aberta.asaas_charge_id) }
       setCarregando(false)
     })()
     return () => { cancelado = true }
@@ -83,6 +85,7 @@ export default function TelaBloqueio({ org, onLiberado, onSair }) {
     setGerando(false)
     if (!r.ok) { setErro(r.error); return }
     setLink(r.link)
+    setCobrancaId(r.cobrancaId || null)
   }
 
   return (
@@ -109,15 +112,19 @@ export default function TelaBloqueio({ org, onLiberado, onSair }) {
             </div>
 
             {link ? (
-              <>
-                <a href={link} target="_blank" rel="noopener noreferrer"
-                  className="block text-center w-full py-3.5 bg-green-700 text-white rounded-xl font-black text-sm active:bg-green-800">
-                  Abrir pagamento (Pix, boleto ou cartão)
-                </a>
-                <p className="text-xs text-stone-400 text-center">
-                  Depois de pagar, volte para esta tela. O acesso é liberado sozinho assim que o pagamento for confirmado.
-                </p>
-              </>
+              cobrancaId ? (
+                <PagamentoInline orgId={org.orgId} cobrancaId={cobrancaId} link={link} onPago={onLiberado} />
+              ) : (
+                <>
+                  <a href={link} target="_blank" rel="noopener noreferrer"
+                    className="block text-center w-full py-3.5 bg-green-700 text-white rounded-xl font-black text-sm active:bg-green-800">
+                    Abrir pagamento (Pix, boleto ou cartão)
+                  </a>
+                  <p className="text-xs text-stone-400 text-center">
+                    Depois de pagar, volte para esta tela. O acesso é liberado sozinho assim que o pagamento for confirmado.
+                  </p>
+                </>
+              )
             ) : (
               <>
                 {!cadastroOk && (
