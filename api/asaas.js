@@ -93,11 +93,11 @@ async function criarCobranca(req, res) {
       // link em vez de criar outra assinatura — clique duplo ou tela reaberta
       // nunca gera cobrança em dobro.
       const { data: emAberto } = await supabaseAdmin
-        .from('cobrancas').select('link_pagamento')
+        .from('cobrancas').select('link_pagamento, asaas_charge_id')
         .eq('org_id', org.id).eq('tipo', 'mensalidade').in('status', ['pendente', 'vencido'])
         .not('link_pagamento', 'is', null)
         .order('vencimento', { ascending: false }).limit(1).maybeSingle()
-      if (emAberto?.link_pagamento) return res.status(200).json({ ok: true, link: emAberto.link_pagamento })
+      if (emAberto?.link_pagamento) return res.status(200).json({ ok: true, link: emAberto.link_pagamento, cobrancaId: emAberto.asaas_charge_id })
 
       if (org.assinatura_status === 'ativa') {
         return res.status(400).json({ ok: false, error: 'Você já tem uma assinatura ativa' })
@@ -188,7 +188,7 @@ async function criarCobranca(req, res) {
       }, { onConflict: 'asaas_charge_id' })
     }
 
-    return res.status(200).json({ ok: true, link: linkPagamento })
+    return res.status(200).json({ ok: true, link: linkPagamento, cobrancaId: asaasChargeId || null })
   } catch (e) {
     console.error('asaas-cobranca falhou:', e.message)
     return res.status(502).json({ ok: false, error: e.message })
@@ -347,7 +347,80 @@ async function receberWebhook(req, res) {
   }
 }
 
+// ── Pagamento dentro da tela: devolve o QR Code Pix (imagem + copia e cola) ou a
+// linha digitável do boleto de uma cobrança em aberto, pra pessoa pagar sem sair
+// do sistema. Autenticado como criarCobranca; só mexe em cobrança da própria
+// organização e só quem tem acesso total (não dedicante de unidade). A chave do
+// Asaas nunca vai pro navegador.
+async function pagamentoNaTela(req, res) {
+  if (req.method !== 'POST') return res.status(405).end()
+  if (!process.env.ASAAS_API_KEY) {
+    return res.status(501).json({ ok: false, error: 'Pagamento online ainda não configurado. Fale com o suporte.' })
+  }
+
+  const token = req.headers.authorization?.replace('Bearer ', '')
+  if (!token) return res.status(401).json({ ok: false, error: 'Não autenticado' })
+
+  const { cobrancaId, forma } = req.body || {}
+  if (!cobrancaId || !['PIX', 'BOLETO'].includes(forma)) {
+    return res.status(400).json({ ok: false, error: 'Pedido inválido' })
+  }
+
+  try {
+    const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token)
+    if (userErr || !userData?.user) return res.status(401).json({ ok: false, error: 'Sessão inválida' })
+
+    const { data: membro } = await supabaseAdmin
+      .from('org_members').select('org_id, role').eq('user_id', userData.user.id).limit(1).maybeSingle()
+    if (!membro) return res.status(404).json({ ok: false, error: 'Organização não encontrada' })
+    if (membro.role === 'dedicante_unidade') return res.status(403).json({ ok: false, error: 'Sem permissão' })
+
+    const { data: cobranca } = await supabaseAdmin
+      .from('cobrancas').select('asaas_charge_id, status, valor, vencimento, link_pagamento')
+      .eq('asaas_charge_id', cobrancaId).eq('org_id', membro.org_id).maybeSingle()
+    if (!cobranca) return res.status(404).json({ ok: false, error: 'Cobrança não encontrada' })
+    if (!['pendente', 'vencido'].includes(cobranca.status)) {
+      return res.status(400).json({ ok: false, error: 'Esta cobrança não está em aberto' })
+    }
+
+    const id = encodeURIComponent(cobranca.asaas_charge_id)
+    const pay = await asaasFetch(`/payments/${id}`)
+    if (['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'].includes(pay.status)) {
+      return res.status(200).json({ ok: true, pago: true })
+    }
+
+    // Se o Asaas recusar a consulta nessa forma, fixa a forma na cobrança (só
+    // essa cobrança, que continua em aberto) e tenta de novo.
+    const comReparo = async (consulta) => {
+      try { return await consulta() } catch (e1) {
+        await asaasFetch(`/payments/${id}`, { method: 'PUT', body: JSON.stringify({ billingType: forma }) })
+        return consulta()
+      }
+    }
+
+    if (forma === 'PIX') {
+      const qr = await comReparo(() => asaasFetch(`/payments/${id}/pixQrCode`))
+      return res.status(200).json({
+        ok: true, forma, encodedImage: qr.encodedImage, payload: qr.payload, expirationDate: qr.expirationDate || null,
+        valor: pay.value, vencimento: pay.dueDate, link: cobranca.link_pagamento,
+      })
+    }
+
+    const campo = await comReparo(() => asaasFetch(`/payments/${id}/identificationField`))
+    const atual = await asaasFetch(`/payments/${id}`)
+    return res.status(200).json({
+      ok: true, forma, linhaDigitavel: campo.identificationField, codigoBarras: campo.barCode || null,
+      boletoUrl: atual.bankSlipUrl || cobranca.link_pagamento,
+      valor: pay.value, vencimento: pay.dueDate, link: cobranca.link_pagamento,
+    })
+  } catch (e) {
+    console.error('asaas-pagamento falhou:', e.message)
+    return res.status(502).json({ ok: false, error: e.message })
+  }
+}
+
 export default async function handler(req, res) {
   if (req.query.mode === 'webhook') return receberWebhook(req, res)
+  if (req.query.mode === 'pagamento') return pagamentoNaTela(req, res)
   return criarCobranca(req, res)
 }

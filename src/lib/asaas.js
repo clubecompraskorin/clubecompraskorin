@@ -25,7 +25,26 @@ export const criarCobranca = async (tipo) => {
     })
     const data = await res.json()
     if (!res.ok) return { ok: false, error: data?.error || 'Falha ao gerar cobrança' }
-    return { ok: true, link: data.link }
+    return { ok: true, link: data.link, cobrancaId: data.cobrancaId || null }
+  } catch {
+    return { ok: false, error: 'Falha de conexão — tente novamente' }
+  }
+}
+
+// Pix (QR + copia e cola) ou boleto (linha digitável) de uma cobrança em aberto,
+// pra pagar sem sair da tela. forma: 'PIX' | 'BOLETO'.
+export const pagamentoNaTela = async (cobrancaId, forma) => {
+  const session = await getSession()
+  if (!session) return { ok: false, error: 'Sessão expirada — entre novamente' }
+  try {
+    const res = await fetch('/api/asaas?mode=pagamento', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ cobrancaId, forma }),
+    })
+    const data = await res.json()
+    if (!res.ok) return { ok: false, error: data?.error || 'Não foi possível gerar o pagamento' }
+    return data
   } catch {
     return { ok: false, error: 'Falha de conexão — tente novamente' }
   }
