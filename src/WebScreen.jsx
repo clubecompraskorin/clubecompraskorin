@@ -1103,10 +1103,12 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
               <div className="text-xs">
                 Se o código foi reaproveitado por engano (ex: um item inserido no meio da tabela deslocou a numeração), corrija a tabela de origem antes de importar de novo. Se está correto, confirme abaixo pra continuar.
               </div>
-              <label className="flex items-center gap-2 pt-1 cursor-pointer">
+              <label className={`flex items-center gap-3 mt-2 p-3 rounded-xl border-2 cursor-pointer ${confirmouConflitos ? 'bg-green-50 border-green-600' : 'bg-white border-amber-500 animate-pulse'}`}>
                 <input type="checkbox" checked={confirmouConflitos} onChange={e => setConfirmouConflitos(e.target.checked)}
-                  className="w-4 h-4 accent-amber-600" />
-                <span className="text-xs font-bold">Revisei e confirmo que esses códigos mudaram de produto mesmo</span>
+                  className="w-7 h-7 flex-shrink-0 accent-green-700" />
+                <span className="text-sm font-black text-stone-800">
+                  {confirmouConflitos ? '✅ ' : '👉 '}Marque aqui para continuar: revisei e confirmo que esses códigos mudaram de produto mesmo
+                </span>
               </label>
             </div>
           </div>
