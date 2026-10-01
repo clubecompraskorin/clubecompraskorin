@@ -252,10 +252,19 @@ async function receberWebhook(req, res) {
     return res.status(401).json({ ok: false, error: 'Não autorizado' })
   }
 
-  const { event, payment: pagamentoDoEvento } = req.body || {}
+  // O corpo pode chegar já como objeto, como texto ou como Buffer, dependendo do
+  // Content-Type que o Asaas manda — normaliza antes de ler.
+  let corpo = req.body
+  if (Buffer.isBuffer(corpo)) corpo = corpo.toString('utf8')
+  if (typeof corpo === 'string') { try { corpo = JSON.parse(corpo) } catch { corpo = null } }
+  const { event, payment: pagamentoDoEvento } = corpo || {}
+  const ignorar = (motivo, extra = '') => {
+    console.log(`asaas-webhook ignorado: motivo=${motivo} evento=${event} cobranca=${pagamentoDoEvento?.id} ${extra}`.trim())
+    return res.status(200).json({ ok: true, ignorado: true })
+  }
   if (!EVENTOS_DE_COBRANCA.has(event) || !pagamentoDoEvento?.id) {
     // Evento que não tratamos (ex: notas fiscais, boletos de terceiros) — só confirma o recebimento.
-    return res.status(200).json({ ok: true, ignorado: true })
+    return ignorar(!corpo ? 'corpo_ilegivel' : 'evento_nao_tratado', `tipo_corpo=${typeof req.body}`)
   }
 
   try {
@@ -263,14 +272,22 @@ async function receberWebhook(req, res) {
     // AAAA-MM-DD; o corpo do webhook manda DD/MM/AAAA).
     const payment = await asaasFetch(`/payments/${encodeURIComponent(pagamentoDoEvento.id)}`)
     const novoStatus = statusDaCobranca(payment)
-    if (!novoStatus) return res.status(200).json({ ok: true, ignorado: true })
+    if (!novoStatus) return ignorar('status_desconhecido', `status_asaas=${payment.status}`)
 
     const eMensalidade = Boolean(payment.subscription)
-    const { data: org } = eMensalidade
-      ? await supabaseAdmin.from('organizacoes').select('id, pago_ate').eq('asaas_subscription_id', payment.subscription).maybeSingle()
-      : await supabaseAdmin.from('organizacoes').select('id, pago_ate').eq('asaas_customer_id', payment.customer).maybeSingle()
-
-    if (!org) return res.status(200).json({ ok: true, ignorado: true })
+    const consulta = eMensalidade
+      ? supabaseAdmin.from('organizacoes').select('id, pago_ate').eq('asaas_subscription_id', payment.subscription)
+      : supabaseAdmin.from('organizacoes').select('id, pago_ate').eq('asaas_customer_id', payment.customer)
+    let { data: org, error: orgBuscaErr } = await consulta.maybeSingle()
+    // Erro de banco não pode virar "ignorado": devolve 500 pro Asaas reenviar.
+    if (orgBuscaErr) throw new Error('busca da organização: ' + orgBuscaErr.message)
+    // Cobranças criadas por nós levam o id da organização em externalReference.
+    if (!org && payment.externalReference) {
+      const r = await supabaseAdmin.from('organizacoes').select('id, pago_ate').eq('id', payment.externalReference).maybeSingle()
+      if (r.error) throw new Error('busca da organização: ' + r.error.message)
+      org = r.data
+    }
+    if (!org) return ignorar('organizacao_nao_encontrada', `cliente=${payment.customer} assinatura=${payment.subscription || '-'}`)
 
     // Estado anterior desta cobrança — o Asaas reenvia eventos e, em cartão,
     // manda CONFIRMED e depois RECEIVED. Só a 1ª passagem pra "pago" estende o
