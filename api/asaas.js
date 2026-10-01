@@ -97,11 +97,18 @@ async function criarCobranca(req, res) {
         body: JSON.stringify({
           name: org.responsavel_nome || org.nome,
           cpfCnpj: soDigitos(org.documento),
+          email: userData.user.email || undefined,
           externalReference: org.id,
         }),
       })
       customerId = cliente.id
       await supabaseAdmin.from('organizacoes').update({ asaas_customer_id: customerId }).eq('id', org.id)
+    } else if (userData.user.email) {
+      // Cliente criado antes de guardarmos o e-mail: completa o contato pro Asaas
+      // conseguir avisar dos vencimentos. Melhor esforço — nunca trava a cobrança.
+      try {
+        await asaasFetch(`/customers/${customerId}`, { method: 'PUT', body: JSON.stringify({ email: userData.user.email }) })
+      } catch (e) { console.error('asaas: não atualizou e-mail do cliente:', e.message) }
     }
 
     let asaasChargeId, valor, vencimento, linkPagamento
@@ -220,24 +227,40 @@ async function receberWebhook(req, res) {
 
     if (!org) return res.status(200).json({ ok: true, ignorado: true })
 
-    await supabaseAdmin.from('cobrancas').upsert({
+    // Estado anterior desta cobrança — o Asaas reenvia eventos e, em cartão,
+    // manda CONFIRMED e depois RECEIVED. Só a 1ª passagem pra "pago" estende o
+    // acesso; repetição regrava o mesmo estado sem somar outro mês.
+    const { data: anterior } = await supabaseAdmin
+      .from('cobrancas').select('status, pago_em').eq('asaas_charge_id', payment.id).maybeSingle()
+    const jaEstavaPaga = anterior?.status === 'pago'
+
+    // Cobrança já paga nunca volta pra pendente/vencida por um evento atrasado
+    // (ex: PAYMENT_UPDATED). Reembolso/exclusão (cancelado) continua valendo.
+    const statusFinal = jaEstavaPaga && (novoStatus === 'pendente' || novoStatus === 'vencido') ? 'pago' : novoStatus
+
+    // Estende o acesso ANTES de gravar a cobrança: se algo falhar no meio, o
+    // Asaas reenvia e o pior caso é um mês a mais — nunca um cliente que pagou
+    // e ficou sem acesso.
+    if (statusFinal === 'pago' && eMensalidade && !jaEstavaPaga) {
+      const { error: orgErr } = await supabaseAdmin.from('organizacoes').update({
+        pago_ate: proximoPagoAte(org.pago_ate),
+        assinatura_status: 'ativa',
+      }).eq('id', org.id)
+      if (orgErr) throw new Error(orgErr.message)
+    }
+
+    const { error: cobErr } = await supabaseAdmin.from('cobrancas').upsert({
       org_id: org.id,
       asaas_charge_id: payment.id,
       tipo: eMensalidade ? 'mensalidade' : 'configuracao_guiada',
       valor: payment.value,
-      status: novoStatus,
+      status: statusFinal,
       vencimento: payment.dueDate || null,
-      pago_em: novoStatus === 'pago' ? new Date().toISOString() : null,
+      pago_em: statusFinal === 'pago' ? (anterior?.pago_em || new Date().toISOString()) : null,
       link_pagamento: payment.invoiceUrl || null,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'asaas_charge_id' })
-
-    if (novoStatus === 'pago' && eMensalidade) {
-      await supabaseAdmin.from('organizacoes').update({
-        pago_ate: proximoPagoAte(org.pago_ate),
-        assinatura_status: 'ativa',
-      }).eq('id', org.id)
-    }
+    if (cobErr) throw new Error(cobErr.message)
 
     return res.status(200).json({ ok: true })
   } catch (e) {
