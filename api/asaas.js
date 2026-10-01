@@ -195,14 +195,25 @@ async function criarCobranca(req, res) {
   }
 }
 
-const STATUS_POR_EVENTO = {
-  PAYMENT_CREATED: 'pendente',
-  PAYMENT_UPDATED: 'pendente',
-  PAYMENT_CONFIRMED: 'pago',
-  PAYMENT_RECEIVED: 'pago',
-  PAYMENT_OVERDUE: 'vencido',
-  PAYMENT_DELETED: 'cancelado',
-  PAYMENT_REFUNDED: 'cancelado',
+// Eventos que disparam o processamento. O estado real da cobrança NÃO vem do
+// corpo do evento: é consultado direto no Asaas (statusDaCobranca), então um
+// evento forjado ou antigo nunca consegue marcar uma cobrança como paga.
+const EVENTOS_DE_COBRANCA = new Set([
+  'PAYMENT_CREATED', 'PAYMENT_UPDATED', 'PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED',
+  'PAYMENT_OVERDUE', 'PAYMENT_DELETED', 'PAYMENT_REFUNDED',
+])
+
+// Status da cobrança no Asaas -> status nosso. Status que não conhecemos
+// (ou que não mudam nada pra gente) devolvem null e o evento é ignorado.
+function statusDaCobranca(c) {
+  if (c.deleted) return 'cancelado'
+  switch (c.status) {
+    case 'RECEIVED': case 'CONFIRMED': case 'RECEIVED_IN_CASH': return 'pago'
+    case 'PENDING': case 'AWAITING_RISK_ANALYSIS': return 'pendente'
+    case 'OVERDUE': return 'vencido'
+    case 'REFUNDED': case 'CHARGEBACK_REQUESTED': case 'CHARGEBACK_DISPUTE': return 'cancelado'
+    default: return null
+  }
 }
 
 // Soma 1 mês a partir da maior data entre "hoje" e o pago_ate atual — assim
@@ -224,26 +235,36 @@ function proximoPagoAte(pagoAteAtual) {
 async function receberWebhook(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  // trim: espaço ou quebra de linha sobrando ao colar o token no painel do
-  // Vercel/Asaas não pode derrubar a validação.
+  // O Asaas desta conta chega SEM o cabeçalho asaas-access-token (confirmado nos
+  // logs: motivo=header_ausente). Então o segredo pode vir de 2 jeitos: no
+  // cabeçalho (se um dia o Asaas passar a mandar) ou na própria URL do webhook
+  // (…/api/asaas-webhook?token=SEGREDO). Mesmo valor de ASAAS_WEBHOOK_TOKEN.
+  // trim: espaço ou quebra de linha sobrando ao colar não derruba a validação.
   const tokenEsperado = (process.env.ASAAS_WEBHOOK_TOKEN || '').trim()
-  const tokenRecebido = String(req.headers['asaas-access-token'] || '').trim()
+  let tokenUrl = req.query?.token
+  if (!tokenUrl) { try { tokenUrl = new URL(req.url, 'http://x').searchParams.get('token') } catch {} }
+  const tokenHeader = String(req.headers['asaas-access-token'] || '').trim()
+  const tokenRecebido = tokenHeader || String(tokenUrl || '').trim()
   if (!tokenEsperado || tokenRecebido !== tokenEsperado) {
     // Só o motivo e os tamanhos vão pro log — nunca o valor dos tokens.
-    const motivo = !tokenEsperado ? 'token_nao_configurado_no_servidor' : !tokenRecebido ? 'header_ausente' : 'token_diferente'
-    // Nomes dos cabeçalhos recebidos (só os nomes, nunca os valores) — pra descobrir se o token chega com outro nome.
-    console.error(`asaas-webhook 401: motivo=${motivo} tamanho_esperado=${tokenEsperado.length} tamanho_recebido=${tokenRecebido.length} cabecalhos=${Object.keys(req.headers).sort().join(',')}`)
+    const motivo = !tokenEsperado ? 'token_nao_configurado_no_servidor' : !tokenRecebido ? 'token_ausente_no_header_e_na_url' : 'token_diferente'
+    console.error(`asaas-webhook 401: motivo=${motivo} tamanho_esperado=${tokenEsperado.length} tamanho_recebido=${tokenRecebido.length}`)
     return res.status(401).json({ ok: false, error: 'Não autorizado' })
   }
 
-  const { event, payment } = req.body || {}
-  const novoStatus = STATUS_POR_EVENTO[event]
-  if (!novoStatus || !payment?.id) {
+  const { event, payment: pagamentoDoEvento } = req.body || {}
+  if (!EVENTOS_DE_COBRANCA.has(event) || !pagamentoDoEvento?.id) {
     // Evento que não tratamos (ex: notas fiscais, boletos de terceiros) — só confirma o recebimento.
     return res.status(200).json({ ok: true, ignorado: true })
   }
 
   try {
+    // Fonte da verdade: a cobrança no próprio Asaas (também traz as datas em
+    // AAAA-MM-DD; o corpo do webhook manda DD/MM/AAAA).
+    const payment = await asaasFetch(`/payments/${encodeURIComponent(pagamentoDoEvento.id)}`)
+    const novoStatus = statusDaCobranca(payment)
+    if (!novoStatus) return res.status(200).json({ ok: true, ignorado: true })
+
     const eMensalidade = Boolean(payment.subscription)
     const { data: org } = eMensalidade
       ? await supabaseAdmin.from('organizacoes').select('id, pago_ate').eq('asaas_subscription_id', payment.subscription).maybeSingle()
