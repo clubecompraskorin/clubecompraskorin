@@ -56,3 +56,8 @@ export const alertaCaixa = (produto, totalPedido) => {
     faltamPraFecharMais: qtdCaixa - foraDaCaixa,
   }
 }
+
+// Data de hoje (YYYY-MM-DD) no fuso de Brasília — o acesso vale até o fim do dia
+// de `pago_ate` no horário do cliente. Com toISOString() (UTC) o bloqueio
+// começava às 21h do último dia.
+export const hojeBR = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })

@@ -65,8 +65,8 @@ function TelaSemPermissao() {
   )
 }
 
-const fmtData = (iso) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-const hojeISO = () => new Date().toISOString().slice(0, 10)
+const fmtData = (iso) => new Date(String(iso).length === 10 ? iso + 'T12:00:00' : iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+const hojeISO = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
 
 function StatusPagamento({ org }) {
   const hoje = hojeISO()

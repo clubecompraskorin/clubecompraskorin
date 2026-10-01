@@ -20,6 +20,9 @@ const VALOR_POR_UNIDADE_EXTRA = 9.90
 
 const soDigitos = (s) => (s || '').replace(/\D/g, '')
 
+// Hoje no fuso de Brasília (YYYY-MM-DD) — o acesso vale até o fim do dia de pago_ate.
+const hojeBR = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+
 const daquiA3DiasISO = () => {
   const d = new Date()
   d.setDate(d.getDate() + 3)
@@ -85,8 +88,20 @@ async function criarCobranca(req, res) {
       return res.status(400).json({ ok: false, error: 'Complete seu cadastro (nome do responsável e CPF/CNPJ) antes de continuar' })
     }
 
-    if (tipo === 'mensalidade' && org.assinatura_status === 'ativa') {
-      return res.status(400).json({ ok: false, error: 'Você já tem uma assinatura ativa' })
+    if (tipo === 'mensalidade') {
+      // Já existe mensalidade em aberto (pendente ou vencida)? Devolve o mesmo
+      // link em vez de criar outra assinatura — clique duplo ou tela reaberta
+      // nunca gera cobrança em dobro.
+      const { data: emAberto } = await supabaseAdmin
+        .from('cobrancas').select('link_pagamento')
+        .eq('org_id', org.id).eq('tipo', 'mensalidade').in('status', ['pendente', 'vencido'])
+        .not('link_pagamento', 'is', null)
+        .order('vencimento', { ascending: false }).limit(1).maybeSingle()
+      if (emAberto?.link_pagamento) return res.status(200).json({ ok: true, link: emAberto.link_pagamento })
+
+      if (org.assinatura_status === 'ativa') {
+        return res.status(400).json({ ok: false, error: 'Você já tem uma assinatura ativa' })
+      }
     }
 
     // Cria (ou reaproveita) o cliente no Asaas
@@ -134,7 +149,10 @@ async function criarCobranca(req, res) {
         .from('org_unidades').select('id', { count: 'exact', head: true }).eq('org_id', org.id)
       const extras = Math.max(0, (count || 1) - 1)
       valor = Number((VALOR_MENSALIDADE_BASE + extras * VALOR_POR_UNIDADE_EXTRA).toFixed(2))
-      vencimento = daquiA3DiasISO()
+      // Vence no dia em que o acesso atual termina (pago_ate); se já terminou
+      // (ou nunca pagou), vence hoje.
+      const hoje = hojeBR()
+      vencimento = org.pago_ate && org.pago_ate > hoje ? org.pago_ate : hoje
 
       const assinatura = await asaasFetch('/subscriptions', {
         method: 'POST',
@@ -191,7 +209,7 @@ const STATUS_POR_EVENTO = {
 // quem paga em dia estende a partir do vencimento anterior, e quem paga
 // atrasado (já bloqueado) estende a partir de hoje, não de uma data passada.
 function proximoPagoAte(pagoAteAtual) {
-  const hoje = new Date().toISOString().slice(0, 10)
+  const hoje = hojeBR()
   const base = pagoAteAtual && pagoAteAtual > hoje ? pagoAteAtual : hoje
   const d = new Date(base + 'T12:00:00')
   d.setMonth(d.getMonth() + 1)
