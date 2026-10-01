@@ -27,6 +27,21 @@ const fmt = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',')
 const fmtData = iso => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR') : ''
 const normalizarTexto = s => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 
+// Palavras que a Korin troca de um mês pro outro sem mudar o produto
+// (embalagem, peso, validade). Ficam de fora na hora de comparar nomes.
+const RUIDO_NOME = new Set(['DE', 'DA', 'DO', 'E', 'C', 'COM', 'CONG', 'PCT', 'PC', 'PACOTE', 'BD', 'BANDEJA',
+  'KILO', 'KG', 'G', 'UN', 'UND', 'CX', 'CAIXA', 'VAL', 'ATE', 'VALIDADE'])
+const nucleoNome = s => new Set(
+  (s || '').toUpperCase().split(/[^A-Z0-9]+/).filter(t => t && !/\d/.test(t) && !RUIDO_NOME.has(t))
+)
+// Mesmo produto = núcleo do nome (sem embalagem/peso/validade) praticamente igual.
+const mesmoProduto = (a, b) => {
+  const A = nucleoNome(a), B = nucleoNome(b)
+  if (A.size === 0 || B.size === 0) return normalizarTexto(a) === normalizarTexto(b)
+  const inter = [...A].filter(t => B.has(t)).length
+  return inter / (A.size + B.size - inter) >= 0.75
+}
+
 // ── SUB-ABA: CONTROLES ────────────────────────────────────────────────────────
 function TabControles({ periodo, dataLimite, onChangeDataLimite, onToggleAberto, onSave, onImportar, salvando, orgId, orgSlug }) {
   const linkCatalogo = window.location.origin + '/' + (orgSlug || '') + '/pedido'
@@ -832,7 +847,7 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
   const mesclarComExistentes = (produtosNovos) =>
     produtosNovos.map(p => {
       const exist = produtosAtuais.find(x => x.cod === p.cod)
-      const nomeMudou = exist && normalizarTexto(exist.nomeOriginalKorin || exist.nome) !== normalizarTexto(p.nomeOriginalKorin || p.nome)
+      const nomeMudou = exist && !mesmoProduto(exist.nomeOriginalKorin || exist.nome, p.nomeOriginalKorin || p.nome)
       const precoCusto = p.precoCusto ?? exist?.precoCusto ?? null
       return {
         ...p,
@@ -1036,8 +1051,9 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
           </div>
         </div>
 
+        <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2">
         {!mesmoMes && (
-          <div className="px-4 pt-3 flex-shrink-0">
+          <div>
             <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 text-sm text-amber-700 font-semibold space-y-2">
               <div>
                 {periodo
@@ -1054,7 +1070,7 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
         )}
 
         {codsDuplicados.length > 0 && (
-          <div className="px-4 pt-3 flex-shrink-0">
+          <div>
             <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 font-semibold">
               🔴 Código{codsDuplicados.length > 1 ? 's' : ''} repetido{codsDuplicados.length > 1 ? 's' : ''} na planilha:{' '}
               {codsDuplicados.join(', ')} — apaga um dos produtos duplicados (botão ✕) antes de salvar.
@@ -1063,7 +1079,7 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
         )}
 
         {tipoArquivo === 'planilha' && semCusto.length > 0 && (
-          <div className="px-4 pt-3 flex-shrink-0">
+          <div>
             <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700 font-semibold">
               🔴 {semCusto.length} produto{semCusto.length > 1 ? 's' : ''} sem custo — preenche o valor em vermelho na lista abaixo antes de salvar.
             </div>
@@ -1071,12 +1087,12 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
         )}
 
         {conflitos.length > 0 && (
-          <div className="px-4 pt-3 flex-shrink-0">
+          <div>
             <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-sm text-amber-800 space-y-2">
               <div className="font-bold">
                 ⚠️ {conflitos.length} código{conflitos.length > 1 ? 's' : ''} da tabela nova já {conflitos.length > 1 ? 'eram' : 'era'} de outro produto
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 max-h-40 overflow-y-auto">
                 {conflitos.map(c => (
                   <div key={c.cod} className="text-xs">
                     <span className="font-bold bg-white px-1 rounded">{c.cod}</span>{' '}
@@ -1096,7 +1112,6 @@ function ModalImportarCatalogo({ periodo, produtosAtuais, orgId, onConcluido, on
           </div>
         )}
 
-        <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2">
           {importados.map((p, i) => {
             const duplicado = contagemCod[p.cod] > 1
             return (
