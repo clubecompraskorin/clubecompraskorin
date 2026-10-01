@@ -11,6 +11,12 @@
 > validado ponta a ponta com pagamento de verdade. Junior pediu só pra anotar por enquanto —
 > "veremos depois", nada a fazer aqui até ele retomar o assunto.
 >
+> **Atualização 01/10/2026 — Asaas em produção e validado ponta a ponta**: a pendência "Asaas"
+> deste topo foi resolvida. Cobrança real por Pix, webhook, liberação de acesso e estorno foram
+> testados em produção (conta Asaas de produção). Detalhes, decisões e pendências na seção
+> **"Asaas em produção (01/10/2026)"** logo antes de "Pendente / próximos passos". Os itens 16 e
+> 17 do Pendente ficaram obsoletos (eram do sandbox) e foram substituídos por esse registro.
+>
 > **Atualização (mesmo dia, complementar)**: **bug real corrigido — "there is no unique or
 > exclusion constraint matching the ON CONFLICT specification" ao salvar foto pela nova tela do
 > `/gestor`.** Causa: o índice único de `cod` criado pra essa feature (`fotos_produtos_korin_
@@ -1809,6 +1815,78 @@ ficavam só em Config → Unidades, aba que esse papel não vê.
 
 ---
 
+## Asaas em produção (01/10/2026) — validado ponta a ponta
+
+**Decisões de negócio (Junior)**
+- **Formas de pagamento**: Pix e boleto, **sem débito automático** e sem cartão dentro da tela
+  (cartão continua possível pelo link da página do Asaas, que fica sempre visível).
+- **"Fatura"** = a cobrança do próprio sistema (card "Faturas" na aba Financeiro). **Sem nota
+  fiscal** por enquanto.
+- **Regra de acesso (vale pra todas as organizações)**: o acesso vai **até o fim do dia de
+  `pago_ate`**; a tela de bloqueio só aparece no dia seguinte. Data sempre no **horário de
+  Brasília** (antes era UTC e o bloqueio começava às 21h do último dia).
+- **Clientes novos**: **7 dias de teste a partir da criação** (`trial_fim`), depois pagamento
+  mensal com vencimento = dia em que o acesso termina. Migração
+  `trial_fim_7_dias_apos_criacao`: o padrão da coluna era uma **data fixa (2026-09-08)**, então
+  toda organização criada depois dela nascia bloqueada ("Trial Atingido"); agora é
+  `hoje (Brasília) + 7`. Organizações existentes **não foram alteradas**.
+- Token do webhook: Junior optou por **não trocar** o token. Ele apareceu inteiro numa conversa
+  (URL `?token=`); o risco é baixo porque o servidor confirma cada pagamento direto no Asaas
+  (evento forjado não libera nada), mas fica registrado.
+
+**O que foi construído / corrigido (PRs #9 a #18, todos mesclados na `main`)**
+- **#11** webhook só estende `pago_ate` na 1ª vez que a cobrança vira paga (reenvio de evento ou
+  `CONFIRMED`+`RECEIVED` somavam um mês a cada passagem); cobrança paga não volta a pendente por
+  evento atrasado; cliente do Asaas criado com o e-mail do login.
+- **#12** `TelaBloqueio` com botão **Pagar mensalidade** (antes "Trial Atingido" sem saída),
+  libera sozinha ao confirmar o pagamento; bloqueio em data de Brasília (`hojeBR`) em `auth.js`,
+  `api/pedido.js`, `api/asaas.js`, `Gestor` e aba Financeiro; mensalidade em aberto reaproveita o
+  mesmo link (clique duplo não cria 2ª assinatura); vencimento da cobrança = `pago_ate`
+  (ou hoje se já venceu); `Gestor` mostrava datas `AAAA-MM-DD` com um dia a menos (fuso).
+- **#13/#14/#15/#16/#17** webhook: o **Asaas desta conta NÃO envia o cabeçalho
+  `asaas-access-token`** (confirmado nos logs: `header_ausente`, 39 cabeçalhos de rede e nenhum de
+  autenticação, mesmo com webhook recriado). Solução: o segredo vai **na URL do webhook**
+  (`/api/asaas-webhook?token=<ASAAS_WEBHOOK_TOKEN>`) ou no cabeçalho; o servidor **consulta a
+  cobrança no Asaas** (`GET /payments/{id}`) e usa essa resposta (status, valor, vencimento) em
+  vez do corpo do evento; corpo lido como objeto/texto/Buffer; saídas "ignorado" registram o
+  motivo; erro de banco vira 500 (Asaas reenvia). Bônus: o corpo do webhook manda datas em
+  `DD/MM/AAAA`, que iam direto pra coluna `date` — a consulta à API devolve `AAAA-MM-DD`.
+- **#18** **Pix (QR + copia e cola) e boleto (linha digitável + PDF) dentro da tela**
+  (`src/PagamentoInline.jsx`, modo `?mode=pagamento` em `api/asaas.js` — sem arquivo novo, o
+  limite de 12 functions está cheio), na tela de bloqueio e na aba Financeiro; confere a cada 5s
+  se foi pago; card **Faturas** (Paga / Em aberto / Vencida / Cancelada, botão Pagar/Ver).
+
+**Configuração em produção**: `ASAAS_API_KEY` (produção), `ASAAS_BASE_URL=https://api.asaas.com/v3`,
+`ASAAS_WEBHOOK_TOKEN`; webhook de cobranças no Asaas apontando pra
+`https://clubecompraskorin.vercel.app/api/asaas-webhook?token=...`, versão v2, eventos
+`PAYMENT_CREATED/UPDATED/CONFIRMED/RECEIVED/OVERDUE/DELETED/REFUNDED`. Quem entra no painel com
+conta de **administrador da plataforma** enxerga todas as organizações (a tela pega uma
+qualquer) — pra testar o cliente, logar com a conta da organização.
+
+**Testes reais feitos (organização `testejunior`, conta `personalpg51@gmail.com`)**
+- Mensalidade R$ 49,90 por Pix: cobrança criada, paga, webhook registrou em ~1s, `assinatura_status`
+  virou `ativa`, `pago_ate` avançou **um** mês, tela de bloqueio liberou **sozinha**.
+- Estornos geraram `PAYMENT_REFUNDED` e as cobranças viraram "cancelada". Reenvios de eventos
+  antigos não somaram mês. Cobrança avulsa (R$ 5) grava como "Configuração Guiada" sem estender
+  o acesso.
+- Estorno **não** reduz `pago_ate` (comportamento atual): se um cliente estornar a mensalidade,
+  o acesso continua até a data — acerto manual no banco/`/gestor`.
+
+**Pendências**
+- **Camile / Grupo Campo Grande e Costa Verde**: `pago_ate` = **10/10/2026**, `assinatura_status`
+  `nunca_assinou`. Usam até 10/10; a partir de 11/10 caem na tela de bloqueio já com o Pix. Se
+  pagarem antes, a cobrança vence em 10/10 e o acesso soma um mês a partir dessa data. **Avisar
+  a Camile.**
+- **Boleto dentro da tela não foi testado com o Asaas real** (nem se `pixQrCode` /
+  `identificationField` respondem pra cobrança de forma `UNDEFINED`; o código fixa a forma na
+  cobrança e tenta de novo, e o link do Asaas sempre fica como saída).
+- **Clube de Compras Natural** (`clubedecomprasnatural@gmail.com`): bloqueada, sem cadastro
+  completo e sem pagamento — decisão do Junior pendente.
+- Assinaturas de teste no Asaas (cliente Jucimar Alves Lopes): Junior estorna e cancela.
+- Não feito: nota fiscal, débito automático, estorno reduzindo `pago_ate` automaticamente.
+
+---
+
 ## Pendente / próximos passos
 
 1. ✅ **Comparativo do Dashboard — confirmado pelo Junior em teste real, tudo certo.**
@@ -1852,15 +1930,10 @@ ficavam só em Config → Unidades, aba que esse papel não vê.
    real: ícone atualizando sozinho pra quem já tem o PWA instalado (versão do cache subiu de
    propósito pra isso), instalar do zero num Android e num iPhone, preview de compartilhamento
    no WhatsApp, e uma notificação push de verdade.
-16. **Asaas — Pix não apareceu no primeiro teste real do Junior (sandbox).** Não é bug
-   identificado do nosso lado (`billingType: 'UNDEFINED'` correto, cliente com CPF válido).
-   Falta confirmar se foi geração assíncrona do QR (recarregar a mesma URL resolve) ou
-   configuração de conta separada ("Pix habilitado pra cobranças" x só ter chave Pix
-   cadastrada) — ver seção dedicada "Integração com Asaas" acima.
-17. **Asaas — fluxo ponta a ponta ainda não validado com pagamento confirmado de verdade.**
-   Testar: webhook realmente chega e atualiza `pago_ate`/`assinatura_status`/`cobrancas` quando
-   uma cobrança sandbox é paga; pedido de cancelamento aparecendo certo em `/gestor`; bloqueio
-   de cadastro incompleto impedindo contratar (tela e servidor).
+16. ✅ **Asaas — Pix e ciclo completo validados em produção (01/10/2026).** Ver seção "Asaas em
+   produção (01/10/2026)". (Substitui os itens 16 e 17 antigos, que eram do sandbox.)
+17. **Asaas — boleto dentro da tela ainda sem teste real** e aviso à Camile antes de 10/10 (ver
+   pendências na seção acima).
 18. **Apresentação pra Korin (`/apresentacao-korin.html`) — corrigida e testada com toque real
    via CDP nesta sessão, mas ainda não confirmada pelo Junior num celular de verdade** depois do
    último fix de rolagem mobile.
