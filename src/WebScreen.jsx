@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import { getPedidos, getTotaisPorProduto, getEntreguesPorProduto } from './lib/store'
-import { calcEstoque, alertaCaixa, calcTotal, sortByCod } from './lib/helpers'
+import { calcEstoque, alertaCaixa, calcTotal, sortByCod, hojeBR } from './lib/helpers'
 import { atualizarDadosOrganizacao, solicitarCancelamentoAssinatura } from './lib/auth'
 import { criarCobranca, listarCobrancas } from './lib/asaas'
 import {
@@ -481,7 +481,7 @@ function TabFinanceiro({ org, unidadesCount, onIrParaDados, onSalvo }) {
     else toast('Erro: ' + r.error)
   }
 
-  const hoje = new Date().toISOString().slice(0, 10)
+  const hoje = hojeBR()
   const trialAtivo = org.trialFim && hoje <= org.trialFim
   const vencidoSemPagar = org.trialFim && hoje > org.trialFim && (!org.pagoAte || hoje > org.pagoAte)
   const cgPaga = cobrancaPaga('configuracao_guiada')

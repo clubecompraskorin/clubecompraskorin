@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { hojeBR } from './helpers'
 
 // Flag compartilhada: enquanto um cadastro está em andamento, o listener
 // global de auth (AuthGate) não deve reagir — evita duas rotinas brigando
@@ -108,7 +109,7 @@ export const getOrgDoUsuario = async () => {
   if (error || !data) return null
   const o = data.organizacoes
   const cadastroCompleto = Boolean(o?.responsavel_nome?.trim() && o?.documento?.trim())
-  const hoje = new Date().toISOString().slice(0, 10)
+  const hoje = hojeBR()
   const bloqueado = Boolean(o?.trial_fim && hoje > o.trial_fim && (!o?.pago_ate || hoje > o.pago_ate))
   return {
     orgId: data.org_id,
