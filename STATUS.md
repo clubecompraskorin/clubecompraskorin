@@ -1881,6 +1881,22 @@ qualquer) — pra testar o cliente, logar com a conta da organização.
 - Estorno **não** reduz `pago_ate` (comportamento atual): se um cliente estornar a mensalidade,
   o acesso continua até a data — acerto manual no banco/`/gestor`.
 
+**Incidente 11/10 e aviso automático**: o Asaas **pausou a fila do webhook** (aviso "1 fila pausada e
+2 configurações penalizadas", pausa automática após **15 tentativas** com erro) e o pagamento da
+Camile não liberou o acesso. Causa provável: eventos de cobranças apagadas (assinaturas de teste
+canceladas) davam 404 na consulta ao Asaas e o servidor respondia 500 (PR #21: 404 agora vira
+200). Reativação: Integrações → Webhooks → Editar → ligar "Fila de sincronização ativada" → Salvar.
+Depois disso o Asaas entregou o backlog e nada foi duplicado (as cobranças da Camile já tinham
+sido acertadas à mão: pagas, `ativa`, `pago_ate` 11/11). **Rede de segurança**: cron diário
+(`/api/asaas?mode=conferencia`, 08:00 de Brasília, protegido por `CRON_SECRET`) confere cada
+cobrança em aberto no Asaas, aplica o que o webhook perdeu (mesmo caminho do webhook, `registrarCobranca`,
+acesso só é estendido uma vez) e abre um **alerta** na tabela `alertas_sistema` (migração
+`alertas_sistema`) quando recupera pagamento/cancelamento ou quando a fila do Asaas está pausada
+(`GET /webhooks`, se a conta permitir). Os alertas aparecem num banner no topo do `/gestor`, com
+"Marcar como resolvido". Limites: Vercel Hobby só permite cron 1x/dia; o aviso é só dentro do
+`/gestor` (não há e-mail/push) — o Asaas também manda e-mail de falha de sincronia pro endereço
+do webhook; o endpoint `GET /webhooks` do Asaas não foi validado contra a conta real.
+
 **Pendências**
 - **Camile / Grupo Campo Grande e Costa Verde**: `pago_ate` = **10/10/2026**, `assinatura_status`
   `nunca_assinou`. Usam até 10/10; a partir de 11/10 caem na tela de bloqueio já com o Pix. Valores: Campo Grande R$ 119,20 e Costa Verde R$ 69,30 (com o desconto acima). Se
@@ -1891,7 +1907,7 @@ qualquer) — pra testar o cliente, logar com a conta da organização.
   cobrança e tenta de novo, e o link do Asaas sempre fica como saída).
 - **Clube de Compras Natural** (`clubedecomprasnatural@gmail.com`): bloqueada, sem cadastro
   completo e sem pagamento — decisão do Junior pendente.
-- Assinaturas de teste no Asaas (cliente Jucimar Alves Lopes): Junior estorna e cancela.
+- Organização `testejunior`: Junior não usa mais (cobranças de teste ficam no banco, sem efeito).
 - Não feito: nota fiscal, débito automático, estorno reduzindo `pago_ate` automaticamente.
 
 ---

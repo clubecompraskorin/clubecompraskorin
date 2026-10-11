@@ -14,6 +14,7 @@
     { "source": "/api/entrega-confirmar", "destination": "/api/entrega?acao=confirmar" }
   ],
   "crons": [
-    { "path": "/api/membros", "schedule": "0 8 * * *" }
+    { "path": "/api/membros", "schedule": "0 8 * * *" },
+    { "path": "/api/asaas?mode=conferencia", "schedule": "0 11 * * *" }
   ]
 }
