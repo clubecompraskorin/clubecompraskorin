@@ -1904,7 +1904,11 @@ view `organizacoes_publicas` expondo a lista (migração `organizacoes_formas_pa
 Grande e Costa Verde = `{PIX, Dinheiro}`. Vale em: **catálogo dos membros** (filtra as opções e limpa
 escolha antiga salva no aparelho), `api/pedido.js` e `api/entrega.js` (recusam forma não aceita, mas
 deixam editar/entregar pedido que já tinha outra forma), **entrega pelo link/PIN**, **PDV**, pedido
-manual e colar pedido. Pedidos antigos com crédito/débito continuam como estão. **Pra voltar a
+manual e colar pedido. Pedidos antigos com crédito/débito continuam como estão, **mas na entrega
+(painel e link com PIN) a forma antiga não vem marcada e some das opções**: avisa "foi feito como
+Crédito, que o grupo não aceita mais" e só deixa avançar depois de escolher uma forma aceita (11/10:
+2 pedidos assim no Campo Grande). Na edição do pedido (painel) a Dedicante também pode trocar, e o
+membro pode trocar pelo catálogo enquanto o pedido não for entregue. **Pra voltar a
 aceitar**: no `/gestor`, em cada grupo, os chips "pagamentos: Pix / Dinheiro / Crédito / Débito"
 (clicar liga/desliga; sempre sobra ao menos uma) — sem mexer em código. Cuidado: NÃO incluir
 `bloqueado` da view na leitura pública do catálogo (usa data UTC e ativaria uma tela de bloqueio que

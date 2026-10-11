@@ -612,7 +612,10 @@ function EntregasScreen({ pedidos, produtos, onFinalizar, onView, onIniciarEntre
 function ModoEntrega({ pedido, produtos, formas, onCancelar, onFinalizar }) {
   const [etapa, setEtapa]   = useState(1)
   const [itens, setItens]   = useState(pedido.itens.map(i => ({ ...i })))
-  const [pagamento, setPagamento] = useState(pedido.pagamento || 'PIX')
+  // Pedido feito antes do grupo deixar de aceitar uma forma (ex: crédito): não vem marcada, a pessoa
+  // escolhe como o membro vai pagar entre as formas aceitas hoje.
+  const formaAntiga = Boolean(pedido.pagamento && pedido.pagamento !== 'A Definir' && formas && !formas.includes(pedido.pagamento))
+  const [pagamento, setPagamento] = useState(formaAntiga ? '' : (pedido.pagamento || 'PIX'))
   const [troco, setTroco]   = useState('')
   const [obs, setObs]       = useState(pedido.obs || '')
   const [busca, setBusca]   = useState('')
@@ -753,9 +756,14 @@ function ModoEntrega({ pedido, produtos, formas, onCancelar, onFinalizar }) {
       </div>
 
       <div className="text-xs font-black text-stone-400 uppercase tracking-widest">Forma de Pagamento</div>
+      {formaAntiga && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 font-semibold">
+          Este pedido foi feito como <strong>{pedido.pagamento.replace('Cartão ', '')}</strong>, que o grupo não aceita mais. Escolha abaixo como o membro vai pagar.
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
-        {PAGAMENTOS.filter(p => p !== 'A Definir' && (!formas || formas.includes(p) || p === pedido.pagamento)).map(p => (
+        {PAGAMENTOS.filter(p => p !== 'A Definir' && (!formas || formas.includes(p))).map(p => (
           <button key={p} onClick={() => setPagamento(p)}
             className={`py-4 rounded-2xl font-black text-base transition-colors ${pagamento === p ? 'bg-green-700 text-white' : 'bg-white text-stone-600 border border-stone-200 active:bg-stone-50'}`}>
             {p === 'PIX' ? '📱 PIX' : p === 'Dinheiro' ? '💵 Dinheiro' : p === 'Cartão Crédito' ? '💳 Crédito' : '💳 Débito'}
@@ -778,8 +786,8 @@ function ModoEntrega({ pedido, produtos, formas, onCancelar, onFinalizar }) {
         </div>
       )}
 
-      <button onClick={() => setEtapa(3)}
-        className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-lg active:bg-green-800">
+      <button onClick={() => setEtapa(3)} disabled={!pagamento}
+        className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-lg active:bg-green-800 disabled:opacity-40">
         Próximo → Finalizar
       </button>
     </div>
