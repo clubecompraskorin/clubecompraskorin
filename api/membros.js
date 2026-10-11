@@ -8,23 +8,14 @@
 
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
+import { configurarVapid } from '../lib-server/vapid.js'
 
 const supabaseAdmin = createClient(
   process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  try {
-    webpush.setVapidDetails(
-      'mailto:gestao.junior.lopes@gmail.com',
-      process.env.VAPID_PUBLIC_KEY.trim(),
-      process.env.VAPID_PRIVATE_KEY.trim()
-    )
-  } catch (e) {
-    console.error('VAPID setup falhou — push desativado:', e.message)
-  }
-}
+configurarVapid(webpush, 'mailto:gestao.junior.lopes@gmail.com')
 
 // Envia pra uma lista de inscrições, limpa quem expirou (404/410). Nunca
 // derruba quem chama se o push falhar.
