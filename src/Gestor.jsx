@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getSession, onAuthChange, signIn, signOut, signUpSemOrganizacao, isPlatformAdmin } from './lib/auth'
-import { getOrganizacoesGestor, getPedidosCountPorOrg, setOrgAtivo, setPagoAte, setPermiteDedicanteUnidade, getCobrancasGestor, processarCancelamento, descartarCancelamento } from './lib/platform'
+import { getOrganizacoesGestor, getPedidosCountPorOrg, setOrgAtivo, setPagoAte, setPermiteDedicanteUnidade, getCobrancasGestor, processarCancelamento, descartarCancelamento, setFormasPagamento } from './lib/platform'
 import { listarProdutosParaFotos, cadastrarFotoProduto } from './lib/fotosGestor'
 import { supabase } from './lib/supabase'
 
@@ -172,6 +172,34 @@ function ToggleDedicanteUnidade({ org, onSalvo }) {
       className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors disabled:opacity-40 ${ligado ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-white/10 text-white/40 hover:bg-white/20'}`}>
       {salvando ? '...' : ligado ? '🧑‍💼 dedicantes liberado' : '🧑‍💼 dedicantes bloqueado'}
     </button>
+  )
+}
+
+// Formas de pagamento aceitas nos pedidos do grupo (liga/desliga cada uma; precisa sobrar ao menos uma).
+const FORMAS = [['PIX', 'Pix'], ['Dinheiro', 'Dinheiro'], ['Cartão Crédito', 'Crédito'], ['Cartão Débito', 'Débito']]
+function FormasPagamentoGestor({ org, onSalvo }) {
+  const [salvando, setSalvando] = useState(false)
+  const atuais = org.formas_pagamento?.length ? org.formas_pagamento : FORMAS.map(f => f[0])
+
+  const alternar = async (forma) => {
+    const novas = atuais.includes(forma) ? atuais.filter(f => f !== forma) : FORMAS.map(f => f[0]).filter(f => atuais.includes(f) || f === forma)
+    if (novas.length === 0) return
+    setSalvando(true)
+    const r = await setFormasPagamento(org.id, novas)
+    setSalvando(false)
+    if (r.ok) onSalvo(org.id, novas)
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 flex-wrap">
+      <span className="text-[10px] text-white/30">pagamentos:</span>
+      {FORMAS.map(([valor, rotulo]) => (
+        <button key={valor} onClick={() => alternar(valor)} disabled={salvando}
+          className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors disabled:opacity-40 ${atuais.includes(valor) ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-white/10 text-white/30 line-through hover:bg-white/20'}`}>
+          {rotulo}
+        </button>
+      ))}
+    </span>
   )
 }
 
@@ -463,6 +491,7 @@ function Dashboard() {
                       <StatusPagamento org={org} />
                       <AssinaturaBadge status={org.assinatura_status} />
                       <ToggleDedicanteUnidade org={org} onSalvo={(id, permite) => setOrgs(prev => prev.map(o => o.id === id ? { ...o, permite_dedicante_unidade: permite } : o))} />
+                      <FormasPagamentoGestor org={org} onSalvo={(id, formas) => setOrgs(prev => prev.map(o => o.id === id ? { ...o, formas_pagamento: formas } : o))} />
                       {!completo && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">cadastro incompleto</span>
                       )}

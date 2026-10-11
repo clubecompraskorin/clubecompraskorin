@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './lib/supabase'
-import { PRODUTOS_INICIAIS, CAT_COR, CATS_ORDEM } from './lib/catalog'
+import { PRODUTOS_INICIAIS, CAT_COR, CATS_ORDEM, formasDaOrg } from './lib/catalog'
 import {
   loadClienteDados, saveClienteDados,
   criarPedidoCliente, consultarMeuPedido, getTotaisWeb, resolverOrgPorSlug,
@@ -488,13 +488,18 @@ function TelaDados({ clienteDados, setClienteDados, unidades = [], onVoltar, onA
 
 
 // ── TELA PAGAMENTO ────────────────────────────────────────────────────────────
-function TelaPagamento({ clienteDados, setClienteDados, onVoltar, onConfirmar, salvando, erro, pendenteOffline, total }) {
-  const opcoes = [
+function TelaPagamento({ clienteDados, setClienteDados, onVoltar, onConfirmar, salvando, erro, pendenteOffline, total, formas }) {
+  const todas = [
     { id: 'PIX',           label: '📱 PIX',      desc: 'Chave PIX' },
     { id: 'Dinheiro',      label: '💵 Dinheiro', desc: 'Dinheiro na entrega' },
     { id: 'Cartão Crédito',label: '💳 Crédito',  desc: 'Cartão de crédito' },
     { id: 'Cartão Débito', label: '💳 Débito',   desc: 'Cartão de débito' },
   ]
+  const opcoes = todas.filter(o => !formas || formas.includes(o.id))
+  // Escolha salva de antes (ex: crédito) que o grupo não aceita mais: limpa pra pessoa escolher de novo.
+  useEffect(() => {
+    if (clienteDados.pagamento && formas && !formas.includes(clienteDados.pagamento)) setClienteDados(prev => ({ ...prev, pagamento: '' }))
+  }, [formas])
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
       <header className="bg-green-800 text-white px-4 py-4 flex items-center gap-3 sticky top-0 z-20">
@@ -890,6 +895,7 @@ export default function CatalogoApp() {
       erro={erro}
       pendenteOffline={pendenteOffline}
       total={total}
+      formas={formasDaOrg(org?.formas_pagamento)}
     />)
 
   if (tela === 'dados') return (
