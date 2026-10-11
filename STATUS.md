@@ -1904,7 +1904,11 @@ view `organizacoes_publicas` expondo a lista (migração `organizacoes_formas_pa
 Grande e Costa Verde = `{PIX, Dinheiro}`. Vale em: **catálogo dos membros** (filtra as opções e limpa
 escolha antiga salva no aparelho), `api/pedido.js` e `api/entrega.js` (recusam forma não aceita, mas
 deixam editar/entregar pedido que já tinha outra forma), **entrega pelo link/PIN**, **PDV**, pedido
-manual e colar pedido. Pedidos antigos com crédito/débito continuam como estão. **Pra voltar a
+manual e colar pedido. Pedidos antigos com crédito/débito continuam como estão, **mas na entrega
+(painel e link com PIN) a forma antiga não vem marcada e some das opções**: avisa "foi feito como
+Crédito, que o grupo não aceita mais" e só deixa avançar depois de escolher uma forma aceita (11/10:
+2 pedidos assim no Campo Grande). Na edição do pedido (painel) a Dedicante também pode trocar, e o
+membro pode trocar pelo catálogo enquanto o pedido não for entregue. **Pra voltar a
 aceitar**: no `/gestor`, em cada grupo, os chips "pagamentos: Pix / Dinheiro / Crédito / Débito"
 (clicar liga/desliga; sempre sobra ao menos uma) — sem mexer em código. Cuidado: NÃO incluir
 `bloqueado` da view na leitura pública do catálogo (usa data UTC e ativaria uma tela de bloqueio que
@@ -1918,7 +1922,13 @@ chaves: `lib-server/vapid.js` (fora de `api/`, não conta como function) **deriv
 privada**, normaliza formato (espaço, `+/`, `=`) e só registra alerta no log se a
 `VITE_VAPID_PUBLIC_KEY` do app não for a par da privada (nunca o valor). Usado por `api/pedido.js`
 (aviso à Dedicante quando chega pedido) e `api/membros.js` (aviso de catálogo aberto/fechado).
-Não testado com envio real de notificação. **Se o log disser que a `VITE_VAPID_PUBLIC_KEY` não é a
+**Validado em produção (11/10)**: depois do deploy, sem mensagem de VAPID no log; Junior ativou as
+notificações no celular (organização de teste) e fez pedidos no catálogo — **o aviso "🛒 Novo pedido
+no catálogo" chegou no celular**. Atenção: as inscrições dos grupos da Camile são de **setembro**
+(Campo Grande 1, Costa Verde 2); se elas foram feitas com chaves de antes da troca de 31/08 podem não
+receber — pedir pra desativar e ativar de novo em Config. O envio (`notificarPedido` em
+`api/pedido.js`) engole erros que não sejam 404/410, então falha de entrega não aparece no log.
+**Se o log disser que a `VITE_VAPID_PUBLIC_KEY` não é a
 par da privada**, aí sim é preciso gerar um par novo e atualizar as 3 variáveis (quem já ativou o
 aviso precisa ativar de novo).
 
