@@ -6,6 +6,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
+import { configurarVapid } from '../lib-server/vapid.js'
 
 const supabaseAdmin = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -16,17 +17,7 @@ const supabaseAdmin = createClient(
 // chave VAPID vier malformada (espaço/quebra de linha no valor colado no
 // Vercel), a notificação fica desativada, mas o endpoint de pedido continua
 // no ar normalmente.
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  try {
-    webpush.setVapidDetails(
-      'mailto:gestao.junior.lopes@gmail.com',
-      process.env.VAPID_PUBLIC_KEY.trim(),
-      process.env.VAPID_PRIVATE_KEY.trim()
-    )
-  } catch (e) {
-    console.error('VAPID setup falhou — push desativado:', e.message)
-  }
-}
+configurarVapid(webpush, 'mailto:gestao.junior.lopes@gmail.com')
 
 // Avisa a coordenadora (todos os dispositivos inscritos da organização) que
 // um pedido do catálogo chegou ou foi alterado. Nunca derruba o pedido —

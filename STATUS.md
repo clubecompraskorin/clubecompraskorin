@@ -1910,6 +1910,18 @@ aceitar**: no `/gestor`, em cada grupo, os chips "pagamentos: Pix / Dinheiro / C
 `bloqueado` da view na leitura pública do catálogo (usa data UTC e ativaria uma tela de bloqueio que
 hoje não roda ali).
 
+**Push (notificações) estava desativado (11/10)**: log de produção `VAPID setup falhou — push
+desativado: Vapid public key must be a URL safe Base 64 (without "=")` — a `VAPID_PUBLIC_KEY` do
+servidor no Vercel estava velha/inválida (as outras duas, `VAPID_PRIVATE_KEY` e
+`VITE_VAPID_PUBLIC_KEY`, foram trocadas depois; a do servidor não). Correção em código, sem trocar
+chaves: `lib-server/vapid.js` (fora de `api/`, não conta como function) **deriva a chave pública da
+privada**, normaliza formato (espaço, `+/`, `=`) e só registra alerta no log se a
+`VITE_VAPID_PUBLIC_KEY` do app não for a par da privada (nunca o valor). Usado por `api/pedido.js`
+(aviso à Dedicante quando chega pedido) e `api/membros.js` (aviso de catálogo aberto/fechado).
+Não testado com envio real de notificação. **Se o log disser que a `VITE_VAPID_PUBLIC_KEY` não é a
+par da privada**, aí sim é preciso gerar um par novo e atualizar as 3 variáveis (quem já ativou o
+aviso precisa ativar de novo).
+
 **Pendências**
 - **Camile / Grupo Campo Grande e Costa Verde**: `pago_ate` = **10/10/2026**, `assinatura_status`
   `nunca_assinou`. Usam até 10/10; a partir de 11/10 caem na tela de bloqueio já com o Pix. Valores: Campo Grande R$ 119,20 e Costa Verde R$ 69,30 (com o desconto acima). Se
