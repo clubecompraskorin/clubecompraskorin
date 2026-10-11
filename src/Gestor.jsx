@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { getSession, onAuthChange, signIn, signOut, signUpSemOrganizacao, isPlatformAdmin } from './lib/auth'
 import { getOrganizacoesGestor, getPedidosCountPorOrg, setOrgAtivo, setPagoAte, setPermiteDedicanteUnidade, getCobrancasGestor, processarCancelamento, descartarCancelamento } from './lib/platform'
 import { listarProdutosParaFotos, cadastrarFotoProduto } from './lib/fotosGestor'
+import { supabase } from './lib/supabase'
 
 const display = { fontFamily: "'Space Grotesk', sans-serif" }
 const mono = { fontFamily: "'JetBrains Mono', monospace" }
@@ -334,6 +335,39 @@ function TabFotos() {
   )
 }
 
+// Alertas operacionais (tabela alertas_sistema): fila de webhooks do Asaas pausada, pagamento que o
+// webhook não registrou etc. Abertos pela conferência diária (api/asaas?mode=conferencia).
+function AlertasSistema() {
+  const [alertas, setAlertas] = useState([])
+  const carregar = useCallback(async () => {
+    if (!supabase) return
+    const { data } = await supabase.from('alertas_sistema').select('*').is('resolvido_em', null).order('criado_em', { ascending: false })
+    setAlertas(data || [])
+  }, [])
+  useEffect(() => { carregar() }, [carregar])
+
+  const resolver = async (id) => {
+    await supabase.from('alertas_sistema').update({ resolvido_em: new Date().toISOString() }).eq('id', id)
+    carregar()
+  }
+
+  if (!alertas.length) return null
+  return (
+    <div className="max-w-6xl mx-auto px-6 pt-5 space-y-2">
+      {alertas.map(a => (
+        <div key={a.id} className="bg-amber-500/10 border border-amber-500/30 rounded-2xl px-4 py-3 flex items-start gap-3">
+          <div className="text-lg">⚠️</div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm text-amber-200 font-semibold">{a.mensagem}</div>
+            <div className="text-xs text-amber-200/50 mt-0.5">{new Date(a.criado_em).toLocaleString('pt-BR')}</div>
+          </div>
+          <button onClick={() => resolver(a.id)} className="text-xs text-amber-200/70 underline hover:text-amber-100 whitespace-nowrap">Marcar como resolvido</button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function Dashboard() {
   const [orgs, setOrgs] = useState([])
   const [contagem, setContagem] = useState({})
@@ -377,6 +411,8 @@ function Dashboard() {
         </div>
         <button onClick={signOut} className="text-xs text-white/40 hover:text-white/70 transition-colors">Sair</button>
       </header>
+
+      <AlertasSistema />
 
       <div className="max-w-6xl mx-auto px-6 pt-5 flex gap-2">
         {[{ id: 'orgs', label: 'Organizações' }, { id: 'fotos', label: '📷 Fotos' }].map(t => (

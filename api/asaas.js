@@ -233,6 +233,67 @@ function proximoPagoAte(pagoAteAtual) {
   return d.toISOString().slice(0, 10)
 }
 
+// Grava o estado de uma cobrança (já consultada no Asaas) e, na 1ª vez que uma
+// mensalidade vira paga, estende o acesso. Usada pelo webhook e pela conferência
+// diária. Devolve { ignorado, extra } quando não há o que gravar, ou
+// { mudou, status } quando gravou. Erro de banco lança (webhook responde 500 e o
+// Asaas reenvia).
+async function registrarCobranca(payment) {
+  const novoStatus = statusDaCobranca(payment)
+  if (!novoStatus) return { ignorado: 'status_desconhecido', extra: `status_asaas=${payment.status}` }
+
+  const eMensalidade = Boolean(payment.subscription)
+  const consulta = eMensalidade
+    ? supabaseAdmin.from('organizacoes').select('id, pago_ate').eq('asaas_subscription_id', payment.subscription)
+    : supabaseAdmin.from('organizacoes').select('id, pago_ate').eq('asaas_customer_id', payment.customer)
+  let { data: org, error: orgBuscaErr } = await consulta.maybeSingle()
+  // Erro de banco não pode virar "ignorado": devolve 500 pro Asaas reenviar.
+  if (orgBuscaErr) throw new Error('busca da organização: ' + orgBuscaErr.message)
+  // Cobranças criadas por nós levam o id da organização em externalReference.
+  if (!org && payment.externalReference) {
+    const r = await supabaseAdmin.from('organizacoes').select('id, pago_ate').eq('id', payment.externalReference).maybeSingle()
+    if (r.error) throw new Error('busca da organização: ' + r.error.message)
+    org = r.data
+  }
+  if (!org) return { ignorado: 'organizacao_nao_encontrada', extra: `cliente=${payment.customer} assinatura=${payment.subscription || '-'}` }
+
+  // Estado anterior desta cobrança — o Asaas reenvia eventos e, em cartão,
+  // manda CONFIRMED e depois RECEIVED. Só a 1ª passagem pra "pago" estende o
+  // acesso; repetição regrava o mesmo estado sem somar outro mês.
+  const { data: anterior } = await supabaseAdmin
+    .from('cobrancas').select('status, pago_em').eq('asaas_charge_id', payment.id).maybeSingle()
+  const jaEstavaPaga = anterior?.status === 'pago'
+
+  // Cobrança já paga nunca volta pra pendente/vencida por um evento atrasado
+  // (ex: PAYMENT_UPDATED). Reembolso/exclusão (cancelado) continua valendo.
+  const statusFinal = jaEstavaPaga && (novoStatus === 'pendente' || novoStatus === 'vencido') ? 'pago' : novoStatus
+
+  // Estende o acesso ANTES de gravar a cobrança: se algo falhar no meio, o
+  // Asaas reenvia e o pior caso é um mês a mais — nunca um cliente que pagou
+  // e ficou sem acesso.
+  if (statusFinal === 'pago' && eMensalidade && !jaEstavaPaga) {
+    const { error: orgErr } = await supabaseAdmin.from('organizacoes').update({
+      pago_ate: proximoPagoAte(org.pago_ate),
+      assinatura_status: 'ativa',
+    }).eq('id', org.id)
+    if (orgErr) throw new Error(orgErr.message)
+  }
+
+  const { error: cobErr } = await supabaseAdmin.from('cobrancas').upsert({
+    org_id: org.id,
+    asaas_charge_id: payment.id,
+    tipo: eMensalidade ? 'mensalidade' : 'configuracao_guiada',
+    valor: payment.value,
+    status: statusFinal,
+    vencimento: payment.dueDate || null,
+    pago_em: statusFinal === 'pago' ? (anterior?.pago_em || new Date().toISOString()) : null,
+    link_pagamento: payment.invoiceUrl || null,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'asaas_charge_id' })
+  if (cobErr) throw new Error(cobErr.message)
+  return { mudou: statusFinal !== anterior?.status, status: statusFinal }
+}
+
 // ── Recebe os eventos de pagamento que o Asaas dispara. Idempotente por
 // asaas_charge_id — reprocessar o mesmo evento (Asaas reenvia se não
 // receber 200) só regrava o mesmo estado, nunca duplica nem soma pago_ate
@@ -290,58 +351,8 @@ async function receberWebhook(req, res) {
     // Fonte da verdade: a cobrança no próprio Asaas (também traz as datas em
     // AAAA-MM-DD; o corpo do webhook manda DD/MM/AAAA).
     const payment = await asaasFetch(`/payments/${encodeURIComponent(pagamentoDoEvento.id)}`)
-    const novoStatus = statusDaCobranca(payment)
-    if (!novoStatus) return ignorar('status_desconhecido', `status_asaas=${payment.status}`)
-
-    const eMensalidade = Boolean(payment.subscription)
-    const consulta = eMensalidade
-      ? supabaseAdmin.from('organizacoes').select('id, pago_ate').eq('asaas_subscription_id', payment.subscription)
-      : supabaseAdmin.from('organizacoes').select('id, pago_ate').eq('asaas_customer_id', payment.customer)
-    let { data: org, error: orgBuscaErr } = await consulta.maybeSingle()
-    // Erro de banco não pode virar "ignorado": devolve 500 pro Asaas reenviar.
-    if (orgBuscaErr) throw new Error('busca da organização: ' + orgBuscaErr.message)
-    // Cobranças criadas por nós levam o id da organização em externalReference.
-    if (!org && payment.externalReference) {
-      const r = await supabaseAdmin.from('organizacoes').select('id, pago_ate').eq('id', payment.externalReference).maybeSingle()
-      if (r.error) throw new Error('busca da organização: ' + r.error.message)
-      org = r.data
-    }
-    if (!org) return ignorar('organizacao_nao_encontrada', `cliente=${payment.customer} assinatura=${payment.subscription || '-'}`)
-
-    // Estado anterior desta cobrança — o Asaas reenvia eventos e, em cartão,
-    // manda CONFIRMED e depois RECEIVED. Só a 1ª passagem pra "pago" estende o
-    // acesso; repetição regrava o mesmo estado sem somar outro mês.
-    const { data: anterior } = await supabaseAdmin
-      .from('cobrancas').select('status, pago_em').eq('asaas_charge_id', payment.id).maybeSingle()
-    const jaEstavaPaga = anterior?.status === 'pago'
-
-    // Cobrança já paga nunca volta pra pendente/vencida por um evento atrasado
-    // (ex: PAYMENT_UPDATED). Reembolso/exclusão (cancelado) continua valendo.
-    const statusFinal = jaEstavaPaga && (novoStatus === 'pendente' || novoStatus === 'vencido') ? 'pago' : novoStatus
-
-    // Estende o acesso ANTES de gravar a cobrança: se algo falhar no meio, o
-    // Asaas reenvia e o pior caso é um mês a mais — nunca um cliente que pagou
-    // e ficou sem acesso.
-    if (statusFinal === 'pago' && eMensalidade && !jaEstavaPaga) {
-      const { error: orgErr } = await supabaseAdmin.from('organizacoes').update({
-        pago_ate: proximoPagoAte(org.pago_ate),
-        assinatura_status: 'ativa',
-      }).eq('id', org.id)
-      if (orgErr) throw new Error(orgErr.message)
-    }
-
-    const { error: cobErr } = await supabaseAdmin.from('cobrancas').upsert({
-      org_id: org.id,
-      asaas_charge_id: payment.id,
-      tipo: eMensalidade ? 'mensalidade' : 'configuracao_guiada',
-      valor: payment.value,
-      status: statusFinal,
-      vencimento: payment.dueDate || null,
-      pago_em: statusFinal === 'pago' ? (anterior?.pago_em || new Date().toISOString()) : null,
-      link_pagamento: payment.invoiceUrl || null,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'asaas_charge_id' })
-    if (cobErr) throw new Error(cobErr.message)
+    const r = await registrarCobranca(payment)
+    if (r.ignorado) return ignorar(r.ignorado, r.extra || '')
 
     return res.status(200).json({ ok: true })
   } catch (e) {
@@ -432,8 +443,93 @@ async function pagamentoNaTela(req, res) {
   }
 }
 
+// ── Conferência diária (cron do Vercel, ver vercel.json). Rede de segurança caso o
+// webhook do Asaas pare (a fila é pausada sozinha depois de 15 falhas seguidas):
+// 1. confere cada cobrança em aberto no Asaas e aplica o que o webhook perdeu
+//    (mesmo caminho do webhook: acesso só é estendido uma vez);
+// 2. se recuperou algum pagamento/cancelamento, ou se a fila do Asaas está
+//    pausada, abre um alerta que aparece no /gestor.
+async function abrirAlerta(tipo, mensagem, detalhe) {
+  const { data: aberto } = await supabaseAdmin
+    .from('alertas_sistema').select('id').eq('tipo', tipo).is('resolvido_em', null).limit(1).maybeSingle()
+  if (aberto) return
+  await supabaseAdmin.from('alertas_sistema').insert({ tipo, mensagem, detalhe })
+}
+
+async function resolverAlertas(tipo) {
+  await supabaseAdmin.from('alertas_sistema')
+    .update({ resolvido_em: new Date().toISOString() }).eq('tipo', tipo).is('resolvido_em', null)
+}
+
+async function conferirCobrancas(req, res) {
+  if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).end()
+  if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ ok: false, error: 'Não autorizado' })
+  }
+  if (!process.env.ASAAS_API_KEY) return res.status(501).json({ ok: false, error: 'Asaas não configurado' })
+
+  const resumo = { conferidas: 0, recuperadas: [], erros: 0, filaPausada: false }
+  try {
+    // Só cobranças com mais de 1h: dá tempo pro webhook normal chegar primeiro.
+    const { data: abertas, error } = await supabaseAdmin
+      .from('cobrancas').select('asaas_charge_id, status')
+      .in('status', ['pendente', 'vencido'])
+      .lt('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString()).limit(200)
+    if (error) throw new Error(error.message)
+
+    for (const c of abertas || []) {
+      resumo.conferidas++
+      try {
+        const payment = await asaasFetch(`/payments/${encodeURIComponent(c.asaas_charge_id)}`)
+        const r = await registrarCobranca(payment)
+        // pendente -> vencido é rotina; só pago/cancelado indica evento perdido.
+        if (r.mudou && r.status !== 'vencido') resumo.recuperadas.push({ cobranca: c.asaas_charge_id, de: c.status, para: r.status })
+      } catch (e) {
+        if (e.status === 404) {
+          await supabaseAdmin.from('cobrancas')
+            .update({ status: 'cancelado', updated_at: new Date().toISOString() }).eq('asaas_charge_id', c.asaas_charge_id)
+          resumo.recuperadas.push({ cobranca: c.asaas_charge_id, de: c.status, para: 'cancelado' })
+        } else {
+          resumo.erros++
+          console.error('asaas-conferencia: falhou numa cobrança:', c.asaas_charge_id, e.message)
+        }
+      }
+    }
+
+    if (resumo.recuperadas.length > 0) {
+      await abrirAlerta('webhook_perdeu_evento',
+        `${resumo.recuperadas.length} cobrança(s) mudaram no Asaas sem o webhook avisar. A conferência diária já corrigiu. Verifique a fila de webhooks em Integrações > Webhooks no Asaas.`,
+        { recuperadas: resumo.recuperadas })
+    }
+
+    // Estado da fila de webhooks no próprio Asaas (se a conta permitir consultar).
+    try {
+      const w = await asaasFetch('/webhooks')
+      const lista = w?.data || []
+      const paradas = lista.filter(x => x.interrupted || x.enabled === false)
+      resumo.filaPausada = paradas.length > 0
+      if (paradas.length > 0) {
+        await abrirAlerta('fila_webhook_pausada',
+          'A fila de webhooks do Asaas está pausada ou desativada. Reative em Integrações > Webhooks > Editar > "Fila de sincronização ativada" > Salvar.',
+          { webhooks: paradas.map(x => ({ nome: x.name, ativo: x.enabled, interrompida: x.interrupted })) })
+      } else if (lista.length > 0) {
+        await resolverAlertas('fila_webhook_pausada')
+      }
+    } catch (e) {
+      console.log('asaas-conferencia: não consultou /webhooks:', e.message)
+    }
+
+    console.log('asaas-conferencia:', JSON.stringify(resumo))
+    return res.status(200).json({ ok: true, ...resumo })
+  } catch (e) {
+    console.error('asaas-conferencia falhou:', e.message)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+}
+
 export default async function handler(req, res) {
   if (req.query.mode === 'webhook') return receberWebhook(req, res)
   if (req.query.mode === 'pagamento') return pagamentoNaTela(req, res)
+  if (req.query.mode === 'conferencia') return conferirCobrancas(req, res)
   return criarCobranca(req, res)
 }
