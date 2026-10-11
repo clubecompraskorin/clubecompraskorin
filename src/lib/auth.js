@@ -103,7 +103,7 @@ export const getOrgDoUsuario = async () => {
   if (!supabase) return null
   const { data, error } = await supabase
     .from('org_members')
-    .select('org_id, role, organizacoes ( id, slug, nome, plano, ativo, responsavel_nome, razao_social, documento, documento_tipo, trial_fim, pago_ate, permite_dedicante_unidade, assinatura_status, cancelamento_solicitado_em, desconto_mensal )')
+    .select('org_id, role, organizacoes ( id, slug, nome, plano, ativo, responsavel_nome, razao_social, documento, documento_tipo, trial_fim, pago_ate, permite_dedicante_unidade, assinatura_status, cancelamento_solicitado_em, desconto_mensal, formas_pagamento )')
     .limit(1)
     .maybeSingle()
   if (error || !data) return null
@@ -133,6 +133,7 @@ export const getOrgDoUsuario = async () => {
     assinaturaStatus: o?.assinatura_status || 'nunca_assinou',
     cancelamentoSolicitadoEm: o?.cancelamento_solicitado_em || null,
     descontoMensal: Number(o?.desconto_mensal) || 0,
+    formasPagamento: o?.formas_pagamento || null,
   }
 }
 

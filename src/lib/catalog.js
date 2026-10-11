@@ -37,3 +37,10 @@ export const CAT_COR = {
 
 export const CATS_ORDEM = ['Frangos 1kg', 'Frangos 600g', 'Diferenciados', 'Mercearia', 'Ovos', 'Peixes']
 export const PAGAMENTOS  = ['PIX', 'Dinheiro', 'Cartão Crédito', 'Cartão Débito', 'A Definir']
+// Formas que cada organização aceita nos pedidos (coluna organizacoes.formas_pagamento, o gestor
+// liga/desliga por grupo). Lista vazia/ausente = todas.
+export const FORMAS_PAGAMENTO = ['PIX', 'Dinheiro', 'Cartão Crédito', 'Cartão Débito']
+export const formasDaOrg = (lista) => {
+  const l = Array.isArray(lista) ? lista.filter(f => FORMAS_PAGAMENTO.includes(f)) : []
+  return l.length ? l : FORMAS_PAGAMENTO
+}

@@ -21,7 +21,7 @@ async function validarAcesso({ slug, unidadeId, pin }) {
   if (!slug || !unidadeId || !pin) return { erro: { status: 400, body: { ok: false, error: 'slug, unidadeId e pin são obrigatórios' } } }
 
   const { data: org, error: orgError } = await supabaseAdmin
-    .from('organizacoes').select('id, ativo, nome').eq('slug', slug).maybeSingle()
+    .from('organizacoes').select('id, ativo, nome, formas_pagamento').eq('slug', slug).maybeSingle()
   if (orgError) throw orgError
   if (!org || !org.ativo) return { erro: { status: 404, body: { ok: false, error: 'Organização não encontrada ou inativa' } } }
 
@@ -60,7 +60,7 @@ async function listar(req, res) {
 
   return res.status(200).json({
     ok: true,
-    org: { nome: org.nome },
+    org: { nome: org.nome, formasPagamento: org.formas_pagamento || null },
     unidade: { id: unidade.id, nome: unidade.nome },
     periodo: { nome: periodo.nome },
     produtos: produtos || [],
@@ -94,7 +94,7 @@ async function confirmar(req, res) {
   // Confere que o pedido é mesmo dessa unidade/período/organização antes de
   // alterar — o representante só pode confirmar entrega da própria unidade.
   const { data: pedido, error: pedError } = await supabaseAdmin
-    .from('korin_pedidos').select('id, status, unidade')
+    .from('korin_pedidos').select('id, status, unidade, pagamento')
     .eq('id', pedidoId).eq('org_id', org.id).eq('periodo_id', periodo.id).maybeSingle()
   if (pedError) throw pedError
   if (!pedido || pedido.unidade !== unidade.nome) {
@@ -102,6 +102,12 @@ async function confirmar(req, res) {
   }
   if (pedido.status === 'cancelado') {
     return res.status(403).json({ ok: false, error: 'Pedido cancelado' })
+  }
+
+  // Só as formas de pagamento que o grupo aceita (ou a que o pedido já tinha).
+  if (pagamento && Array.isArray(org.formas_pagamento) && org.formas_pagamento.length
+      && pagamento !== pedido.pagamento && !org.formas_pagamento.includes(pagamento)) {
+    return res.status(400).json({ ok: false, error: 'Forma de pagamento não aceita por este grupo' })
   }
 
   const payload = {

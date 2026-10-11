@@ -1897,6 +1897,19 @@ acesso só é estendido uma vez) e abre um **alerta** na tabela `alertas_sistema
 `/gestor` (não há e-mail/push) — o Asaas também manda e-mail de falha de sincronia pro endereço
 do webhook; o endpoint `GET /webhooks` do Asaas não foi validado contra a conta real.
 
+**Formas de pagamento por grupo (11/10)**: a Camile pediu pra **não aceitar crédito e débito**
+(só Pix e dinheiro) nos dois grupos, **por enquanto** (ela vai aceitar depois). Coluna
+`organizacoes.formas_pagamento` (padrão: as 4 formas), RPC `platform_admin_set_formas_pagamento` e
+view `organizacoes_publicas` expondo a lista (migração `organizacoes_formas_pagamento`). Campo
+Grande e Costa Verde = `{PIX, Dinheiro}`. Vale em: **catálogo dos membros** (filtra as opções e limpa
+escolha antiga salva no aparelho), `api/pedido.js` e `api/entrega.js` (recusam forma não aceita, mas
+deixam editar/entregar pedido que já tinha outra forma), **entrega pelo link/PIN**, **PDV**, pedido
+manual e colar pedido. Pedidos antigos com crédito/débito continuam como estão. **Pra voltar a
+aceitar**: no `/gestor`, em cada grupo, os chips "pagamentos: Pix / Dinheiro / Crédito / Débito"
+(clicar liga/desliga; sempre sobra ao menos uma) — sem mexer em código. Cuidado: NÃO incluir
+`bloqueado` da view na leitura pública do catálogo (usa data UTC e ativaria uma tela de bloqueio que
+hoje não roda ali).
+
 **Pendências**
 - **Camile / Grupo Campo Grande e Costa Verde**: `pago_ate` = **10/10/2026**, `assinatura_status`
   `nunca_assinou`. Usam até 10/10; a partir de 11/10 caem na tela de bloqueio já com o Pix. Valores: Campo Grande R$ 119,20 e Costa Verde R$ 69,30 (com o desconto acima). Se

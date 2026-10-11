@@ -90,7 +90,7 @@ function TelaPin({ onEntrou, erroInicial }) {
 }
 
 // ── MODO ENTREGA — 3 etapas (mesma lógica do painel, escrita via API pública) ─
-function ModoEntregaPublico({ pedido, produtos, nomeRepresentante, onCancelar, onFinalizar }) {
+function ModoEntregaPublico({ pedido, produtos, nomeRepresentante, formas, onCancelar, onFinalizar }) {
   const [etapa, setEtapa]   = useState(1)
   const [itens, setItens]   = useState(pedido.itens.map(i => ({ ...i })))
   const [pagamento, setPagamento] = useState(pedido.pagamento || 'PIX')
@@ -183,7 +183,7 @@ function ModoEntregaPublico({ pedido, produtos, nomeRepresentante, onCancelar, o
       </div>
       <div className="text-xs font-black text-stone-400 uppercase tracking-widest">Forma de Pagamento</div>
       <div className="grid grid-cols-2 gap-2">
-        {PAGAMENTOS.filter(p => p !== 'A Definir').map(p => (
+        {PAGAMENTOS.filter(p => p !== 'A Definir' && (!formas || formas.includes(p) || p === pedido.pagamento)).map(p => (
           <button key={p} onClick={() => setPagamento(p)}
             className={`py-4 rounded-2xl font-black text-base transition-colors ${pagamento === p ? 'bg-green-700 text-white' : 'bg-white text-stone-600 border border-stone-200 active:bg-stone-50'}`}>
             {p === 'PIX' ? '📱 PIX' : p === 'Dinheiro' ? '💵 Dinheiro' : p === 'Cartão Crédito' ? '💳 Crédito' : '💳 Débito'}
@@ -268,6 +268,7 @@ function TelaLista({ dados, nomeRepresentante, onConfirmarEntrega, onSair, pende
         pedido={pedidoAberto}
         produtos={produtos}
         nomeRepresentante={nomeRepresentante}
+        formas={org?.formasPagamento || null}
         onCancelar={() => setPedidoAberto(null)}
         onFinalizar={async (itens, pagamento, troco, obs) => {
           const ok = await onConfirmarEntrega(pedidoAberto.id, itens, pagamento, troco, obs)

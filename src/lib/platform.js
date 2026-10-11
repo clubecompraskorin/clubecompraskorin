@@ -4,7 +4,7 @@ export const getOrganizacoesGestor = async () => {
   if (!supabase) return []
   const { data, error } = await supabase
     .from('organizacoes')
-    .select('id, slug, nome, ativo, plano, created_at, responsavel_nome, razao_social, documento, documento_tipo, trial_fim, pago_ate, permite_dedicante_unidade, assinatura_status, cancelamento_solicitado_em')
+    .select('id, slug, nome, ativo, plano, created_at, responsavel_nome, razao_social, documento, documento_tipo, trial_fim, pago_ate, permite_dedicante_unidade, assinatura_status, cancelamento_solicitado_em, formas_pagamento')
     .order('created_at', { ascending: false })
   if (error) { console.error(error); return [] }
   return data || []
@@ -64,6 +64,14 @@ export const setPagoAte = async (orgId, pagoAte) => {
 export const setPermiteDedicanteUnidade = async (orgId, permite) => {
   if (!supabase) return { ok: false, error: 'Sem conexão' }
   const { error } = await supabase.rpc('platform_admin_set_permite_dedicante_unidade', { p_org_id: orgId, p_permite: permite })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
+// Formas de pagamento que a organização aceita nos pedidos (catálogo, entrega, PDV, pedido manual).
+export const setFormasPagamento = async (orgId, formas) => {
+  if (!supabase) return { ok: false, error: 'Sem conexão' }
+  const { error } = await supabase.rpc('platform_admin_set_formas_pagamento', { p_org_id: orgId, p_formas: formas })
   if (error) return { ok: false, error: error.message }
   return { ok: true }
 }

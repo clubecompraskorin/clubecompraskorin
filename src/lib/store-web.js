@@ -74,7 +74,7 @@ export const resolverOrgPorSlug = async (slug) => {
   if (!supabase || !slug) return null
   try {
     const { data, error } = await supabase
-      .from('organizacoes_publicas').select('id, nome, ativo').eq('slug', slug).maybeSingle()
+      .from('organizacoes_publicas').select('id, nome, ativo, formas_pagamento').eq('slug', slug).maybeSingle()
     if (error) throw error
     return data
   } catch { return null }

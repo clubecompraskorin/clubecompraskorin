@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { fmt, calcEstoque } from './lib/helpers'
-import { CAT_COR, CATS_ORDEM, PAGAMENTOS } from './lib/catalog'
+import { CAT_COR, CATS_ORDEM, PAGAMENTOS, formasDaOrg } from './lib/catalog'
 import { salvarPedido, getTotaisPorProduto } from './lib/store'
 import { getSobraPeriodoAnterior, getComprasConfirmadas } from './lib/periodos'
 import { listarClientes } from './lib/clientes'
@@ -193,7 +193,7 @@ export default function ModoPdv({ orgId, org, periodo, produtos, unidades, pedid
         </div>
       </div>
       <div className="flex-1 px-5 py-6 space-y-3 overflow-y-auto">
-        {PAGAMENTOS.filter(p => p !== 'A Definir').map(op => (
+        {PAGAMENTOS.filter(p => p !== 'A Definir' && formasDaOrg(org?.formasPagamento).includes(p)).map(op => (
           <button key={op} onClick={() => setPagamento(op)}
             className={`w-full py-5 px-6 rounded-2xl border-2 text-left font-black text-lg transition-colors ${pagamento === op ? 'bg-green-700 text-white border-green-700' : 'bg-white text-stone-700 border-stone-200 active:bg-stone-50'}`}>
             {op} {pagamento === op && '✅'}

@@ -68,7 +68,7 @@ export default async function handler(req, res) {
 
   try {
     const { data: org, error: orgError } = await supabaseAdmin
-      .from('organizacoes').select('id, ativo, trial_fim, pago_ate').eq('slug', slug).maybeSingle()
+      .from('organizacoes').select('id, ativo, trial_fim, pago_ate, formas_pagamento').eq('slug', slug).maybeSingle()
     if (orgError) throw orgError
     if (!org || !org.ativo) return res.status(404).json({ ok: false, error: 'Organização não encontrada ou inativa' })
     const hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
@@ -95,13 +95,23 @@ export default async function handler(req, res) {
     // pode ter ajustado os itens); o membro editando por cima reverteria
     // isso silenciosamente. A Dedicante continua podendo editar pelo painel
     // normalmente (não passa por este endpoint).
+    let pagamentoAtual = null
     if (pedido.id) {
       const { data: pedidoAtual, error: pedidoAtualError } = await supabaseAdmin
-        .from('korin_pedidos').select('status').eq('id', pedido.id).eq('org_id', org.id).maybeSingle()
+        .from('korin_pedidos').select('status, pagamento').eq('id', pedido.id).eq('org_id', org.id).maybeSingle()
       if (pedidoAtualError) throw pedidoAtualError
       if (pedidoAtual?.status === 'entregue') {
         return res.status(403).json({ ok: false, error: 'Pedido já foi entregue e não pode mais ser alterado' })
       }
+      pagamentoAtual = pedidoAtual?.pagamento || null
+    }
+
+    // Forma de pagamento: só as que o grupo aceita (organizacoes.formas_pagamento). Pedido que já
+    // existia com outra forma pode ser editado sem trocá-la.
+    const formasAceitas = org.formas_pagamento
+    if (Array.isArray(formasAceitas) && formasAceitas.length && pedido.pagamento && pedido.pagamento !== 'A Definir'
+        && pedido.pagamento !== pagamentoAtual && !formasAceitas.includes(pedido.pagamento)) {
+      return res.status(400).json({ ok: false, error: 'Forma de pagamento não aceita por este grupo' })
     }
 
     // "Encerrar pedidos" da unidade bloqueia só pedido NOVO — editar um
