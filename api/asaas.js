@@ -41,7 +41,9 @@ async function asaasFetch(caminho, options = {}) {
   const data = await res.json().catch(() => null)
   if (!res.ok) {
     const msg = data?.errors?.[0]?.description || `Asaas respondeu ${res.status}`
-    throw new Error(msg)
+    const err = new Error(msg)
+    err.status = res.status
+    throw err
   }
   return data
 }
@@ -343,6 +345,13 @@ async function receberWebhook(req, res) {
 
     return res.status(200).json({ ok: true })
   } catch (e) {
+    // Cobrança que o Asaas não conhece mais (apagada, ex: assinatura cancelada) não
+    // adianta reenviar: responder 500 faz o Asaas insistir e PAUSAR a fila de
+    // envio, e aí param de chegar os pagamentos de todo mundo. Confirma com 200.
+    if (e.status === 404) {
+      console.log(`asaas-webhook ignorado: motivo=cobranca_inexistente_no_asaas evento=${event} cobranca=${pagamentoDoEvento?.id}`)
+      return res.status(200).json({ ok: true, ignorado: true })
+    }
     console.error('asaas-webhook falhou:', e.message)
     // 500 (não 200) de propósito — erro nosso é transitório (ex: banco fora do
     // ar um instante), e o Asaas reenvia o mesmo evento em caso de falha. Um
