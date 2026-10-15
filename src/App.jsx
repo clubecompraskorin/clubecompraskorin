@@ -507,11 +507,15 @@ function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, on
                 </span>
               </button>
               {!isHistorico && (
-                <div className={`grid border-t border-stone-100 ${pedido._isWeb ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                <div className="grid grid-cols-3 border-t border-stone-100">
                   {pedido._isWeb ? (
                     <>
                       <button onClick={e => { e.stopPropagation(); onView(pedido) }} className="py-2.5 text-xs font-bold text-blue-600 flex items-center justify-center gap-1 active:bg-blue-50">👁️ Detalhe</button>
-                      <button onClick={e => { e.stopPropagation(); onDelete(pedido) }} className="py-2.5 text-xs font-bold text-red-400 flex items-center justify-center border-l border-stone-100 active:bg-red-50">↩️ Cancelar</button>
+                      {pedido.status === 'pendente'
+                        ? <button onClick={e => { e.stopPropagation(); onIniciarEntrega(pedido) }} className="py-2.5 text-xs font-black text-white bg-green-700 flex items-center justify-center active:bg-green-800">✓ Entregar</button>
+                        : <div className="py-2.5 text-xs text-stone-300 flex items-center justify-center border-x border-stone-100">✅ Entregue</div>
+                      }
+                      <button onClick={e => { e.stopPropagation(); onDelete(pedido) }} className="py-2.5 text-xs font-bold text-red-400 flex items-center justify-center active:bg-red-50">↩️ Cancelar</button>
                     </>
                   ) : (
                     <>
@@ -529,6 +533,10 @@ function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, on
           )
         })}
       </div>
+
+      {/* Espaço no fim da lista: os botões flutuantes (＋ e Colar) ficam fixos
+          acima do menu e, sem isso, cobrem o selo de status do último pedido. */}
+      {!isHistorico && <div className="h-36" aria-hidden="true" />}
 
       {!isHistorico && (
         <>
