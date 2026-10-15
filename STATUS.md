@@ -1963,6 +1963,13 @@ aviso precisa ativar de novo).
   poder editá-lo pelo catálogo (o bloqueio "já entregue" cai). Estoque total não muda (só passa de
   "Entregue" para "Reservado").
 
+**Botão "✓ Entregar" também nos pedidos de catálogo (15/10/2026)**
+- Na aba Pedidos, o card do pedido de catálogo pendente agora tem 👁️ Detalhe · ✓ Entregar · ↩️ Cancelar
+  (antes só Detalhe e Cancelar; a entrega ficava só na aba Entregas / link por PIN). Abre a mesma tela
+  de entrega (`ModoEntrega`) já usada pelos pedidos manuais — inclusive a escolha obrigatória de forma
+  de pagamento quando o grupo não aceita mais a forma antiga. Pedido já entregue mostra "✅ Entregue".
+  Pedido manual não mudou.
+
 ---
 
 ## Pendente / próximos passos
