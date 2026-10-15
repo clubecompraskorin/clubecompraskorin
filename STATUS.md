@@ -1968,7 +1968,8 @@ aviso precisa ativar de novo).
   (antes só Detalhe e Cancelar; a entrega ficava só na aba Entregas / link por PIN). Abre a mesma tela
   de entrega (`ModoEntrega`) já usada pelos pedidos manuais — inclusive a escolha obrigatória de forma
   de pagamento quando o grupo não aceita mais a forma antiga. Pedido já entregue mostra "✅ Entregue".
-  Pedido manual não mudou.
+  Pedido manual não mudou. Também ganhou um espaço de rolagem no fim da lista de Pedidos para os botões
+  flutuantes ＋ e Colar não cobrirem o selo de status do último pedido (só visual).
 
 ---
 

@@ -534,6 +534,10 @@ function PedidosScreen({ pedidos, produtos, onAdd, onColar, onEdit, onDelete, on
         })}
       </div>
 
+      {/* Espaço no fim da lista: os botões flutuantes (＋ e Colar) ficam fixos
+          acima do menu e, sem isso, cobrem o selo de status do último pedido. */}
+      {!isHistorico && <div className="h-36" aria-hidden="true" />}
+
       {!isHistorico && (
         <>
           <button onClick={onAdd} className="fixed bottom-52 right-4 w-16 h-16 bg-green-700 text-white rounded-full shadow-xl flex items-center justify-center z-30 active:scale-95 text-3xl">＋</button>
