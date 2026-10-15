@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { getPedidos, salvarPedido, removerPedido, cancelarPedido, getTotaisPorProduto, getEntreguesPorProduto } from './lib/store'
+import { getPedidos, salvarPedido, removerPedido, cancelarPedido, reabrirPedido, getTotaisPorProduto, getEntreguesPorProduto } from './lib/store'
 import { useInstallPrompt } from './lib/pwa'
 import { fmt, calcTotal, sortByCod, calcEstoque } from './lib/helpers'
 import { printPedido, printTodos } from './lib/print'
@@ -170,6 +170,17 @@ export default function App({ org, onOrgRefresh }) {
     const r = await salvarPedido(orgId, periodoCorrente.id, atualizado)
     if (r.ok) setPedidos(prev => prev.map(x => x.id === id ? r.pedido : x))
     else toast('Erro ao atualizar: ' + r.error)
+  }
+
+  // Entregue por engano: volta para pendente. Só o login de acesso total vê o
+  // botão; o servidor confere de novo.
+  const voltarParaEntrega = async (pedido) => {
+    if (!await confirmar(`Voltar o pedido de ${pedido.clienteNome} para "pendente"? Ele volta para a lista de entregas.`)) return
+    const r = await reabrirPedido(pedido.id)
+    if (!r.ok) { toast('Erro: ' + r.error); return }
+    setPedidos(prev => prev.map(x => x.id === pedido.id ? r.pedido : x))
+    closeModal()
+    toast('Pedido voltou para entrega')
   }
 
   // ── AÇÕES — PRODUTOS (ajuste avulso dentro do período corrente) ─────────────
@@ -348,7 +359,7 @@ export default function App({ org, onOrgRefresh }) {
 
       {/* MODALS */}
       {modal === 'pedido'   && <ModalPedido   pedido={editPedido}   produtos={produtos} unidades={unidadesVisiveis} orgId={orgId} formas={formasDaOrg(org?.formasPagamento)} onSave={savePedidoForm}   onClose={closeModal} />}
-      {modal === 'detalhe'  && viewPedido && <ModalDetalhe  pedido={viewPedido}  produtos={produtos} periodo={periodoAtivo} onClose={closeModal} onPrint={() => printPedido(viewPedido, produtos, periodoAtivo)} />}
+      {modal === 'detalhe'  && viewPedido && <ModalDetalhe  pedido={viewPedido}  produtos={produtos} periodo={periodoAtivo} onReabrir={!isDedicanteUnidade && !isHistorico && viewPedido.status === 'entregue' ? () => voltarParaEntrega(viewPedido) : null} onClose={closeModal} onPrint={() => printPedido(viewPedido, produtos, periodoAtivo)} />}
       {modal === 'produto'  && !isDedicanteUnidade && <ModalProduto  produto={editProduto}               onSave={saveProduto}  onClose={closeModal} />}
       {modal === 'colar'    && <ModalColarPedido produtos={produtos} unidades={unidadesVisiveis} orgId={orgId} formas={formasDaOrg(org?.formasPagamento)} onSave={savePedidoForm} onClose={closeModal} />}
 
@@ -1677,7 +1688,7 @@ function ModalPedido({ pedido, produtos, unidades = [], orgId, formas, onSave, o
 // ═══════════════════════════════════════════════════════════════════════════════
 // MODAL: DETALHE
 // ═══════════════════════════════════════════════════════════════════════════════
-function ModalDetalhe({ pedido, produtos, onClose, onPrint }) {
+function ModalDetalhe({ pedido, produtos, onClose, onPrint, onReabrir }) {
   const total = calcTotal(pedido, produtos)
   const [fotos, setFotos] = useState({})
   useEffect(() => { getMapaFotos().then(setFotos) }, [])
@@ -1720,6 +1731,12 @@ function ModalDetalhe({ pedido, produtos, onClose, onPrint }) {
             </div>
             {pedido.pagamento && <div className="text-xs text-green-300 font-bold mt-1">{pedido.pagamento}</div>}
           </div>
+          {onReabrir && (
+            <button onClick={onReabrir}
+              className="w-full py-3 rounded-2xl border-2 border-amber-400 bg-amber-50 text-amber-700 font-black text-sm active:bg-amber-100">
+              ↩️ Voltar para entrega (marcar como pendente)
+            </button>
+          )}
         </div>
       </div>
     </div>

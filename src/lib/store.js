@@ -16,6 +16,7 @@
  */
 import { supabase } from './supabase'
 import { upsertCliente } from './clientes'
+import { getSession } from './auth'
 
 const cacheKey = (periodoId) => `korin-pedidos-cache:${periodoId}`
 
@@ -98,6 +99,26 @@ export const salvarPedido = async (orgId, periodoId, pedidoApp) => {
     upsertCliente(orgId, { nome: pedidoApp.clienteNome, telefone: pedidoApp.clienteTel, unidade: pedidoApp.unidade })
     return { ok: true, pedido: fromDb(data) }
   } catch (e) { return { ok: false, error: e.message } }
+}
+
+/**
+ * Volta um pedido entregue para "pendente" (entregue por engano). Passa pelo
+ * servidor, que só aceita o login de acesso total da organização — dedicante
+ * de unidade não consegue, mesmo chamando direto.
+ */
+export const reabrirPedido = async (id) => {
+  const session = await getSession()
+  if (!session) return { ok: false, error: 'Sessão expirada — entre novamente' }
+  try {
+    const res = await fetch('/api/entrega?acao=reabrir', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ pedidoId: id }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok || !data.ok) return { ok: false, error: data?.error || 'Falha ao voltar o pedido para entrega' }
+    return { ok: true, pedido: fromDb(data.data) }
+  } catch { return { ok: false, error: 'Falha de conexão — tente novamente' } }
 }
 
 /** Exclusão definitiva — usada pra pedido manual ("Excluir"). */

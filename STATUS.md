@@ -1945,6 +1945,17 @@ aviso precisa ativar de novo).
 - Organização `testejunior`: Junior não usa mais (cobranças de teste ficam no banco, sem efeito).
 - Não feito: nota fiscal, débito automático, estorno reduzindo `pago_ate` automaticamente.
 
+**Voltar pedido entregue para "pendente" (15/10/2026)**
+- Pedido marcado como entregue por engano (ex.: dedicante finalizou sem querer) volta para
+  "pendente" pelo botão **↩️ Voltar para entrega** no Detalhe do pedido (abas Pedidos e Entregas).
+  Vale para qualquer origem (catálogo ou manual).
+- **Só o login de acesso total** da organização (ex.: a Camile). Dedicante de unidade não vê o botão
+  e o servidor recusa (403); o link por PIN só confirma entrega, nunca reabre.
+- Implementado em `POST /api/entrega?acao=reabrir` (service_role + Bearer do usuário; dentro do
+  `api/entrega.js` por causa do limite de 12 functions). Confere: sessão, ser membro da organização
+  do pedido, papel ≠ `dedicante_unidade`, status `entregue` e período corrente (arquivado = só leitura).
+  Zera `data_entrega`, `entregue_por` e `troco`; mantém itens e forma de pagamento.
+
 ---
 
 ## Pendente / próximos passos
