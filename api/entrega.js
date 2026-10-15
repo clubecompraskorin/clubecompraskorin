@@ -158,10 +158,10 @@ async function reabrir(req, res) {
     return res.status(400).json({ ok: false, error: 'Esse pedido não está marcado como entregue' })
   }
 
-  // Período arquivado fica só para consulta
+  // Período arquivado fica só para consulta (mesma regra do banco: periodo_editavel)
   const { data: periodo } = await supabaseAdmin
-    .from('periodos').select('is_corrente').eq('id', pedido.periodo_id).maybeSingle()
-  if (!periodo?.is_corrente) {
+    .from('periodos').select('status').eq('id', pedido.periodo_id).maybeSingle()
+  if (periodo?.status !== 'aberto') {
     return res.status(403).json({ ok: false, error: 'Período já encerrado — não dá para alterar' })
   }
 
