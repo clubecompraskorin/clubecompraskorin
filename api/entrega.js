@@ -128,9 +128,57 @@ async function confirmar(req, res) {
   return res.status(200).json({ ok: true, data })
 }
 
+// Volta um pedido entregue por engano para "pendente" (de novo para entrega).
+// Só quem entra com o login de acesso total da organização — o dedicante de
+// unidade e o link por PIN nunca chegam aqui (o PIN só confirma entrega). Vale
+// para qualquer origem (catálogo ou manual). Confere tudo no servidor, a tela
+// só esconde o botão.
+async function reabrir(req, res) {
+  const token = req.headers.authorization?.replace('Bearer ', '')
+  if (!token) return res.status(401).json({ ok: false, error: 'Não autenticado' })
+  const { pedidoId } = req.body || {}
+  if (!pedidoId) return res.status(400).json({ ok: false, error: 'pedidoId é obrigatório' })
+
+  const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token)
+  if (userErr || !userData?.user) return res.status(401).json({ ok: false, error: 'Sessão inválida' })
+
+  const { data: pedido, error: pedError } = await supabaseAdmin
+    .from('korin_pedidos').select('id, org_id, periodo_id, status').eq('id', pedidoId).maybeSingle()
+  if (pedError) throw pedError
+  if (!pedido) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' })
+
+  const { data: membro } = await supabaseAdmin
+    .from('org_members').select('role').eq('user_id', userData.user.id).eq('org_id', pedido.org_id).maybeSingle()
+  if (!membro) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' })
+  if (membro.role === 'dedicante_unidade') {
+    return res.status(403).json({ ok: false, error: 'Só o responsável pelo grupo pode voltar um pedido para entrega' })
+  }
+
+  if (pedido.status !== 'entregue') {
+    return res.status(400).json({ ok: false, error: 'Esse pedido não está marcado como entregue' })
+  }
+
+  // Período arquivado fica só para consulta (mesma regra do banco: periodo_editavel)
+  const { data: periodo } = await supabaseAdmin
+    .from('periodos').select('status').eq('id', pedido.periodo_id).maybeSingle()
+  if (periodo?.status !== 'aberto') {
+    return res.status(403).json({ ok: false, error: 'Período já encerrado — não dá para alterar' })
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('korin_pedidos')
+    .update({ status: 'pendente', data_entrega: null, entregue_por: null, troco: null, updated_at: new Date().toISOString() })
+    .eq('id', pedidoId).eq('status', 'entregue').select().maybeSingle()
+  if (error) throw error
+  if (!data) return res.status(409).json({ ok: false, error: 'O pedido mudou enquanto você mexia — recarregue a tela' })
+
+  return res.status(200).json({ ok: true, data })
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
   try {
+    if (req.query.acao === 'reabrir') return await reabrir(req, res)
     if (req.query.acao === 'confirmar') return await confirmar(req, res)
     if (req.query.acao === 'listar') return await listar(req, res)
     return res.status(400).json({ ok: false, error: 'acao inválida' })
