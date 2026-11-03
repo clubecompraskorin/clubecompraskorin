@@ -325,7 +325,7 @@ export default function App({ org, onOrgRefresh }) {
         {tab === 'pedidos' && isDedicanteUnidade && <MeusLinksCard org={org} />}
         {tab === 'pedidos'    && <PedidosScreen   pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onAdd={() => { setEditPedido(null); setModal('pedido') }} onColar={() => setModal('colar')} onEdit={p => { setEditPedido(p); setModal('pedido') }} onDelete={deletePedidoCombinado} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} onIniciarPdv={() => setModoPdv(true)} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} unidades={nomesUnidades} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} />}
         {tab === 'entregas'   && <EntregasScreen  pedidos={pedidosAtivos}  produtos={produtosAtivos} isHistorico={isHistorico} periodoNav={periodoNav} onFinalizar={finalizarEntrega} onView={p => { setViewPedido(p); setModal('detalhe') }} onIniciarEntrega={handleIniciarEntrega} unidades={nomesUnidades} />}
-        {tab === 'produtos' && !isDedicanteUnidade && <ProdutosScreen  produtos={produtos} pedidos={pedidos} sobraAnterior={sobraAnterior} comprasConfirmadas={comprasConfirmadas} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} />}
+        {tab === 'produtos' && !isDedicanteUnidade && <ProdutosScreen  produtos={produtos} pedidos={pedidos} sobraAnterior={sobraAnterior} comprasConfirmadas={comprasConfirmadas} unidades={nomesUnidades} onAdd={() => { setEditProduto(null); setModal('produto') }} onEdit={p => { setEditProduto(p); setModal('produto') }} onDelete={deleteProduto} />}
         {tab === 'fechamento' && <FechamentoScreen pedidos={pedidosAtivos} produtos={produtosAtivos} periodo={periodoAtivo} periodoNav={periodoNav} unidades={nomesUnidades} onPrintTodos={() => printTodos(pedidosAtivos.filter(p => filtroImpressao === 'Todas' || (p.unidade || unidadePadrao) === filtroImpressao), produtosAtivos, periodoAtivo)} filtroImpressao={filtroImpressao} setFiltroImpressao={setFiltroImpressao} periodoObj={periodoObjAtivo} isCorrente={!isHistorico} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} orgId={orgId} periodoAtualId={periodoObjAtivo?.id} onRecarregar={recarregarTudo} isDedicanteUnidade={isDedicanteUnidade} />}
         {tab === 'web' && !isDedicanteUnidade && <WebScreen produtos={produtos} periodo={periodoCorrente} org={org} onUnidadesChange={setUnidades} onRecarregar={recarregarTudo} abrirEm={webAbrirEm} onAbrirEmConsumido={() => setWebAbrirEm(null)} onOrgRefresh={onOrgRefresh} />}
       </main>
@@ -866,10 +866,18 @@ function ModoEntrega({ pedido, produtos, formas, onCancelar, onFinalizar }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: PRODUTOS
 // ═══════════════════════════════════════════════════════════════════════════════
-function ProdutosScreen({ produtos, pedidos = [], sobraAnterior = {}, comprasConfirmadas = [], onAdd, onEdit, onDelete }) {
+// Filtro por unidade: a compra confirmada é do GRUPO inteiro (uma planilha por
+// envio, sem unidade gravada), então o saldo só faz sentido na visão "Todas".
+// Filtrando uma unidade, mostra só o que ELA pediu/recebeu (Pedido, Entregue,
+// Reservado) e a compra do grupo ao lado, sem calcular saldo — senão o pedido
+// de uma unidade seria subtraído da compra de outra e o saldo sairia errado.
+function ProdutosScreen({ produtos, pedidos = [], sobraAnterior = {}, comprasConfirmadas = [], unidades = [], onAdd, onEdit, onDelete }) {
+  const [filtroUnidade, setFiltroUnidade] = useState('Todas')
+  const porUnidade = filtroUnidade !== 'Todas'
   const cats = [...new Set([...CATS_ORDEM, ...produtos.map(p => p.categoria)])]
-  const totais = getTotaisPorProduto(pedidos)
-  const totaisEntregues = getEntreguesPorProduto(pedidos)
+  const pedidosVisiveis = porUnidade ? pedidos.filter(p => (p.unidade || 'Não informada') === filtroUnidade) : pedidos
+  const totais = getTotaisPorProduto(pedidosVisiveis)
+  const totaisEntregues = getEntreguesPorProduto(pedidosVisiveis)
   const confirmadoPorProdutoId = {}
   comprasConfirmadas.forEach(c => {
     confirmadoPorProdutoId[c.periodoProdutoId] = (confirmadoPorProdutoId[c.periodoProdutoId] || 0) + c.quantidadeUnd
@@ -879,6 +887,20 @@ function ProdutosScreen({ produtos, pedidos = [], sobraAnterior = {}, comprasCon
       <div className="bg-stone-50 border border-stone-100 rounded-2xl px-4 py-3 text-sm text-stone-500 font-semibold text-center">
         Pra importar tabela nova ou virar o mês, use 📥 na aba Config.
       </div>
+      {unidades.length > 1 && (
+        <>
+          <select value={filtroUnidade} onChange={e => setFiltroUnidade(e.target.value)}
+            className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-green-500 bg-white">
+            <option value="Todas">Todas as unidades</option>
+            {unidades.map(u => <option key={u}>{u}</option>)}
+          </select>
+          {porUnidade && (
+            <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-2.5 text-xs text-amber-700 font-semibold">
+              Mostrando só os pedidos de {filtroUnidade}. A compra confirmada é do grupo todo, por isso o saldo só aparece em "Todas as unidades".
+            </div>
+          )}
+        </>
+      )}
       {cats.map(cat => {
         const list = produtos.filter(p => p.categoria === cat).sort((a, b) => a.cod - b.cod)
         if (!list.length) return null
@@ -909,7 +931,18 @@ function ProdutosScreen({ produtos, pedidos = [], sobraAnterior = {}, comprasCon
                   </div>
                   <div className="flex-shrink-0 text-right">
                     <div className="text-base font-black text-green-700">{fmt(prod.preco)}</div>
-                    {restante != null && (
+                    {porUnidade ? (
+                      (totalPedido > 0 || confirmado != null) && (
+                        <>
+                          <div className="text-[11px] text-stone-400 font-semibold whitespace-nowrap">
+                            Pedido: {totalPedido} · Entregue: {totalEntregue} · Reservado: {Math.max(0, totalPedido - totalEntregue)}
+                          </div>
+                          {confirmado != null && (
+                            <div className="text-xs font-black text-stone-500">Compra do grupo: {confirmado}</div>
+                          )}
+                        </>
+                      )
+                    ) : restante != null && (
                       <>
                         <div className="text-[11px] text-stone-400 font-semibold whitespace-nowrap">
                           Entregue: {entregue} · Reservado: {reservado}
