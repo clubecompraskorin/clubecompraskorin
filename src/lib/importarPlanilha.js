@@ -89,7 +89,7 @@ export async function parseTabelaKorin(file) {
 // que passou por Excel/Google Sheets/WhatsApp e voltou "mexida":
 //  - código como texto ("1423"), quantidade como texto ("5", "5 cx", "2,5");
 //  - linha sem preço de venda (produto que não saiu na venda) não é descartada;
-//  - procura o cabeçalho "QTDE (CX)" e usa a coluna dele; sem cabeçalho, cai na D;
+//  - acha as colunas pelo conteúdo/cabeçalho (não por letra fixa);
 //  - varre todas as abas, não só a primeira.
 // Também devolve um diagnóstico, pra mensagem de erro dizer o que de fato foi
 // lido em vez de um genérico "nenhuma quantidade".
@@ -114,49 +114,76 @@ function codigoTolerante(v) {
   return null
 }
 
+// Descobre as colunas pelo CONTEÚDO, não por letra fixa — a planilha que volta
+// pra gente pode ter perdido a coluna A em branco e deslocado tudo uma coluna.
+//  - colCod: a coluna com mais células "inteiro ≥ 100 com texto logo à direita"
+//    (código Korin + descrição) — é o padrão de uma linha de produto;
+//  - colNome: a coluna logo ao lado;
+//  - colQtde / colPorCaixa: pelo cabeçalho ("QTDE (CX)", "QTD P/ CX"); sem
+//    cabeçalho, mantém o mesmo afastamento do layout oficial (B→D, B→J).
+function detectarColunas(ws, range) {
+  const pontos = {}
+  const cabecalhos = {}
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const v = celulaTexto(ws, XLSX.utils.encode_cell({ r, c }))
+      if (v === undefined || v === '') continue
+      if (typeof v === 'string') {
+        const t = semAcento(v).trim()
+        if (/^QTDE\b/.test(t) && /CX/.test(t) && cabecalhos.qtde === undefined) cabecalhos.qtde = c
+        else if (/^QTD\.?\s*(P\/?|POR)\s*CX/.test(t) && cabecalhos.porCaixa === undefined) cabecalhos.porCaixa = c
+      }
+      const cod = codigoTolerante(v)
+      if (cod === null || cod < 100) continue
+      const vizinho = celulaTexto(ws, XLSX.utils.encode_cell({ r, c: c + 1 }))
+      if (typeof vizinho === 'string' && vizinho.trim().length > 2 && codigoTolerante(vizinho) === null) pontos[c] = (pontos[c] || 0) + 1
+    }
+  }
+  const melhor = Object.entries(pontos).sort((x, y) => y[1] - x[1])[0]
+  if (!melhor) return null
+  const colCod = Number(melhor[0])
+  return {
+    colCod,
+    colNome: colCod + 1,
+    colQtde: cabecalhos.qtde ?? colCod + 2,
+    colPorCaixa: cabecalhos.porCaixa ?? colCod + 8,
+    achouCabecalhoQtde: cabecalhos.qtde !== undefined,
+  }
+}
+
 export async function parseQtdeEnviada(file) {
   const buf = await file.arrayBuffer()
   const wb  = XLSX.read(buf, { type: 'array' })
   const produtos = []
-  const diag = { abas: wb.SheetNames.length, linhasComCodigo: 0, colunaQtde: null, cabecalhoAchado: false, amostraQtde: [] }
+  const diag = { abas: wb.SheetNames.length, abasInfo: [], linhasComCodigo: 0, colunaQtde: null, cabecalhoAchado: false, amostraQtde: [] }
 
   for (const nomeAba of wb.SheetNames) {
     const ws = wb.Sheets[nomeAba]
-    if (!ws || !ws['!ref']) continue
+    if (!ws || !ws['!ref']) { diag.abasInfo.push(`${nomeAba} (vazia)`); continue }
+    diag.abasInfo.push(`${nomeAba} (${ws['!ref']})`)
     const range = XLSX.utils.decode_range(ws['!ref'])
+    const cols = detectarColunas(ws, range)
+    if (!cols) continue
 
-    // Coluna da quantidade: a do cabeçalho "QTDE (CX)", senão a D.
-    let colQtde = COLS.qtdeCaixa
-    let achouCab = false
-    busca: for (let r = range.s.r; r <= range.e.r; r++) {
-      for (let c = range.s.c; c <= range.e.c; c++) {
-        const v = ws[XLSX.utils.encode_cell({ r, c })]?.v
-        if (typeof v === 'string' && /^QTDE\b/.test(semAcento(v).trim()) && /CX/.test(semAcento(v))) {
-          colQtde = XLSX.utils.encode_col(c)
-          achouCab = true
-          break busca
-        }
-      }
-    }
-    if (diag.colunaQtde === null || achouCab) { diag.colunaQtde = colQtde; diag.cabecalhoAchado = achouCab }
+    const letra = XLSX.utils.encode_col
+    if (diag.colunaQtde === null || cols.achouCabecalhoQtde) { diag.colunaQtde = letra(cols.colQtde); diag.cabecalhoAchado = cols.achouCabecalhoQtde }
 
     for (let r = range.s.r; r <= range.e.r; r++) {
       const linha = r + 1
-      const cod = codigoTolerante(celulaTexto(ws, `${COLS.cod}${linha}`))
+      const cod = codigoTolerante(celulaTexto(ws, `${letra(cols.colCod)}${linha}`))
       if (cod === null) continue
-      const nome = String(celulaTexto(ws, `${COLS.nome}${linha}`) || '').trim()
-      if (!nome) continue
+      const nome = String(celulaTexto(ws, `${letra(cols.colNome)}${linha}`) || '').trim()
+      if (!nome || codigoTolerante(nome) !== null) continue
       diag.linhasComCodigo++
 
-      const bruto = celulaTexto(ws, `${colQtde}${linha}`)
+      const bruto = celulaTexto(ws, `${letra(cols.colQtde)}${linha}`)
       if (bruto !== undefined && bruto !== '' && diag.amostraQtde.length < 3) diag.amostraQtde.push(`${cod}: ${JSON.stringify(bruto)}`)
-      const qtdeEnviada = numeroTolerante(bruto)
 
       produtos.push({
         cod,
         nome,
-        qtdCaixa: Number(celulaTexto(ws, `${COLS.qtdPorCaixa}${linha}`)) || 0,
-        qtdeEnviada,
+        qtdCaixa: Number(celulaTexto(ws, `${letra(cols.colPorCaixa)}${linha}`)) || 0,
+        qtdeEnviada: numeroTolerante(bruto),
       })
     }
   }

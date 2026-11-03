@@ -1428,7 +1428,7 @@ function ModalConfirmarCompra({ periodoId, produtosAtuais, onConcluido, onClose 
         })
       if (!comQtde.length) {
         if (!diag.linhasComCodigo) {
-          setErro('Não achei nenhuma linha de produto nessa planilha (código na coluna B e descrição na coluna C). Confira se é a planilha da Korin e não uma cópia reformatada.')
+          setErro(`Não achei nenhuma linha de produto (código numérico + descrição) nessa planilha. Abas lidas: ${diag.abasInfo.join(', ') || 'nenhuma'}.`)
         } else {
           const lido = diag.amostraQtde.length ? ` Valores lidos: ${diag.amostraQtde.join(' · ')}.` : ' A coluna estava vazia em todas as linhas.'
           setErro(`Li ${diag.linhasComCodigo} produtos, mas nenhum com quantidade na coluna ${diag.colunaQtde}${diag.cabecalhoAchado ? ' ("QTDE (CX)")' : ''}.${lido}`)
