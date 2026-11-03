@@ -1477,6 +1477,19 @@ function ModalConfirmarCompra({ periodoId, produtosAtuais, onConcluido, onClose 
 
   const confirmarSalvar = async () => {
     setSalvando(true)
+    // Cada envio SOMA ao estoque (não substitui). Subir a mesma planilha duas
+    // vezes dobra as quantidades, então avisa antes se esse arquivo já entrou
+    // neste período. Pode confirmar mesmo assim (ex.: planilha corrigida com o
+    // mesmo nome), mas nunca por engano.
+    if (arquivo?.name) {
+      const jaEnviadas = (await getComprasConfirmadas(periodoId)).filter(c => c.observacao === arquivo.name)
+      if (jaEnviadas.length) {
+        const quando = new Date(Math.max(...jaEnviadas.map(c => new Date(c.criadoEm).getTime())))
+          .toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+        const seguir = await confirmar(`Esta planilha já foi enviada neste período (${quando}).\n\nEnviar de novo SOMA as quantidades outra vez e o estoque fica em dobro.\n\nEnviar mesmo assim?`)
+        if (!seguir) { setSalvando(false); return }
+      }
+    }
     const payload = itens.map(it => ({ cod: it.cod, qtdeCaixas: it.qtdeCaixas }))
     const r = await registrarCompraConfirmada(periodoId, payload, arquivo?.name || null)
     setSalvando(false)
