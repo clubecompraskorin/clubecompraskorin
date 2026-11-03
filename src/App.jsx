@@ -866,21 +866,30 @@ function ModoEntrega({ pedido, produtos, formas, onCancelar, onFinalizar }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN: PRODUTOS
 // ═══════════════════════════════════════════════════════════════════════════════
-// Filtro por unidade: a compra confirmada é do GRUPO inteiro (uma planilha por
-// envio, sem unidade gravada), então o saldo só faz sentido na visão "Todas".
-// Filtrando uma unidade, mostra só o que ELA pediu/recebeu (Pedido, Entregue,
-// Reservado) e a compra do grupo ao lado, sem calcular saldo — senão o pedido
-// de uma unidade seria subtraído da compra de outra e o saldo sairia errado.
+// Filtro por unidade. Cada compra confirmada guarda a unidade da planilha que
+// a originou (compras_confirmadas.unidade; NULL = grupo todo / ajuste manual).
+// - "Todas as unidades": igual sempre foi — saldo do grupo inteiro.
+// - Uma unidade: Pedido/Entregue/Reservado dela, "Compra da unidade" (só as
+//   planilhas dela) e o saldo da unidade = compra da unidade − pedido dela.
+//   Ao lado, o TOTAL DO GRUPO (compra de todas as unidades e saldo geral),
+//   que é o que decide quanto a Korin tem que entregar no todo.
 function ProdutosScreen({ produtos, pedidos = [], sobraAnterior = {}, comprasConfirmadas = [], unidades = [], onAdd, onEdit, onDelete }) {
   const [filtroUnidade, setFiltroUnidade] = useState('Todas')
   const porUnidade = filtroUnidade !== 'Todas'
   const cats = [...new Set([...CATS_ORDEM, ...produtos.map(p => p.categoria)])]
-  const pedidosVisiveis = porUnidade ? pedidos.filter(p => (p.unidade || 'Não informada') === filtroUnidade) : pedidos
-  const totais = getTotaisPorProduto(pedidosVisiveis)
-  const totaisEntregues = getEntreguesPorProduto(pedidosVisiveis)
+  // Totais do grupo (sempre) e da unidade selecionada (só quando filtrando)
+  const totaisGrupo = getTotaisPorProduto(pedidos)
+  const entreguesGrupo = getEntreguesPorProduto(pedidos)
+  const pedidosUnidade = porUnidade ? pedidos.filter(p => (p.unidade || 'Não informada') === filtroUnidade) : []
+  const totaisUnidade = getTotaisPorProduto(pedidosUnidade)
+  const entreguesUnidade = getEntreguesPorProduto(pedidosUnidade)
   const confirmadoPorProdutoId = {}
+  const confirmadoUnidadePorProdutoId = {}
   comprasConfirmadas.forEach(c => {
     confirmadoPorProdutoId[c.periodoProdutoId] = (confirmadoPorProdutoId[c.periodoProdutoId] || 0) + c.quantidadeUnd
+    if (porUnidade && c.unidade === filtroUnidade) {
+      confirmadoUnidadePorProdutoId[c.periodoProdutoId] = (confirmadoUnidadePorProdutoId[c.periodoProdutoId] || 0) + c.quantidadeUnd
+    }
   })
   return (
     <div className="px-4 py-4 space-y-4">
@@ -896,7 +905,7 @@ function ProdutosScreen({ produtos, pedidos = [], sobraAnterior = {}, comprasCon
           </select>
           {porUnidade && (
             <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-2.5 text-xs text-amber-700 font-semibold">
-              Mostrando só os pedidos de {filtroUnidade}. A compra confirmada é do grupo todo, por isso o saldo só aparece em "Todas as unidades".
+              Saldo da unidade = compra das planilhas de {filtroUnidade} − pedidos dela. O total do grupo aparece em "Grupo".
             </div>
           )}
         </>
@@ -912,11 +921,15 @@ function ProdutosScreen({ produtos, pedidos = [], sobraAnterior = {}, comprasCon
             </div>
             <div className="space-y-2">
               {list.map(prod => {
-                const totalPedido = totais[prod.id] || 0
-                const totalEntregue = totaisEntregues[prod.id] || 0
+                const totalPedido = totaisGrupo[prod.id] || 0
+                const totalEntregue = entreguesGrupo[prod.id] || 0
                 const sobra = sobraAnterior[prod.cod] || 0
                 const confirmado = confirmadoPorProdutoId[prod.id] ?? null
                 const { restante, entregue, reservado } = calcEstoque(prod, totalPedido, sobra, confirmado, totalEntregue)
+                const pedUn = totaisUnidade[prod.id] || 0
+                const entUn = entreguesUnidade[prod.id] || 0
+                const compraUn = confirmadoUnidadePorProdutoId[prod.id] ?? null
+                const saldoUn = compraUn != null ? compraUn - pedUn : null
                 return (
                 <div key={prod.id} className={`bg-white rounded-2xl border px-3 py-3 flex items-center gap-3 shadow-sm ${prod.foraDaTabela ? 'border-amber-300' : 'border-stone-100'}`}>
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0" style={{ background: CAT_COR[prod.categoria] || '#888' }}>
@@ -932,13 +945,22 @@ function ProdutosScreen({ produtos, pedidos = [], sobraAnterior = {}, comprasCon
                   <div className="flex-shrink-0 text-right">
                     <div className="text-base font-black text-green-700">{fmt(prod.preco)}</div>
                     {porUnidade ? (
-                      (totalPedido > 0 || confirmado != null) && (
+                      (pedUn > 0 || compraUn != null || confirmado != null) && (
                         <>
                           <div className="text-[11px] text-stone-400 font-semibold whitespace-nowrap">
-                            Pedido: {totalPedido} · Entregue: {totalEntregue} · Reservado: {Math.max(0, totalPedido - totalEntregue)}
+                            Pedido: {pedUn} · Entregue: {entUn} · Reservado: {Math.max(0, pedUn - entUn)}
                           </div>
+                          {compraUn != null ? (
+                            <div className={`text-xs font-black ${saldoUn < 0 ? 'text-red-600' : saldoUn === 0 ? 'text-amber-600' : 'text-stone-500'}`}>
+                              Compra da unidade: {compraUn} → Saldo: {saldoUn}
+                            </div>
+                          ) : pedUn > 0 ? (
+                            <div className="text-[11px] font-bold text-amber-600 whitespace-nowrap">Sem compra confirmada p/ esta unidade</div>
+                          ) : null}
                           {confirmado != null && (
-                            <div className="text-xs font-black text-stone-500">Compra do grupo: {confirmado}</div>
+                            <div className="text-[11px] text-stone-400 font-semibold whitespace-nowrap border-t border-stone-100 mt-0.5 pt-0.5">
+                              Grupo: compra {confirmado} · saldo <b className={restante < 0 ? 'text-red-600' : 'text-stone-600'}>{restante}</b>
+                            </div>
                           )}
                         </>
                       )
@@ -1412,6 +1434,7 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
       {mostrarConfirmarCompra && (
         <ModalConfirmarCompra
           periodoId={periodoAtualId}
+          unidades={unidades}
           produtosAtuais={produtos}
           onConcluido={() => { setMostrarConfirmarCompra(false); onRecarregar?.() }}
           onClose={() => setMostrarConfirmarCompra(false)}
@@ -1433,19 +1456,36 @@ function FechamentoScreen({ pedidos, produtos, periodo, unidades, onPrintTodos, 
 // estimativa de caixas abertas. Estoque é único por organização, não por
 // unidade — a Korin vende só pra org inteira, então não faz sentido dividir
 // aqui; separar por unidade continua sendo trabalho da entrega, não da compra.
-function ModalConfirmarCompra({ periodoId, produtosAtuais, onConcluido, onClose }) {
+const GRUPO_TODO = '__grupo_todo__'
+function ModalConfirmarCompra({ periodoId, produtosAtuais, unidades = [], onConcluido, onClose }) {
   const [etapa, setEtapa]         = useState('upload') // upload | preview
   const [arquivo, setArquivo]     = useState(null)
   const [itens, setItens]         = useState([])
   const [carregando, setCarregando] = useState(false)
   const [salvando, setSalvando]   = useState(false)
   const [erro, setErro]           = useState('')
+  // '' = ainda não escolheu · GRUPO_TODO = compra sem unidade · senão, nome da unidade
+  const [unidade, setUnidade]     = useState('')
+  const exigeUnidade = unidades.length > 0
+
+  // Sugere a unidade pelo nome do arquivo ("...MAGALHAES BASTOS.xlsx" → "JC Magalhães Bastos").
+  // É só sugestão: o select continua editável.
+  const sugerirUnidade = (nomeArquivo) => {
+    const norm = t => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
+    const alvo = ` ${norm(nomeArquivo)} `
+    const achadas = unidades.filter(u => {
+      const miolo = norm(u).replace(/^(JC|IG|DIFUSAO|DIFUSÃO)\s+/, '')
+      return miolo.length > 2 && alvo.includes(` ${miolo} `)
+    })
+    return achadas.length === 1 ? achadas[0] : ''
+  }
 
   const handleFile = e => {
     const file = e.target.files?.[0]
     if (!file) return
     setErro('')
     setArquivo(file)
+    setUnidade(sugerirUnidade(file.name))
   }
 
   const processar = async () => {
@@ -1491,7 +1531,7 @@ function ModalConfirmarCompra({ periodoId, produtosAtuais, onConcluido, onClose 
       }
     }
     const payload = itens.map(it => ({ cod: it.cod, qtdeCaixas: it.qtdeCaixas }))
-    const r = await registrarCompraConfirmada(periodoId, payload, arquivo?.name || null)
+    const r = await registrarCompraConfirmada(periodoId, payload, arquivo?.name || null, unidade && unidade !== GRUPO_TODO ? unidade : null)
     setSalvando(false)
     if (!r.ok) { toast('Erro ao registrar: ' + r.error); return }
     toast(`Compra confirmada pra ${r.atualizados} produto${r.atualizados > 1 ? 's' : ''}`)
@@ -1530,8 +1570,19 @@ function ModalConfirmarCompra({ periodoId, produtosAtuais, onConcluido, onClose 
             </div>
           </div>
         )}
+        {arquivo && exigeUnidade && (
+          <div>
+            <div className="text-xs font-black text-stone-500 uppercase tracking-widest mb-1.5">Esta planilha é de qual unidade?</div>
+            <select value={unidade} onChange={e => setUnidade(e.target.value)}
+              className="w-full border border-stone-200 rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-green-500 bg-white">
+              <option value="">Escolha a unidade…</option>
+              {unidades.map(u => <option key={u} value={u}>{u}</option>)}
+              <option value={GRUPO_TODO}>Grupo todo (sem unidade)</option>
+            </select>
+          </div>
+        )}
         {erro && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 font-semibold">{erro}</div>}
-        <button onClick={processar} disabled={!arquivo || carregando}
+        <button onClick={processar} disabled={!arquivo || carregando || (exigeUnidade && !unidade)}
           className="w-full py-4 bg-green-700 text-white rounded-2xl font-black text-lg active:bg-green-800 disabled:opacity-50 flex items-center justify-center gap-2">
           {carregando ? <><span className="animate-spin inline-block">⟳</span> Lendo planilha…</> : '📊 Ler planilha'}
         </button>

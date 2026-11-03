@@ -307,6 +307,7 @@ const compraFromDb = (row) => ({
   quantidadeUnd: row.quantidade_und,
   origem: row.origem,
   observacao: row.observacao,
+  unidade: row.unidade ?? null,
   criadoEm: row.created_at,
 })
 
@@ -316,7 +317,7 @@ export async function getComprasConfirmadas(periodoId) {
   try {
     const { data, error } = await supabase
       .from('compras_confirmadas')
-      .select('id, periodo_produto_id, quantidade_und, origem, observacao, created_at, periodo_produtos!inner(cod, periodo_id)')
+      .select('id, periodo_produto_id, quantidade_und, origem, observacao, unidade, created_at, periodo_produtos!inner(cod, periodo_id)')
       .eq('periodo_produtos.periodo_id', periodoId)
       .order('created_at', { ascending: false })
     if (error) throw error
@@ -332,7 +333,7 @@ export async function getComprasConfirmadas(periodoId) {
  * A Korin vende só pra organização inteira — não existe "compra por
  * unidade". Vale igual pra pedido do clube e pra venda no PDV.
  */
-export async function registrarCompraConfirmada(periodoId, itens, observacao = null) {
+export async function registrarCompraConfirmada(periodoId, itens, observacao = null, unidade = null) {
   if (!supabase || !periodoId) return { ok: false, error: 'Sem conexão com internet' }
   try {
     const { data: existentes, error: e1 } = await supabase
@@ -346,7 +347,7 @@ export async function registrarCompraConfirmada(periodoId, itens, observacao = n
       .map(it => {
         const prod = porCod[it.cod]
         if (!prod || !prod.qtd_caixa) return null
-        return { periodo_produto_id: prod.id, quantidade_und: Math.round(it.qtdeCaixas * prod.qtd_caixa), origem: 'planilha', observacao }
+        return { periodo_produto_id: prod.id, quantidade_und: Math.round(it.qtdeCaixas * prod.qtd_caixa), origem: 'planilha', observacao, unidade: unidade || null }
       })
       .filter(Boolean)
 
