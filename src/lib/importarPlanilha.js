@@ -81,6 +81,89 @@ export async function parseTabelaKorin(file) {
   return { periodo, produtos }
 }
 
+// ── Leitura da planilha JÁ PREENCHIDA e enviada à Korin (QTDE (CX)) ──────────
+// Usada só pelo "Confirmar o que foi realmente comprado". Separada de
+// parseTabelaKorin de propósito: aquela serve ao import de catálogo (que
+// exige preço de venda e código numérico puro) e não pode mudar. Aqui o que
+// importa é só código + quantidade, então é bem mais tolerante com planilha
+// que passou por Excel/Google Sheets/WhatsApp e voltou "mexida":
+//  - código como texto ("1423"), quantidade como texto ("5", "5 cx", "2,5");
+//  - linha sem preço de venda (produto que não saiu na venda) não é descartada;
+//  - procura o cabeçalho "QTDE (CX)" e usa a coluna dele; sem cabeçalho, cai na D;
+//  - varre todas as abas, não só a primeira.
+// Também devolve um diagnóstico, pra mensagem de erro dizer o que de fato foi
+// lido em vez de um genérico "nenhuma quantidade".
+const semAcento = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+
+function celulaTexto(ws, addr) {
+  const c = ws[addr]
+  if (!c) return undefined
+  return c.v !== undefined && c.v !== null ? c.v : c.w
+}
+
+function numeroTolerante(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0
+  if (typeof v !== 'string') return 0
+  const m = v.trim().replace(/\s+/g, '').match(/^-?\d+(?:[.,]\d+)?/)
+  return m ? Number(m[0].replace(',', '.')) : 0
+}
+
+function codigoTolerante(v) {
+  if (typeof v === 'number') return Number.isInteger(v) && v > 0 ? v : null
+  if (typeof v === 'string' && /^\s*\d+\s*$/.test(v)) return Number(v)
+  return null
+}
+
+export async function parseQtdeEnviada(file) {
+  const buf = await file.arrayBuffer()
+  const wb  = XLSX.read(buf, { type: 'array' })
+  const produtos = []
+  const diag = { abas: wb.SheetNames.length, linhasComCodigo: 0, colunaQtde: null, cabecalhoAchado: false, amostraQtde: [] }
+
+  for (const nomeAba of wb.SheetNames) {
+    const ws = wb.Sheets[nomeAba]
+    if (!ws || !ws['!ref']) continue
+    const range = XLSX.utils.decode_range(ws['!ref'])
+
+    // Coluna da quantidade: a do cabeçalho "QTDE (CX)", senão a D.
+    let colQtde = COLS.qtdeCaixa
+    let achouCab = false
+    busca: for (let r = range.s.r; r <= range.e.r; r++) {
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const v = ws[XLSX.utils.encode_cell({ r, c })]?.v
+        if (typeof v === 'string' && /^QTDE\b/.test(semAcento(v).trim()) && /CX/.test(semAcento(v))) {
+          colQtde = XLSX.utils.encode_col(c)
+          achouCab = true
+          break busca
+        }
+      }
+    }
+    if (diag.colunaQtde === null || achouCab) { diag.colunaQtde = colQtde; diag.cabecalhoAchado = achouCab }
+
+    for (let r = range.s.r; r <= range.e.r; r++) {
+      const linha = r + 1
+      const cod = codigoTolerante(celulaTexto(ws, `${COLS.cod}${linha}`))
+      if (cod === null) continue
+      const nome = String(celulaTexto(ws, `${COLS.nome}${linha}`) || '').trim()
+      if (!nome) continue
+      diag.linhasComCodigo++
+
+      const bruto = celulaTexto(ws, `${colQtde}${linha}`)
+      if (bruto !== undefined && bruto !== '' && diag.amostraQtde.length < 3) diag.amostraQtde.push(`${cod}: ${JSON.stringify(bruto)}`)
+      const qtdeEnviada = numeroTolerante(bruto)
+
+      produtos.push({
+        cod,
+        nome,
+        qtdCaixa: Number(celulaTexto(ws, `${COLS.qtdPorCaixa}${linha}`)) || 0,
+        qtdeEnviada,
+      })
+    }
+  }
+
+  return { produtos, diag }
+}
+
 // Remove jargão de logística que só interessa pra Korin/Dedicante, não pro
 // membro (CONG=congelado, PCT=pacote, CX=caixa, "C/17KG C/17 PCT"=descrição
 // de embalagem) e troca pelo peso real da unidade, que o sistema já calcula
