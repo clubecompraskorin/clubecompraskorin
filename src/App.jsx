@@ -11,7 +11,7 @@ import {
   getComparativoPeriodoAnterior, registrarCompraConfirmada,
   getSobraPeriodoAnterior, getComprasConfirmadas,
 } from './lib/periodos'
-import { parseTabelaKorin } from './lib/importarPlanilha'
+import { parseQtdeEnviada } from './lib/importarPlanilha'
 import { ToastHost, ConfirmHost, toast, confirmar } from './lib/dialog'
 import { getUnidades } from './lib/unidades'
 import { getMinhasUnidades } from './lib/auth'
@@ -1419,7 +1419,7 @@ function ModalConfirmarCompra({ periodoId, produtosAtuais, onConcluido, onClose 
     if (!arquivo) return
     setCarregando(true); setErro('')
     try {
-      const { produtos } = await parseTabelaKorin(arquivo)
+      const { produtos, diag } = await parseQtdeEnviada(arquivo)
       const comQtde = produtos
         .filter(p => p.qtdeEnviada > 0)
         .map(p => {
@@ -1427,7 +1427,12 @@ function ModalConfirmarCompra({ periodoId, produtosAtuais, onConcluido, onClose 
           return { cod: p.cod, nome: atual?.nome || p.nome, qtdeCaixas: p.qtdeEnviada, qtdCaixa: atual?.qtdCaixa || p.qtdCaixa || 0, achouNoCatalogo: !!atual }
         })
       if (!comQtde.length) {
-        setErro('Nenhuma quantidade encontrada nessa planilha. Confira se é a planilha com a coluna "QTDE (CX)" preenchida.')
+        if (!diag.linhasComCodigo) {
+          setErro('Não achei nenhuma linha de produto nessa planilha (código na coluna B e descrição na coluna C). Confira se é a planilha da Korin e não uma cópia reformatada.')
+        } else {
+          const lido = diag.amostraQtde.length ? ` Valores lidos: ${diag.amostraQtde.join(' · ')}.` : ' A coluna estava vazia em todas as linhas.'
+          setErro(`Li ${diag.linhasComCodigo} produtos, mas nenhum com quantidade na coluna ${diag.colunaQtde}${diag.cabecalhoAchado ? ' ("QTDE (CX)")' : ''}.${lido}`)
+        }
         return
       }
       setItens(comQtde)
